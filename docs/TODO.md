@@ -58,8 +58,8 @@ Légende : [x] fait · [~] en cours · [ ] à faire
 - [x] Commit de phase
 
 ## Phase 7 — GitHub & Vercel
-- [ ] auth gh / vercel
-- [ ] repo + README + LICENSE + CONTRIBUTING
-- [ ] CI GitHub Actions
-- [ ] déploiement Vercel + vérification en prod
-- [ ] Commit final
+- [~] auth : Vercel OK (CLI déjà connecté), `gh` non connecté → blocage autorisé
+- [~] README, LICENSE, CONTRIBUTING prêts ; création du repo en attente de `gh auth login`
+- [~] CI GitHub Actions écrite (`.github/workflows/ci.yml`), tournera au premier push
+- [x] déploiement Vercel + vérification en prod (e2e 14 passés / 4 ignorés sur mobile, aucune erreur console)
+- [x] Commit final

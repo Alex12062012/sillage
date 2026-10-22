@@ -6,7 +6,7 @@
 
 ![Sillage gameplay](docs/media/sillage.gif)
 
-▶ **Play:** _deployment link coming soon_
+▶ **Play:** [sillage-hazel-kappa.vercel.app](https://sillage-hazel-kappa.vercel.app)
 
 Short runs of 45–90 seconds down procedurally generated mountains. Carve to keep your speed, tuck to chase it, skim trees for near-miss chains, launch off kickers, then hit **Retry** and do it better. Every challenge has bronze, silver and gold tiers; stars unlock new runs and outfits.
 

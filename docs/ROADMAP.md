@@ -1,6 +1,6 @@
 # Roadmap — jalons chiffrés
 
-> Avancement : phases 0 à 6 terminées (voir TODO.md et les commits).
+> Avancement : phases 0 à 6 terminées ; phase 7 : jeu en ligne sur Vercel, dépôt GitHub en attente de `gh auth login` (voir TODO.md et les commits).
 
 | Phase | Livrable | Porte (critère chiffré) | Budget |
 |---|---|---|---|
