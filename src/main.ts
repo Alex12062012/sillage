@@ -20,7 +20,11 @@ const storage = (() => {
   }
 })();
 let save: Save = loadSave(storage);
-if (!storage.getItem('sillage.save.v1') && matchMedia('(prefers-reduced-motion: reduce)').matches) save.settings.comfort = true;
+if (!storage.getItem('sillage.save.v1')) {
+  // first launch: comfort mode when the OS asks for reduced motion; phones start on Medium (DPR ≤ 1.5)
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) save.settings.comfort = true;
+  if (matchMedia('(pointer: coarse)').matches) save.settings.quality = 'medium';
+}
 const persist = () => saveSave(storage, save);
 
 // ── renderer (MSAA only on the high setting; it is chosen at boot)
@@ -224,8 +228,8 @@ function loop(now: number): void {
   last = now;
   game.frame(dt);
   if (mode === 'run' || mode === 'attract') {
-    if (dt > 0.022) { slow++; fast = 0; } else if (dt < 0.0145) { fast++; slow = Math.max(0, slow - 1); }
-    if (slow > 90 && qualityScale > 0.6) { qualityScale = Math.max(0.6, qualityScale - 0.1); slow = 0; applySettings(); }
+    if (dt > 0.022) { slow += dt > 0.033 ? 2 : 1; fast = 0; } else if (dt < 0.0145) { fast++; slow = Math.max(0, slow - 1); }
+    if (slow > 60 && qualityScale > 0.5) { qualityScale = Math.max(0.5, qualityScale - (dt > 0.033 ? 0.15 : 0.1)); slow = 0; applySettings(); }
     if (fast > 600 && qualityScale < 1) { qualityScale = Math.min(1, qualityScale + 0.05); fast = 0; applySettings(); }
   }
   fpsT += dt;
