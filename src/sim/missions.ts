@@ -27,19 +27,19 @@ export interface RunStats {
 
 export const CHALLENGES: Record<string, Challenge[]> = {
   'combe-douce': [
-    { id: 'cd-race', kind: 'race', tiers: [100, 80, 66], lowerIsBetter: true },
+    { id: 'cd-race', kind: 'race', tiers: [100, 74, 60], lowerIsBetter: true },
     { id: 'cd-speed', kind: 'speed', tiers: [55, 70, 85] },
     { id: 'cd-air', kind: 'air', tiers: [12, 20, 30] },
   ],
   'crete-du-loup': [
-    { id: 'cl-race', kind: 'race', tiers: [135, 105, 90], lowerIsBetter: true },
+    { id: 'cl-race', kind: 'race', tiers: [135, 100, 80], lowerIsBetter: true },
     { id: 'cl-chain', kind: 'chain', tiers: [1, 3, 5] },
     { id: 'cl-spin', kind: 'spin', tiers: [180, 360, 720] },
   ],
   'couloir-noir': [
-    { id: 'cn-race', kind: 'race', tiers: [165, 125, 108], lowerIsBetter: true },
+    { id: 'cn-race', kind: 'race', tiers: [165, 120, 96], lowerIsBetter: true },
     { id: 'cn-clean', kind: 'clean', tiers: [2, 1, 0], lowerIsBetter: true },
-    { id: 'cn-score', kind: 'score', tiers: [3000, 5500, 8500] },
+    { id: 'cn-score', kind: 'score', tiers: [3500, 7000, 11000] },
   ],
 };
 

@@ -48,8 +48,19 @@ export function botInput(s: SkierState, t: Track, out: SkierInput, targetSpeed: 
     if (score > bestScore) { bestScore = score; best = o; }
   }
   mem.offset = best;
-  const desired = Math.atan2(cx + best - s.pos.x, look);
+  let desired = Math.atan2(cx + best - s.pos.x, look);
   const current = speed > 1 ? Math.atan2(s.vel.x, s.vel.z) : s.heading;
+  // emergency: something within ~0.7 s sits on the current line → turn away from it now
+  const vx = Math.sin(current);
+  const vz = Math.cos(current);
+  for (const ob of obstacles) {
+    const dx = ob.x - s.pos.x;
+    const dz = ob.z - s.pos.z;
+    const along = dx * vx + dz * vz;
+    if (along < 0 || along > Math.max(6, speed * 0.7)) continue;
+    const lateral = dx * vz - dz * vx;
+    if (Math.abs(lateral) < ob.r + T.skierRadius + 1.2) desired = current - Math.sign(lateral || 1) * 0.9;
+  }
   const err = wrap(desired - current);
   out.steer = Math.max(-1, Math.min(1, -err * 2.4));
   out.brake = (speed > targetSpeed * 1.08 && Math.abs(err) < 0.15) || speed > targetSpeed * 1.35; // braking kills grip: turn first

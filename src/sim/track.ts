@@ -277,6 +277,7 @@ export function makeTrack(def: TrackDef): Track {
   const phS2 = rnd() * Math.PI * 2;
   const cliffs = features.filter((f) => f.type === 'cliff');
   const tanStart = Math.tan(7 * DEG);
+  const tanMin = Math.tan(4 * DEG);
   const tanRunout = Math.tan(3 * DEG);
   const slopeAt = (z: number) => {
     let s = tanBase + dTan * (0.6 * Math.sin((2 * Math.PI * z) / lamS1 + phS1) + 0.4 * Math.sin((2 * Math.PI * z) / lamS2 + phS2));
@@ -285,6 +286,7 @@ export function makeTrack(def: TrackDef): Track {
       s += ((c.height ?? 5) / (1.3 * Math.sqrt(Math.PI))) * Math.exp(-u * u);
     }
     for (const k of kickers) s += kickerDipSlope(k, z - k.z);
+    s = Math.max(s, tanMin); // never uphill: a stopped or crashed skier can always slide on (review finding)
     const w1 = smoothstep(-8, 45, z);
     const w2 = smoothstep(L + 20, L + 130, z);
     return (tanStart + (s - tanStart) * w1) * (1 - w2) + tanRunout * w2;
@@ -395,6 +397,21 @@ export function makeTrack(def: TrackDef): Track {
   }
   const index = indexObstacles(list);
 
+  /** Back on the line a few metres up, on a spot clear of anything around or just ahead; else further up. */
+  function respawn(z: number): { x: number; z: number; heading: number } {
+    const rz = Math.max(0, z - 4);
+    const c = centerX(rz);
+    const heading = Math.atan((centerX(rz + 1) - centerX(rz - 1)) / 2);
+    const tmp: Obstacle[] = [];
+    for (const dx of [0, 3, -3, 6, -6, 9, -9]) {
+      const x = c + dx;
+      const blocked = index.near(x, rz + 5, 9, tmp).some((o) =>
+        Math.hypot(o.x - x, o.z - rz) < o.r + 2 || (o.z > rz && o.z < rz + 12 && Math.abs(o.x - x) < o.r + 2));
+      if (!blocked) return { x, z: rz, heading };
+    }
+    return rz > 0 ? respawn(rz + 1) : { x: c, z: rz, heading };
+  }
+
   return {
     def,
     kickers,
@@ -405,18 +422,6 @@ export function makeTrack(def: TrackDef): Track {
     surface,
     obstaclesNear: index.near,
     obstaclesBetween: index.between,
-    respawn: (z) => {
-      // back on the line a few metres up, sidestepping anything in the next 12 m
-      const rz = Math.max(0, z - 4);
-      const c = centerX(rz);
-      const heading = Math.atan((centerX(rz + 1) - centerX(rz - 1)) / 2);
-      const tmp: Obstacle[] = [];
-      for (const dx of [0, 3, -3, 6, -6, 9, -9]) {
-        const x = c + dx;
-        const blocked = index.near(x, rz + 6, 7, tmp).some((o) => Math.abs(o.x - x) < o.r + 2 && o.z > rz - 1);
-        if (!blocked) return { x, z: rz, heading };
-      }
-      return { x: c, z: rz, heading };
-    },
+    respawn,
   };
 }

@@ -40,7 +40,7 @@ describe('progress', () => {
 
   it('unlocks the next runs at 4 and 9 stars, and cosmetics by star count', () => {
     let s = loadSave(mem());
-    const r = applyRun(s, 'combe-douce', stats({ time: 75, topKmh: 72, longestJump: 21 })); // 6 stars
+    const r = applyRun(s, 'combe-douce', stats({ time: 73, topKmh: 72, longestJump: 21 })); // 6 stars
     s = r.save;
     expect(totalStars(s)).toBe(6);
     expect(r.unlocked).toEqual(['crete-du-loup']);

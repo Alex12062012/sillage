@@ -160,3 +160,33 @@ describe('kicker split', () => {
     }
   });
 });
+
+describe('review regressions', () => {
+  it('never builds an uphill basin across the corridor (a stopped skier can always slide on)', () => {
+    for (const def of TRACKS) {
+      const t = makeTrack(def);
+      for (const side of [-1, 1]) {
+        let prev = Infinity;
+        for (let z = 0; z <= def.length; z += 1) {
+          const h = t.height(t.centerX(z) + side * (def.halfWidth - 3), z);
+          expect(h, `${def.id} z=${z} side=${side}`).toBeLessThanOrEqual(prev + 0.02);
+          prev = h;
+        }
+      }
+    }
+  });
+
+  it('never respawns the skier on or against an obstacle', async () => {
+    const { TUNING } = await import('../../src/tuning');
+    for (const def of TRACKS) {
+      const t = makeTrack(def);
+      for (let z = 1; z < def.length; z += 0.5) {
+        const r = t.respawn(z);
+        for (const o of t.obstaclesNear(r.x, r.z, 6, [])) {
+          const d = Math.hypot(o.x - r.x, o.z - r.z);
+          expect(d, `${def.id} respawn(${z}) near obstacle ${o.id}`).toBeGreaterThan(o.r + TUNING.skierRadius + 0.3);
+        }
+      }
+    }
+  });
+});
