@@ -1,11 +1,12 @@
-import { Color, DirectionalLight, Fog, HemisphereLight, MathUtils, Scene, Vector3, type WebGLRenderer } from 'three';
+import { Group, MathUtils, Scene, Vector3, type WebGLRenderer } from 'three';
 import { GameAudio } from './audio/audio';
 import { Input } from './input/input';
 import { ChaseCamera } from './render/camera';
 import { Flakes, pointScale, SkiTrails, SnowSpray } from './render/fx';
-import { buildTrees } from './render/props';
+import { buildChunkProps, buildLandmarks } from './render/props';
 import { SkierModel } from './render/skierModel';
-import { buildTerrainMesh } from './render/terrain';
+import { Sky } from './render/sky';
+import { Terrain } from './render/terrain';
 import { botInput } from './sim/bot';
 import { createRun, SlowMo, stepRun, type RunEvent, type RunState } from './sim/run';
 import { createSkier, stepSkier, type SkierEvent, type SkierInput, type SkierState } from './sim/skier';
@@ -23,7 +24,10 @@ export class Game {
   readonly input = new Input();
   readonly audio = new GameAudio();
   readonly cam: ChaseCamera;
-  track: Track;
+  track!: Track;
+  readonly sky: Sky;
+  private terrain: Terrain | null = null;
+  private world = new Group();
   skier!: SkierState;
   run!: RunState;
   private model = new SkierModel();
@@ -48,23 +52,25 @@ export class Game {
   private fpsT = 0;
 
   constructor(private renderer: WebGLRenderer, def: TrackDef, private hud: Hud) {
-    const sky = new Color(0x9ec5e8);
-    this.scene.background = sky;
-    this.scene.fog = new Fog(sky, 90, 430);
-    this.scene.add(new HemisphereLight(0xdfefff, 0x7d8aa3, 1.5));
-    const sun = new DirectionalLight(0xfff0d8, 1.8);
-    sun.position.set(-40, 80, -30);
-    this.scene.add(sun);
-    this.track = makeTrack(def);
-    this.scene.add(buildTerrainMesh(this.track));
-    this.scene.add(buildTrees(this.track, this.track.obstaclesBetween(-50, def.length + 100)));
-    this.scene.add(this.model.root, this.trails.mesh, this.spray.points, this.flakes.points);
+    this.sky = new Sky(this.scene);
+    this.scene.add(this.world, this.model.root, this.trails.mesh, this.spray.points, this.flakes.points);
     this.cam = new ChaseCamera(1);
+    this.load(def);
+  }
+
+  /** Builds the world for a run definition (chunks stream in as the skier moves). */
+  load(def: TrackDef): void {
+    this.terrain?.dispose();
+    this.world.clear();
+    this.track = makeTrack(def);
+    this.terrain = new Terrain(this.track, buildChunkProps);
+    this.world.add(this.terrain.group, buildLandmarks(this.track));
+    this.sky.setTime(def.timeOfDay);
     this.reset();
   }
 
   reset(): void {
-    this.skier = createSkier(this.track, this.track.centerX(2), 2, 0);
+    this.skier = createSkier(this.track, this.track.centerX(-8), -8, 0);
     this.run = createRun();
     this.prevPos.copy(this.skier.pos);
     this.prevHeading = this.skier.heading;
@@ -72,6 +78,8 @@ export class Game {
     this.cam.snap(this.skier.pos, 0);
     this.trails.reset();
     this.acc = 0;
+    this.sky.setTime(this.track.def.timeOfDay);
+    this.terrain?.prewarm(this.skier.pos.z);
   }
 
   private step(): void {
@@ -159,7 +167,10 @@ export class Game {
     this.renderPos.lerpVectors(this.prevPos, s.pos, alpha);
     const heading = this.prevHeading + Math.atan2(Math.sin(s.heading - this.prevHeading), Math.cos(s.heading - this.prevHeading)) * alpha;
     this.model.update(s, this.renderPos, heading, this.track, realDt);
-    this.cam.update(this.renderPos, s, realDt);
+    this.cam.update(this.renderPos, s, realDt, this.track.height);
+    this.terrain!.update(this.cam.camera.position.z, 1);
+    this.sky.setTime(this.sky.time + gdt * 0.0012); // slow day cycle during a run
+    this.sky.update(this.cam.camera.position);
     this.emitSpray(heading, gdt);
     this.spray.update(gdt);
     const powder = s.surface === Surface.Powder;
@@ -212,6 +223,10 @@ export class Game {
   resize(w: number, h: number): void {
     this.cam.camera.aspect = w / h;
     this.cam.camera.updateProjectionMatrix();
+  }
+
+  get chunkBuildMs(): number {
+    return this.terrain?.buildMs ?? 0;
   }
 
   get particles(): number {

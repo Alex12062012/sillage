@@ -2,21 +2,19 @@ import './style.css';
 import { WebGLRenderer } from 'three';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
-import type { TrackDef } from './sim/track';
+import { trackById } from './sim/tracks';
 import { createDebugPanel } from './ui/debug';
 import { Hud } from './ui/hud';
+import { TUNING } from './tuning';
 
-const GREYBOX: TrackDef = {
-  id: 'greybox', name: 'Grey box', seed: 7, length: 1200, slopeDeg: 16, halfWidth: 24,
-  kickers: [{ z: 250, size: 'small' }, { z: 520, size: 'medium' }, { z: 820, size: 'large' }],
-};
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const ui = document.getElementById('ui')!;
 const hud = new Hud(ui);
-const game = new Game(renderer, GREYBOX, hud);
+const params = new URLSearchParams(location.search);
+const game = new Game(renderer, trackById(params.get('track') ?? ''), hud);
 
 const debug = createDebugPanel(document.body, () => {
   const i = renderer.info;
@@ -61,11 +59,31 @@ window.__sillage = {
     return {
       x: s.pos.x, y: s.pos.y, z: s.pos.z, kmh: s.vel.length() * 3.6, airborne: s.airborne, crashed: s.crashTimer > 0,
       heading: s.heading, fps: game.fps, score: game.run.score, nearMisses: game.run.nearMisses, crashes: game.run.crashes,
-      calls: renderer.info.render.calls, tris: renderer.info.render.triangles, fov: game.cam.camera.fov,
+      calls: renderer.info.render.calls, tris: renderer.info.render.triangles, fov: game.cam.camera.fov, buildMs: game.chunkBuildMs,
     };
   },
   drive: (o: Partial<SkierInput> | null) => { game.input.override = o; },
   restart: () => game.reset(),
+  load: (id: string) => game.load(trackById(id)),
+  time: (t: number) => game.sky.setTime(t),
+  tune: (key: keyof typeof TUNING, value: number) => { TUNING[key] = value; },
+  features: () => game.track.features.map((f) => ({ ...f })),
+  teleport: (z: number, kmh = 40) => {
+    game.reset();
+    const s = game.skier;
+    const x = game.track.centerX(z);
+    s.pos.set(x, game.track.height(x, z), z);
+    s.heading = 0;
+    s.vel.set(0, 0, kmh / 3.6);
+    game.cam.snap(s.pos, 0);
+  },
+  probe: (fog: boolean, sky: boolean) => {
+    game.sky.fog.far = fog ? 470 : 1e9;
+    game.sky.fog.near = fog ? 120 : 1e9;
+    game.scene.traverse((o) => { if (o.renderOrder < 0) o.visible = sky; });
+    const c = game.cam.camera;
+    return { cam: [c.position.x, c.position.y, c.position.z], ground: game.track.height(c.position.x, c.position.z) };
+  },
   autopilot: (kmh: number | null, gap = 2.4) => { game.bot = kmh ? kmh / 3.6 : null; game.botGap = gap; },
   gpu: () => {
     const gl = renderer.getContext();

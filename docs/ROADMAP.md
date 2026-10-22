@@ -1,5 +1,7 @@
 # Roadmap — jalons chiffrés
 
+> Avancement : phases 0 à 3 terminées (voir TODO.md et les commits).
+
 | Phase | Livrable | Porte (critère chiffré) | Budget |
 |---|---|---|---|
 | **0 — Conception** | GDD, FEEL, RESEARCH, ARCHITECTURE, RISKS, ROADMAP, DECISIONS | GDD < 3 pages (≈ 1 000 mots) ; 3 piliers | ~1 h |

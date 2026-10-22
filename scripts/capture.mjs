@@ -99,17 +99,61 @@ if (scenario.startsWith('feel')) {
   await shot('p2-debug-panel');
 }
 
+if (scenario.startsWith('world')) {
+  for (const id of ['combe-douce', 'crete-du-loup', 'couloir-noir']) {
+    await page.evaluate((t) => { window.__sillage.load(t); window.__sillage.restart(); }, id);
+    await wait(600);
+    await shot(`p3-${id}-start`);
+    await page.evaluate(() => window.__sillage.autopilot(55));
+    await wait(9000);
+    await shot(`p3-${id}-run`);
+    // high "drone" view: is the line readable from above?
+    await page.evaluate(() => { window.__sillage.tune('camHeight', 24); window.__sillage.tune('camDistance', 34); window.__sillage.tune('camLookAhead', 60); });
+    await wait(1500);
+    await shot(`p3-${id}-drone`);
+    await page.evaluate(() => { window.__sillage.tune('camHeight', 2); window.__sillage.tune('camDistance', 4.6); window.__sillage.tune('camLookAhead', 7); });
+    await until((s) => s.airborne, 25000);
+    await wait(350);
+    await shot(`p3-${id}-air`);
+    await page.evaluate(() => window.__sillage.autopilot(null));
+  }
+}
+
+if (scenario.startsWith('features')) {
+  for (const id of ['crete-du-loup', 'couloir-noir']) {
+    await page.evaluate((t) => window.__sillage.load(t), id);
+    const feats = await page.evaluate(() => window.__sillage.features());
+    const seen = new Set();
+    for (const f of feats) {
+      if (seen.has(f.type)) continue;
+      seen.add(f.type);
+      const z = f.type === 'arch' ? f.z0 - 8 : f.type === 'cliff' ? f.z0 + 2 : f.z0 - 20;
+      await page.evaluate((zz) => window.__sillage.teleport(zz, 35), z);
+      await drive({ brake: true });
+      await wait(900);
+      await drive(null);
+      await shot(`p3-${id}-${f.type}`);
+    }
+  }
+}
+
 if (scenario.startsWith('perf')) {
   if (mobile) {
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   }
+  const track = process.env.TRACK || 'couloir-noir';
+  await page.evaluate((t) => { window.__sillage.load(t); }, track);
   await page.evaluate(() => window.__sillage.autopilot(65));
   const samples = [];
-  for (let i = 0; i < 24; i++) {
+  let maxBuild = 0;
+  for (let i = 0; i < 40; i++) {
     await wait(500);
-    samples.push((await state()).fps);
+    const st = await state();
+    samples.push(st.fps);
+    maxBuild = Math.max(maxBuild, st.buildMs);
   }
+  console.log(JSON.stringify({ track, lastChunkBuildMsMax: +maxBuild.toFixed(1) }));
   const st = await state();
   const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
   console.log(JSON.stringify({ scenario, avgFps: +avg.toFixed(1), minFps: +Math.min(...samples).toFixed(1), calls: st.calls, tris: st.tris, z: Math.round(st.z) }));

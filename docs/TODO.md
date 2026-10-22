@@ -34,11 +34,11 @@ Légende : [x] fait · [~] en cours · [ ] à faire
 - [x] Commit de phase
 
 ## Phase 3 — Monde
-- [ ] terrain seedé complet + chunks + LOD
-- [ ] sapins, rochers, piquets, arches (instancing)
-- [ ] ciel, brouillard, heure du jour
-- [ ] 3 pistes (3 seeds) + captures de lisibilité
-- [ ] Commit de phase
+- [x] terrain seedé complet + chunks + LOD
+- [x] sapins, rochers, piquets, arches (instancing)
+- [x] ciel, brouillard, heure du jour
+- [x] 3 pistes (3 seeds) + captures de lisibilité
+- [x] Commit de phase
 
 ## Phase 4 — Boucle & progression
 - [ ] run state, score, missions, étoiles

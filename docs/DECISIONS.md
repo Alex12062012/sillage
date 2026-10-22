@@ -42,3 +42,13 @@ Format : **décision** · raison · alternatives écartées.
 27. **Bot de suivi de ligne** (`sim/bot.ts`) : il prouve qu'une piste se finit sans technique particulière (porte c), pilote les captures et sert de banc FPS reproductible.
 28. **API debug `window.__sillage`** (état, `drive`, `autopilot`, `gpu`) : elle rend les tests Playwright déterministes sans simuler le clavier.
 29. **Mesure FPS sur le GPU matériel** (ANGLE Metal), pas sur SwiftShader : les chiffres sont représentatifs du desktop. Le « mobile émulé » = CPU ×4 (référence Lighthouse) + viewport et DPR d'un Pixel 7. Le GPU n'est pas bridé : la marge GPU mobile est gérée par le pixel ratio adaptatif (Phase 6).
+
+## Phase 3
+
+30. **Tremplin = bosse locale + creux intégré à la pente de base.** Un creux de réception local (17 m de profondeur sur le grand tremplin) formait une fosse ; vu de la caméra, le ciel apparaissait à travers. Le creux est maintenant un raidissement de toute la largeur, comme un « mur » naturel, et la bosse d'envol reste locale. Le long de l'axe, bosse + creux = le profil calibré en Phase 1 (test dédié).
+31. **Garde au sol de la caméra** (à sa position et à mi-chemin du skieur). Sur pente raide ou sur le talus, « skieur + 2 m » passait sous la neige. Diagnostic mesuré : caméra à 9 cm du sol.
+32. **Plan lointain à 3 000 m.** Le dôme du ciel (1 400 m) était découpé au centre de l'écran, ce qui donnait du noir.
+33. **Grille cisaillée le long de la ligne + normales calculées sur une grille à bord fantôme.** Aucune couture d'éclairage entre chunks, aucun triangle gaspillé hors couloir. Coût mesuré : 6–7 ms par chunk LOD0, au plus un chunk par frame.
+34. **Clairières « justes »** : un écart d'au moins 6 m entre troncs d'une même rangée, et des rangées espacées de 10–15 m. Il y a toujours un couloir praticable, comme le prouve le bot (0 chute à allure prudente).
+35. **Le bot ne freine pas en virage** (freiner divise l'adhérence par trois). Il cherchait à tenir 50 km/h en freinant sur 23° et percutait les sapins. C'est aussi un conseil de pilotage pour le joueur.
+36. **Lisibilité** : bande damée plus claire avec une ligne de bord, piquets de la couleur de la difficulté (bleu, rouge, noir), drapeaux orange avant les tremplins, lèvres teintées, poteaux jaune et noir avant les falaises, arches de départ et d'arrivée.

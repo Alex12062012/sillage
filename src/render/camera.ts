@@ -32,7 +32,7 @@ export class ChaseCamera {
   private t = 0;
 
   constructor(aspect: number) {
-    this.camera = new PerspectiveCamera(T.fovBase, aspect, 0.1, 1200);
+    this.camera = new PerspectiveCamera(T.fovBase, aspect, 0.2, 3000);
   }
 
   addTrauma(amount: number): void {
@@ -54,7 +54,8 @@ export class ChaseCamera {
     this.camera.lookAt(this.look);
   }
 
-  update(target: Vector3, s: SkierState, dt: number): void {
+  /** `ground(x, z)` keeps the lens above the snow on steep slopes and banks. */
+  update(target: Vector3, s: SkierState, dt: number, ground?: (x: number, z: number) => number): void {
     this.t += dt;
     const speed = s.vel.length();
     const hs = Math.hypot(s.vel.x, s.vel.z);
@@ -78,7 +79,16 @@ export class ChaseCamera {
       tmp.copy(target).addScaledVector(this.dir, -(T.camDistance + this.pull));
       tmp.y = target.y + T.camHeight + this.pull * 0.4;
       if (speed < 4 && !this.comfort) tmp.y += Math.sin(this.t * Math.PI * 0.5) * T.camBreath; // breathing
+      if (ground) {
+        // never inside the slope behind the skier, and never hidden by a bank in between
+        tmp.y = Math.max(tmp.y, ground(tmp.x, tmp.z) + 1.3);
+        const mx = (tmp.x + target.x) / 2;
+        const mz = (tmp.z + target.z) / 2;
+        const lift = ground(mx, mz) + 0.9 - (tmp.y + target.y) / 2;
+        if (lift > 0) tmp.y += lift * 2;
+      }
       this.pos.lerp(tmp, 1 - Math.exp(-dt / 0.09));
+      if (ground) this.pos.y = Math.max(this.pos.y, ground(this.pos.x, this.pos.z) + 0.9);
       tmp.copy(target).addScaledVector(this.dir, T.camLookAhead);
       tmp.y += 0.6;
       this.look.lerp(tmp, 1 - Math.exp(-dt / 0.06));

@@ -12,8 +12,8 @@ const pointVert = /* glsl */ `
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = aSize * uScale / max(0.1, -mv.z);
-    vAlpha = aAlpha;
+    gl_PointSize = min(aSize * uScale / max(0.1, -mv.z), 80.0);
+    vAlpha = aAlpha * smoothstep(0.6, 2.2, -mv.z); // no giant blobs on the lens
   }`;
 const pointFrag = /* glsl */ `
   uniform vec3 uColor;
@@ -203,7 +203,7 @@ export class SkiTrails {
     const cz = -Math.sin(heading);
     const w = powder ? width * 1.8 : width;
     const a = brk ? 0 : intensity;
-    const c = powder ? [0.74, 0.8, 0.9] : [0.82, 0.87, 0.94];
+    const c = powder ? [0.66, 0.74, 0.87] : [0.74, 0.81, 0.9];
     for (let ski = 0; ski < 2; ski++) {
       const off = ski === 0 ? 0.12 : -0.12;
       const base = ski * n * 2 + (n - 1) * 2;
