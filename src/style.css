@@ -14,8 +14,8 @@ html, body {
 #game {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: block;
   touch-action: none;
 }
@@ -216,5 +216,7 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 .touch-btn.jump { bottom: calc(22px + env(safe-area-inset-bottom)); right: calc(22px + env(safe-area-inset-right)); }
 .left-handed .touch-btn.jump { right: auto; left: calc(22px + env(safe-area-inset-left)); }
 .left-handed .touch-btn.pause { right: auto; left: calc(12px + env(safe-area-inset-left)); }
-.touch.show ~ .hud .hud-score, .touch.show + .hud .hud-score { margin-right: 52px; }
+.touch.show ~ .hud .hud-score { margin-right: 52px; }
+.left-handed .touch.show ~ .hud .hud-score { margin-right: 0; }
+.left-handed .touch.show ~ .hud .hud-left { margin-left: 52px; }
 .fps { position: fixed; right: 8px; bottom: 6px; font: 700 12px ui-monospace, Menlo, monospace; opacity: 0.8; text-shadow: 0 1px 3px #000; }

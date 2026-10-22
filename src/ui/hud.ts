@@ -16,6 +16,9 @@ export class Hud {
   private ready: HTMLDivElement;
   private lastSpeed = -1;
   private lastRows = '';
+  private lastTimer = '';
+  private lastScore = -1;
+  private lastBar = -1;
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
@@ -56,9 +59,11 @@ export class Hud {
   }
 
   setRun(time: number, score: number, progress: number): void {
-    this.timer.textContent = mmss(time);
-    this.score.textContent = score.toLocaleString('en-US');
-    this.bar.style.width = `${Math.max(0, Math.min(1, progress)) * 100}%`;
+    const t = mmss(time);
+    if (t !== this.lastTimer) { this.timer.textContent = t; this.lastTimer = t; }
+    if (score !== this.lastScore) { this.score.textContent = score.toLocaleString('en-US'); this.lastScore = score; }
+    const bar = Math.round(Math.max(0, Math.min(1, progress)) * 200);
+    if (bar !== this.lastBar) { this.bar.style.width = `${bar / 2}%`; this.lastBar = bar; }
   }
 
   setChallenges(rows: ChallengeRow[]): void {

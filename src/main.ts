@@ -13,10 +13,12 @@ import { showResults } from './ui/results';
 // ── persistence
 const storage = (() => {
   try {
-    localStorage.getItem('probe');
+    localStorage.setItem('sillage.probe', '1'); // write probe: quota-full / old private modes throw here
+    localStorage.removeItem('sillage.probe');
     return localStorage;
   } catch {
-    return { getItem: () => null, setItem: () => {} };
+    const mem = new Map<string, string>(); // progress lives for this session only
+    return { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
   }
 })();
 let save: Save = loadSave(storage);
@@ -39,9 +41,11 @@ const game = new Game(renderer, trackById(isUnlocked(save, lastTrack) || params.
 // ── touch buttons (pause, jump), mirrored for left-handed players
 const touch = document.createElement('div');
 touch.className = 'touch';
-touch.innerHTML = `<button class="touch-btn pause" aria-label="Pause">II</button><button class="touch-btn jump" aria-label="Jump">↑</button><div class="fps"></div>`;
-ui.appendChild(touch);
-const fpsEl = touch.querySelector('.fps') as HTMLDivElement;
+touch.innerHTML = `<button class="touch-btn pause" aria-label="Pause">II</button><button class="touch-btn jump" aria-label="Jump">↑</button>`;
+ui.insertBefore(touch, hud.el); // before the HUD so `.touch.show ~ .hud` can shift the score clear of the button
+const fpsEl = document.createElement('div');
+fpsEl.className = 'fps';
+ui.appendChild(fpsEl);
 game.input.attachTouch(document.body);
 touch.querySelector('.jump')!.addEventListener('pointerdown', () => game.input.pressJump());
 
@@ -112,7 +116,7 @@ function startRun(id: string): void {
   game.bot = null;
   game.input.override = null;
   if (game.track.def.id !== id) game.load(trackById(id));
-  storage.setItem('sillage.last', id);
+  try { storage.setItem('sillage.last', id); } catch { /* not critical */ }
   game.bestTiers = { ...save.medals };
   game.reset();
   setMode('run');
@@ -125,11 +129,14 @@ function startRun(id: string): void {
   }
 }
 
-/** Restarting mid-run still banks the medals earned so far (speed, air, chain, spin). */
+/**
+ * Leaving a run early still banks what it earned: live medals mid-run, and the whole finished run if
+ * the player retries during the run-out before the results screen appears.
+ */
 function bankPartial(): void {
   if (mode !== 'run' && mode !== 'paused') return;
-  if (game.phase !== 'running') return;
-  save = applyRun(save, game.track.def.id, { ...game.stats(), finished: false }).save;
+  if (game.phase === 'ready') return;
+  save = applyRun(save, game.track.def.id, game.stats()).save;
   persist();
 }
 
@@ -191,8 +198,11 @@ game.input.onKey = (code) => {
   } else if (mode === 'paused' && (code === 'Escape' || code === 'KeyP')) {
     menus.hide();
     setMode('run');
-  } else if (mode === 'results' && (code === 'KeyR' || code === 'Enter')) {
-    restart();
+  } else if (mode === 'results') {
+    if (code === 'KeyR') restart();
+    if ((code === 'ArrowDown' || code === 'ArrowUp' || code === 'ArrowLeft' || code === 'ArrowRight') && results) {
+      menus.move(code === 'ArrowDown' || code === 'ArrowRight' ? 1 : -1, results);
+    }
   } else if (menus.current && code === 'Escape') {
     if (mode === 'attract') menus.main();
   } else if (menus.current && (code === 'ArrowDown' || code === 'ArrowUp')) {
@@ -201,7 +211,7 @@ game.input.onKey = (code) => {
 };
 game.input.onPad = (b) => {
   if (menus.current || mode === 'results') {
-    if (b === 'down' || b === 'up') menus.move(b === 'down' ? 1 : -1);
+    if (b === 'down' || b === 'up') menus.move(b === 'down' ? 1 : -1, mode === 'results' && results ? results : undefined);
     if (b === 'a') (document.activeElement as HTMLElement | null)?.click();
     if (b === 'b' && menus.current === 'pause') { menus.hide(); setMode('run'); }
     return;
@@ -210,7 +220,8 @@ game.input.onPad = (b) => {
   if (b === 'y') restart();
   if (b === 'select') game.input.onKey?.('KeyC');
 };
-window.addEventListener('pointerdown', () => game.audio.unlock());
+// touch activation happens on release (iOS): unlock on both ends of the gesture
+for (const ev of ['pointerdown', 'pointerup', 'touchend'] as const) window.addEventListener(ev, () => game.audio.unlock());
 
 function resize(): void {
   renderer.setSize(window.innerWidth, window.innerHeight, false);

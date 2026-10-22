@@ -108,7 +108,7 @@ export class Menus {
     this.on('[data-go="main"]', () => this.main());
   }
 
-  settings(back: () => void): void {
+  settings(back: () => void, focus?: string): void {
     const st = { ...this.a.save().settings };
     const seg = (key: keyof Settings, opts: [string, string][]) =>
       `<span class="seg">${opts.map(([v, l]) => `<button data-set="${key}" data-val="${v}" class="${String(st[key]) === v ? 'on' : ''}">${l}</button>`).join('')}</span>`;
@@ -128,12 +128,12 @@ export class Menus {
           <label>Show FPS ${tog('showFps')}</label>
         </div>
         <div class="buttons"><button class="primary" data-go="back">Done</button><button data-go="reset" class="danger">Reset progress</button></div>
-      </div>`);
+      </div>`, focus ?? '[data-go="back"]');
     const commit = () => this.a.setSettings({ ...st });
     this.on('[data-set]', (b) => {
       (st as unknown as Record<string, string>)[b.dataset.set!] = b.dataset.val!;
       commit();
-      this.settings(back);
+      this.settings(back, `[data-set="${b.dataset.set}"][data-val="${b.dataset.val}"]`);
     });
     this.on('[data-tog]', async (b) => {
       const k = b.dataset.tog as keyof Settings;
@@ -141,7 +141,7 @@ export class Menus {
       if (k === 'tilt' && next && !(await this.a.enableTilt())) return;
       (st as unknown as Record<string, boolean>)[k] = next;
       commit();
-      this.settings(back);
+      this.settings(back, `[data-tog="${k}"]`);
     });
     this.el.querySelectorAll<HTMLInputElement>('[data-range]').forEach((r) =>
       r.addEventListener('input', () => {
@@ -175,8 +175,8 @@ export class Menus {
   }
 
   /** Gamepad / arrow navigation between focusable buttons. */
-  move(dir: 1 | -1): void {
-    const items = [...this.el.querySelectorAll<HTMLElement>('button:not([disabled]), input')];
+  move(dir: 1 | -1, root: HTMLElement = this.el): void {
+    const items = [...root.querySelectorAll<HTMLElement>('button:not([disabled]), input')];
     if (!items.length) return;
     const i = items.indexOf(document.activeElement as HTMLElement);
     items[(i + dir + items.length) % items.length].focus();

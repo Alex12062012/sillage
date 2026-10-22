@@ -1,4 +1,4 @@
-import { Group, MathUtils, Scene, Vector3, type WebGLRenderer } from 'three';
+import { Group, MathUtils, Mesh, Scene, Vector3, type MeshBasicMaterial, type WebGLRenderer } from 'three';
 import { GameAudio } from './audio/audio';
 import { Input } from './input/input';
 import { ChaseCamera } from './render/camera';
@@ -58,6 +58,8 @@ export class Game {
   private liveTiers: Record<string, number> = {};
   private finishTimer = -1;
   private hudTick = 0;
+  private hudPhase: Phase | null = null;
+  private landmarks: Group | null = null;
   onFinish: ((stats: RunStats) => void) | null = null;
   onStart: (() => void) | null = null;
   time = 0;
@@ -75,11 +77,19 @@ export class Game {
   /** Builds the world for a run definition (chunks stream in as the skier moves). */
   load(def: TrackDef): void {
     this.terrain?.dispose();
+    this.landmarks?.traverse((o) => {
+      if (!(o instanceof Mesh)) return;
+      o.geometry.dispose();
+      const m = o.material as MeshBasicMaterial;
+      m.map?.dispose();
+      m.dispose();
+    });
     this.world.clear();
     this.track = makeTrack(def);
     this.terrain = new Terrain(this.track, buildChunkProps);
     this.terrain.viewDistance = this.viewDistance;
-    this.world.add(this.terrain.group, buildLandmarks(this.track));
+    this.landmarks = buildLandmarks(this.track);
+    this.world.add(this.terrain.group, this.landmarks);
     this.sky.setTime(def.timeOfDay);
     this.reset();
   }
@@ -88,6 +98,7 @@ export class Game {
     this.skier = createSkier(this.track, this.track.centerX(-8), -8, 0);
     this.run = createRun(this.track.def.length, this.track.def.par);
     this.phase = 'ready';
+    this.hudPhase = null;
     this.finishTimer = -1;
     this.liveTiers = { ...this.bestTiers };
     this.slowmo = new SlowMo();
@@ -140,6 +151,7 @@ export class Game {
     this.prevPos.copy(s.pos);
     this.prevHeading = s.heading;
     this.input.sample(this.inp, DT, s.airborne);
+    if (s !== this.skier) return; // a pad callback restarted / loaded the run mid-step: drop the stale step
     if (this.bot) botInput(s, this.track, this.inp, this.bot, this.botGap);
     if (this.phase === 'ready') {
       // standing in the gate: the first real input starts the run (with a pole push)
@@ -259,6 +271,8 @@ export class Game {
 
   frame(realDt: number): void {
     if (this.paused) {
+      this.input.pollPad(); // a pad-only player must be able to resume
+      this.audio.update(0, 0, 0, this.skier.surface, true, true, realDt); // hush wind and edges
       this.renderer.render(this.scene, this.cam.camera);
       return;
     }
@@ -281,7 +295,7 @@ export class Game {
     this.model.update(s, this.renderPos, heading, this.track, realDt);
     this.cam.update(this.renderPos, s, realDt, this.track.height);
     this.terrain!.update(this.cam.camera.position.z, 1);
-    this.sky.setTime(this.sky.time + gdt * 0.0012); // slow day cycle during a run
+    this.sky.setTime(Math.min(0.95, this.sky.time + gdt * 0.0012)); // slow day cycle, stops at dusk (no wrap to morning)
     this.sky.update(this.cam.camera.position);
     this.emitSpray(heading, gdt);
     this.spray.update(gdt);
@@ -295,7 +309,10 @@ export class Game {
     this.audio.update(s.vel.length(), s.edge, s.skid, s.surface, s.airborne, crashed, realDt);
     this.hud.setSpeed(s.vel.length() * 3.6);
     this.hud.setRun(this.run.time, this.run.score, Math.max(0, s.pos.z) / this.track.def.length);
-    this.hud.setReady(this.phase === 'ready' ? this.readyText : null);
+    if (this.phase !== this.hudPhase) {
+      this.hudPhase = this.phase;
+      this.hud.setReady(this.phase === 'ready' ? this.readyText : null);
+    }
     this.hudTick += realDt;
     if (this.hudTick > 0.2) {
       this.hudTick = 0;

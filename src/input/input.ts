@@ -35,10 +35,11 @@ export class Input {
   constructor(target: Window = window) {
     target.addEventListener('keydown', (e) => {
       if (e.repeat) return;
+      // on a focused button / field, Space and arrows keep their native meaning (activate, slide)
+      const inUi = !!(e.target as HTMLElement)?.closest?.('input, button, select');
       this.keys.add(e.code);
-      if (e.code === 'Space') this.jumpQueued = true;
-      const inField = (e.target as HTMLElement)?.tagName === 'INPUT';
-      if (!inField && (e.code.startsWith('Arrow') || e.code === 'Space')) e.preventDefault();
+      if (e.code === 'Space' && !inUi) this.jumpQueued = true;
+      if (!inUi && (e.code.startsWith('Arrow') || e.code === 'Space')) e.preventDefault();
       this.onKey?.(e.code);
     });
     target.addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -106,7 +107,12 @@ export class Input {
     this.airLockFlip = this.has('ArrowUp', 'KeyW', 'ArrowDown', 'KeyS');
   }
 
-  private pad(): { steer: number; tuck: boolean; brake: boolean; flip: number } | null {
+  /** Poll buttons only (menus while paused): fires onPad, never queues a jump. */
+  pollPad(): void {
+    this.pad(false);
+  }
+
+  private pad(queueJump = true): { steer: number; tuck: boolean; brake: boolean; flip: number } | null {
     const p = navigator.getGamepads?.().find((g) => g && g.connected);
     if (!p) return null;
     const b = (i: number) => !!p.buttons[i]?.pressed;
@@ -114,7 +120,7 @@ export class Input {
     for (const [i, name] of edges) {
       if (b(i) && !this.padPrev[i]) {
         this.touched = true;
-        if (i === 0) this.jumpQueued = true;
+        if (i === 0 && queueJump) this.jumpQueued = true;
         this.onPad?.(name);
       }
       this.padPrev[i] = b(i);
