@@ -2,7 +2,9 @@ import './style.css';
 import { WebGLRenderer } from 'three';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
-import { trackById } from './sim/tracks';
+import { applyRun, COSMETICS, isUnlocked, loadSave, saveSave, totalStars, type Save } from './sim/progress';
+import { TRACKS, trackById } from './sim/tracks';
+import { showResults } from './ui/results';
 import { createDebugPanel } from './ui/debug';
 import { Hud } from './ui/hud';
 import { TUNING } from './tuning';
@@ -14,7 +16,64 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const ui = document.getElementById('ui')!;
 const hud = new Hud(ui);
 const params = new URLSearchParams(location.search);
+const storage = (() => { try { return window.localStorage; } catch { return { getItem: () => null, setItem: () => {} }; } })();
+let save: Save = loadSave(storage);
 const game = new Game(renderer, trackById(params.get('track') ?? ''), hud);
+
+function applyOutfit(): void {
+  const o = COSMETICS.find((c) => c.id === save.outfit) ?? COSMETICS[0];
+  game.setOutfit(o);
+}
+function prepareRun(): void {
+  game.bestTiers = { ...save.medals };
+  game.reset();
+}
+/** Restarting mid-run still banks the medals earned so far (speed, air, chain, spin). */
+function bankPartial(): void {
+  if (game.phase !== 'running') return;
+  save = applyRun(save, game.track.def.id, { ...game.stats(), finished: false }).save;
+  saveSave(storage, save);
+}
+let results: HTMLElement | null = null;
+function closeResults(): void {
+  results?.remove();
+  results = null;
+  hud.show(true);
+}
+function restart(): void {
+  bankPartial();
+  closeResults();
+  prepareRun();
+}
+function loadTrack(id: string): void {
+  bankPartial();
+  closeResults();
+  game.load(trackById(id));
+  prepareRun();
+}
+game.onFinish = (stats) => {
+  const id = game.track.def.id;
+  const before = totalStars(save);
+  const previous = save.records[id];
+  const r = applyRun(save, id, stats);
+  save = r.save;
+  saveSave(storage, save);
+  const idx = TRACKS.findIndex((t) => t.id === id);
+  const next = TRACKS[idx + 1];
+  hud.show(false);
+  results = showResults(ui, {
+    track: game.track.def, stats, previous, medals: save.medals, gained: r.gained,
+    unlockedRuns: r.unlocked.map(trackById), starsBefore: before, starsAfter: totalStars(save),
+    hasNext: !!next && isUnlocked(save, next.id),
+  }, {
+    retry: restart,
+    next: () => next && loadTrack(next.id),
+    menu: restart, // phase 5: main menu
+  });
+  if (r.gained.length) game.audio.chime(4);
+};
+applyOutfit();
+prepareRun();
 
 const debug = createDebugPanel(document.body, () => {
   const i = renderer.info;
@@ -26,7 +85,8 @@ score ${game.run.score}  chain ${game.run.chain}  near-misses ${game.run.nearMis
 
 game.input.onKey = (code) => {
   game.audio.unlock();
-  if (code === 'KeyR') game.reset();
+  if (code === 'KeyR') restart();
+  if (results && (code === 'Enter' || code === 'Space')) restart();
   if (code === 'KeyC') game.cam.firstPerson = !game.cam.firstPerson;
   if (code === 'Backquote' || code === 'F2' || code === 'IntlBackslash') debug.toggle();
 };
@@ -59,12 +119,16 @@ window.__sillage = {
     return {
       x: s.pos.x, y: s.pos.y, z: s.pos.z, kmh: s.vel.length() * 3.6, airborne: s.airborne, crashed: s.crashTimer > 0,
       heading: s.heading, fps: game.fps, score: game.run.score, nearMisses: game.run.nearMisses, crashes: game.run.crashes,
+      time: game.run.time, finished: game.run.finished, phase: game.phase,
       calls: renderer.info.render.calls, tris: renderer.info.render.triangles, fov: game.cam.camera.fov, buildMs: game.chunkBuildMs,
     };
   },
   drive: (o: Partial<SkierInput> | null) => { game.input.override = o; },
-  restart: () => game.reset(),
-  load: (id: string) => game.load(trackById(id)),
+  restart,
+  load: loadTrack,
+  save: () => save,
+  results: () => !!results,
+  phase: () => game.phase,
   time: (t: number) => game.sky.setTime(t),
   tune: (key: keyof typeof TUNING, value: number) => { TUNING[key] = value; },
   features: () => game.track.features.map((f) => ({ ...f })),

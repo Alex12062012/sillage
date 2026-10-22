@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createRun, SlowMo, stepRun, type RunEvent } from '../../src/sim/run';
+import { createRun, finishBonus, SlowMo, stepRun, type RunEvent } from '../../src/sim/run';
 import { stepSkier, type SkierEvent } from '../../src/sim/skier';
 import { type Ground, type Obstacle } from '../../src/sim/track';
 import { TUNING } from '../../src/tuning';
@@ -110,5 +110,66 @@ describe('run stats', () => {
     expect(run.topSpeed).toBeGreaterThan(ms(45));
     expect(run.crashes).toBe(1);
     expect(new Vector3().length()).toBe(0);
+  });
+});
+
+describe('run lifecycle & scoring', () => {
+  const landEvent = (spin: number, quality: 'clean' | 'perfect' | 'sketchy', airTime = 1.2): SkierEvent =>
+    ({ type: 'land', vn: 2, quality, spin, flips: 0, airTime, distance: 15 });
+
+  it('starts the clock at the start gate (z = 0) and stops it at the finish line', () => {
+    const g = slopeGround(10);
+    const s = skierAt(g, -6, 8);
+    const run = createRun(60, 50);
+    const out: RunEvent[] = [];
+    let finished = false;
+    for (let i = 0; i < 60 * 30 && !finished; i++) {
+      const sEv: SkierEvent[] = [];
+      stepSkier(s, input(), g, DT, sEv);
+      out.length = 0;
+      stepRun(run, s, g, DT, sEv, out);
+      if (s.pos.z < 0) expect(run.time).toBe(0);
+      finished = out.some((e) => e.type === 'finish');
+    }
+    expect(run.finished).toBe(true);
+    expect(run.time).toBeGreaterThan(2);
+    const t = run.time;
+    stepRun(run, s, g, DT, [], out);
+    expect(run.time).toBe(t);
+  });
+
+  it('pays airtime and tricks on clean landings, more for perfect, less for sketchy, nothing for a crash', () => {
+    const g = slopeGround(10);
+    const s = skierAt(g, 5, 10);
+    const pts = (ev: SkierEvent) => {
+      const run = createRun();
+      stepRun(run, s, g, DT, [ev], []);
+      return run.score;
+    };
+    const air = pts(landEvent(0, 'clean'));
+    expect(air).toBe(Math.round(1.2 * TUNING.airPoints));
+    expect(pts(landEvent(2 * Math.PI, 'clean'))).toBe(air + 300);
+    expect(pts(landEvent(2 * Math.PI, 'perfect'))).toBe(Math.round((air + 300) * 1.25));
+    expect(pts(landEvent(2 * Math.PI, 'sketchy'))).toBe(Math.round((air + 300) * 0.5));
+    expect(pts({ type: 'land', vn: 2, quality: 'crash', spin: 7, flips: 0, airTime: 1, distance: 9 })).toBe(0);
+    const run = createRun();
+    const ev: RunEvent[] = [];
+    stepRun(run, s, g, DT, [landEvent(4 * Math.PI, 'clean')], ev);
+    expect(run.bestSpin).toBe(720);
+    expect(ev.some((e) => e.type === 'trick' && e.name === '720')).toBe(true);
+  });
+
+  it('adds a speed bonus above 60 km/h and a finish bonus that grows under par', () => {
+    const g = slopeGround(10);
+    const fast = skierAt(g, 5, ms(90));
+    const run = createRun();
+    for (let i = 0; i < 60; i++) stepRun(run, fast, g, DT, [], []);
+    expect(run.score).toBeGreaterThan(10);
+    const slow = skierAt(g, 5, ms(50));
+    const run2 = createRun();
+    for (let i = 0; i < 60; i++) stepRun(run2, slow, g, DT, [], []);
+    expect(run2.score).toBe(0);
+    expect(finishBonus(40, 50)).toBeGreaterThan(finishBonus(50, 50));
+    expect(finishBonus(70, 50)).toBe(1000);
   });
 });

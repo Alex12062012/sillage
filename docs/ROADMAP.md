@@ -1,6 +1,6 @@
 # Roadmap — jalons chiffrés
 
-> Avancement : phases 0 à 3 terminées (voir TODO.md et les commits).
+> Avancement : phases 0 à 4 terminées (voir TODO.md et les commits).
 
 | Phase | Livrable | Porte (critère chiffré) | Budget |
 |---|---|---|---|

@@ -1,31 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { botInput, type BotMemory } from '../../src/sim/bot';
-import { createRun, stepRun, type RunEvent } from '../../src/sim/run';
-import { createSkier, stepSkier, type SkierEvent } from '../../src/sim/skier';
-import { makeTrack, type TrackDef } from '../../src/sim/track';
 import { TRACKS } from '../../src/sim/tracks';
-import { DT, input } from './helpers';
-
-/** Drives a whole descent with the simple "follow the line, dodge trees, hold a speed" bot. */
-export function botRun(def: TrackDef, targetKmh: number, maxSeconds = 240) {
-  const track = makeTrack(def);
-  const s = createSkier(track, track.centerX(2), 2, 0);
-  const run = createRun();
-  const inp = input();
-  const sEv: SkierEvent[] = [];
-  const rEv: RunEvent[] = [];
-  const mem: BotMemory = { offset: 0 };
-  let t = 0;
-  while (s.pos.z < def.length && t < maxSeconds) {
-    sEv.length = 0;
-    rEv.length = 0;
-    botInput(s, track, inp, targetKmh / 3.6, 2.4, mem);
-    stepSkier(s, inp, track, DT, sEv);
-    stepRun(run, s, track, DT, sEv, rEv);
-    t += DT;
-  }
-  return { finished: s.pos.z >= def.length, time: t, run };
-}
+import { botRun } from './helpers';
 
 describe('bot (proof that each run is readable and finishable with basic inputs)', () => {
   for (const def of TRACKS) {

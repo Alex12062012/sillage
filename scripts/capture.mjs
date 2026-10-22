@@ -137,6 +137,29 @@ if (scenario.startsWith('features')) {
   }
 }
 
+if (scenario.startsWith('loop')) {
+  // full run on the easy track by the autopilot → results screen, then a timed restart
+  await page.evaluate(() => { localStorage.clear(); window.__sillage.load('combe-douce'); });
+  await wait(400);
+  await shot('p4-ready');
+  await page.evaluate(() => window.__sillage.autopilot(78));
+  await until((s) => s.z > 120, 30000);
+  await shot('p4-hud-running');
+  await page.waitForFunction(() => window.__sillage.results(), null, { timeout: 120000 });
+  await wait(900);
+  await shot('p4-results');
+  const t = await page.evaluate(async () => {
+    const t0 = performance.now();
+    window.__sillage.restart();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return performance.now() - t0;
+  });
+  console.log(JSON.stringify({ restartMs: +t.toFixed(1), save: await page.evaluate(() => window.__sillage.save()) }));
+  await page.evaluate(() => window.__sillage.autopilot(null));
+  await wait(300);
+  await shot('p4-after-restart');
+}
+
 if (scenario.startsWith('perf')) {
   if (mobile) {
     const cdp = await context.newCDPSession(page);

@@ -64,6 +64,8 @@ export const TUNING = {
   slowmoHold: 0.25,
   slowmoEase: 0.3,
   slowmoAirTime: 2,
+  airPoints: 100, // per second of airtime on a clean landing
+  speedPoints: 12, // per second at 80 km/h (scales from 60 km/h)
   razorTimeScale: 0.3,
   razorHold: 0.06,
   // ── camera & speed feel (FEEL §2, §4); fov is vertical, in degrees

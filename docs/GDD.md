@@ -50,7 +50,7 @@ Caméra de poursuite **basse et proche** (≈ 2 m au-dessus des skis, 4,5 m derr
   - **Figure** : 360 / 720 / 1080 ;
   - **Propre** : nombre de chutes ;
   - **Score**.
-- **Déblocages :** *Crête du Loup* à 4 ★, *Couloir Noir* à 10 ★ (sur 27). Couleurs de veste, de skis et de trace aux paliers d'étoiles.
+- **Déblocages :** *Crête du Loup* à 4 ★, *Couloir Noir* à 9 ★ (sur 27). Couleurs de veste, de skis et de trace aux paliers d'étoiles.
 - **Records** par piste : meilleur temps, meilleur score, vitesse max.
 
 ## Économie & score

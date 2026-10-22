@@ -83,7 +83,7 @@ export class SkierModel {
   }
 
   setColors(c: SkierColors): void {
-    for (const k of Object.keys(c) as (keyof SkierColors)[]) this.mats[k].color.setHex(c[k]);
+    for (const k of ['jacket', 'pants', 'helmet', 'skis'] as const) this.mats[k].color.setHex(c[k]);
   }
 
   /** Sagittal-plane pose: c = crouch 0..1, a = arm raise 0..1. Local frame: +z forward, +x left. */

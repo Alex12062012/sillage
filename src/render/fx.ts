@@ -1,5 +1,5 @@
 import {
-  AdditiveBlending, BufferAttribute, BufferGeometry, Color, Mesh, MeshBasicMaterial, NormalBlending, Points,
+  AdditiveBlending, BufferAttribute, BufferGeometry, Color, Mesh, MeshLambertMaterial, NormalBlending, Points,
   ShaderMaterial, Vector3, type PerspectiveCamera,
 } from 'three';
 import type { Ground } from '../sim/track';
@@ -170,8 +170,11 @@ export class SkiTrails {
     const geo = new BufferGeometry();
     geo.setAttribute('position', new BufferAttribute(this.pos, 3));
     geo.setAttribute('color', new BufferAttribute(this.col, 4));
+    const nor = new Float32Array(verts * 3);
+    for (let i = 0; i < verts; i++) nor[i * 3 + 1] = 1; // lit like the snow it is carved in
+    geo.setAttribute('normal', new BufferAttribute(nor, 3));
     geo.setIndex(idx);
-    this.mesh = new Mesh(geo, new MeshBasicMaterial({
+    this.mesh = new Mesh(geo, new MeshLambertMaterial({
       vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
     }));
     this.mesh.frustumCulled = false;

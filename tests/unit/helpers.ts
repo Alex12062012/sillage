@@ -1,4 +1,7 @@
 import { Vector3 } from 'three';
+import { botInput, type BotMemory } from '../../src/sim/bot';
+import { createRun, stepRun, type RunEvent } from '../../src/sim/run';
+import { makeTrack, type TrackDef } from '../../src/sim/track';
 import { Surface, type Ground } from '../../src/sim/track';
 import { createSkier, stepSkier, type SkierEvent, type SkierInput, type SkierState } from '../../src/sim/skier';
 
@@ -57,3 +60,25 @@ export function simulate(
 
 /** Signed heading (rad) of the horizontal velocity, 0 = +z. */
 export const velHeading = (s: SkierState) => Math.atan2(s.vel.x, s.vel.z);
+
+/** Drives a whole descent with the simple "follow the line, dodge trees, hold a speed" bot. */
+export function botRun(def: TrackDef, targetKmh: number, maxSeconds = 240) {
+  const track = makeTrack(def);
+  const s = createSkier(track, track.centerX(2), 2, 0);
+  const run = createRun(def.length, def.par);
+  const inp = input();
+  const sEv: SkierEvent[] = [];
+  const rEv: RunEvent[] = [];
+  const mem: BotMemory = { offset: 0 };
+  let t = 0;
+  while (!run.finished && t < maxSeconds) {
+    sEv.length = 0;
+    rEv.length = 0;
+    botInput(s, track, inp, targetKmh / 3.6, 2.4, mem);
+    stepSkier(s, inp, track, DT, sEv);
+    stepRun(run, s, track, DT, sEv, rEv);
+    t += DT;
+  }
+  return { finished: run.finished, time: run.time, run };
+}
+

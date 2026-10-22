@@ -41,10 +41,10 @@ Légende : [x] fait · [~] en cours · [ ] à faire
 - [x] Commit de phase
 
 ## Phase 4 — Boucle & progression
-- [ ] run state, score, missions, étoiles
-- [ ] progression + sauvegarde + déblocages
-- [ ] écran de fin + restart < 1 s
-- [ ] Commit de phase
+- [x] run state, score, missions, étoiles
+- [x] progression + sauvegarde + déblocages
+- [x] écran de fin + restart < 1 s
+- [x] Commit de phase
 
 ## Phase 5 — UI/UX & contrôles
 - [ ] menus, sélection, HUD, pause, réglages, chargement

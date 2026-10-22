@@ -1,8 +1,11 @@
 import { TUNING as T } from '../tuning';
+import type { RunStats } from './missions';
 import type { SkierEvent, SkierState } from './skier';
 import { Surface, type Ground, type Obstacle } from './track';
 
 export type RunEvent =
+  | { type: 'finish'; time: number; bonus: number }
+  | { type: 'trick'; name: string; points: number; quality: string }
   | { type: 'nearMiss'; dist: number; razor: boolean; side: number; points: number; chain: number; kind: Obstacle['kind']; offPiste: boolean }
   | { type: 'chainEnd'; chain: number }
   | { type: 'slowmo'; scale: number; hold: number; ease: number };
@@ -11,7 +14,13 @@ export type RunEvent =
 interface Pass { minD: number; side: number; speed: number; offPiste: boolean; kind: Obstacle['kind']; seen: boolean }
 
 export interface RunState {
+  /** Race time: counts from the start gate (z = 0) to the finish line. */
   time: number;
+  started: boolean;
+  finished: boolean;
+  finishZ: number;
+  par: number;
+  bestSpin: number;
   score: number;
   chain: number;
   chainTimer: number;
@@ -21,23 +30,63 @@ export interface RunState {
   crashes: number;
   bestAirTime: number;
   longestJump: number;
+  speedPts: number;
   passes: Map<number, Pass>;
 }
 
-export function createRun(): RunState {
+export function createRun(finishZ = Infinity, par = 0): RunState {
   return {
-    time: 0, score: 0, chain: 0, chainTimer: 0, bestChain: 0, nearMisses: 0,
-    topSpeed: 0, crashes: 0, bestAirTime: 0, longestJump: 0, passes: new Map(),
+    time: 0, started: false, finished: false, finishZ, par, bestSpin: 0, score: 0, chain: 0, chainTimer: 0, bestChain: 0, nearMisses: 0,
+    topSpeed: 0, crashes: 0, bestAirTime: 0, longestJump: 0, speedPts: 0, passes: new Map(),
   };
 }
 
 const near: Obstacle[] = [];
+const SPIN_POINTS: Record<number, number> = { 180: 150, 360: 300, 540: 500, 720: 800, 900: 1100, 1080: 1500 };
+const QUALITY_MULT: Record<string, number> = { perfect: 1.25, clean: 1, switch: 1, sketchy: 0.5 };
+
+/** Finish bonus: 1000 + 40 per second under par. */
+export const finishBonus = (time: number, par: number) => Math.round(1000 + Math.max(0, par - time) * 40);
+
+/** Spin of a landing rounded to the nearest half turn, in degrees. */
+export const spinDegrees = (spin: number) => Math.round(Math.abs(spin) / Math.PI) * 180;
+
+function landPoints(run: RunState, e: Extract<SkierEvent, { type: 'land' }>, out: RunEvent[]): void {
+  const mult = QUALITY_MULT[e.quality] ?? 0;
+  if (!mult) return;
+  const deg = spinDegrees(e.spin);
+  const spinPts = deg >= 180 ? (SPIN_POINTS[deg] ?? 1500 + ((deg - 1080) / 180) * 500) : 0;
+  const flipPts = e.flips * 500;
+  const pts = Math.round((e.airTime * T.airPoints + spinPts + flipPts) * mult);
+  run.score += pts;
+  if (deg >= 180) run.bestSpin = Math.max(run.bestSpin, deg);
+  if (spinPts || flipPts) {
+    const name = [deg >= 180 ? String(deg) : '', e.flips ? (e.flips > 1 ? `${e.flips}x flip` : 'flip') : ''].filter(Boolean).join(' + ');
+    out.push({ type: 'trick', name, points: pts, quality: e.quality });
+  }
+}
 
 /** Per physics step: stats, near-miss detection (swept min distance + "passed" test), chains, reward slow-mo. */
 export function stepRun(run: RunState, s: SkierState, g: Ground, dt: number, skierEvents: SkierEvent[], out: RunEvent[]): void {
-  run.time += dt;
+  if (run.finished) return;
+  if (!run.started && s.pos.z >= 0) run.started = true;
+  if (run.started) run.time += dt;
+  if (s.pos.z >= run.finishZ) {
+    run.finished = true;
+    const bonus = finishBonus(run.time, run.par);
+    run.score += bonus;
+    endChain(run, out);
+    out.push({ type: 'finish', time: run.time, bonus });
+    return;
+  }
   const speed = s.vel.length();
   run.topSpeed = Math.max(run.topSpeed, speed);
+  if (speed > 60 / 3.6 && !s.airborne && s.crashTimer <= 0) run.speedPts += T.speedPoints * dt * ((speed * 3.6 - 60) / 20);
+  if (run.speedPts >= 1) {
+    const whole = Math.floor(run.speedPts);
+    run.score += whole;
+    run.speedPts -= whole;
+  }
 
   for (const e of skierEvents) {
     if (e.type === 'crash') {
@@ -45,6 +94,7 @@ export function stepRun(run: RunState, s: SkierState, g: Ground, dt: number, ski
       endChain(run, out);
       run.passes.clear();
     } else if (e.type === 'land' && e.quality !== 'crash') {
+      landPoints(run, e, out);
       run.bestAirTime = Math.max(run.bestAirTime, e.airTime);
       run.longestJump = Math.max(run.longestJump, e.distance);
       if (e.airTime >= T.slowmoAirTime || Math.abs(e.spin) >= 2 * Math.PI - 0.6) {
@@ -102,6 +152,14 @@ function endChain(run: RunState, out: RunEvent[]): void {
   if (run.chain > 0) out.push({ type: 'chainEnd', chain: run.chain });
   run.chain = 0;
   run.chainTimer = 0;
+}
+
+/** The run as the challenges see it. */
+export function runStats(run: RunState): RunStats {
+  return {
+    finished: run.finished, time: run.time, topKmh: run.topSpeed * 3.6, longestJump: run.longestJump,
+    bestChain: run.bestChain, bestSpin: run.bestSpin, crashes: run.crashes, score: run.score,
+  };
 }
 
 /** Game-time scale for reward slow-motion / hitstop, driven by REAL time so it always ends. */

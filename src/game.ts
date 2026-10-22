@@ -4,19 +4,24 @@ import { Input } from './input/input';
 import { ChaseCamera } from './render/camera';
 import { Flakes, pointScale, SkiTrails, SnowSpray } from './render/fx';
 import { buildChunkProps, buildLandmarks } from './render/props';
-import { SkierModel } from './render/skierModel';
+import { SkierModel, type SkierColors } from './render/skierModel';
 import { Sky } from './render/sky';
 import { Terrain } from './render/terrain';
 import { botInput } from './sim/bot';
-import { createRun, SlowMo, stepRun, type RunEvent, type RunState } from './sim/run';
+import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
+import { createRun, runStats, SlowMo, stepRun, type RunEvent, type RunState } from './sim/run';
 import { createSkier, stepSkier, type SkierEvent, type SkierInput, type SkierState } from './sim/skier';
 import { makeTrack, Surface, type Track, type TrackDef } from './sim/track';
 import { TUNING as T } from './tuning';
-import type { Hud } from './ui/hud';
+import type { ChallengeRow, Hud } from './ui/hud';
 
 export const DT = 1 / 60;
 const MAX_STEPS = 5;
 const CRASH_LINES = ['Yard sale!', 'Faceplant!', 'Oof!', 'Snow angel!'];
+const TIER_NAME = ['', 'Bronze', 'Silver', 'Gold'];
+
+/** ready: waiting at the start gate for the first input · running · finished: run-out, then results. */
+export type Phase = 'ready' | 'running' | 'finished';
 
 /** Owns one run: fixed-step simulation, interpolated rendering and all the feel layers. */
 export class Game {
@@ -46,6 +51,14 @@ export class Game {
   /** Autopilot target speed in m/s (tests, captures, attract mode), or null. */
   bot: number | null = null;
   botGap = 2.4;
+  phase: Phase = 'ready';
+  /** Best tier already owned per challenge (from the save): live pops only fire above it. */
+  bestTiers: Record<string, number> = {};
+  private liveTiers: Record<string, number> = {};
+  private finishTimer = -1;
+  private hudTick = 0;
+  onFinish: ((stats: RunStats) => void) | null = null;
+  onStart: (() => void) | null = null;
   time = 0;
   fps = 0;
   private fpsN = 0;
@@ -71,7 +84,11 @@ export class Game {
 
   reset(): void {
     this.skier = createSkier(this.track, this.track.centerX(-8), -8, 0);
-    this.run = createRun();
+    this.run = createRun(this.track.def.length, this.track.def.par);
+    this.phase = 'ready';
+    this.finishTimer = -1;
+    this.liveTiers = { ...this.bestTiers };
+    this.slowmo = new SlowMo();
     this.prevPos.copy(this.skier.pos);
     this.prevHeading = this.skier.heading;
     this.renderPos.copy(this.skier.pos);
@@ -82,18 +99,70 @@ export class Game {
     this.terrain?.prewarm(this.skier.pos.z);
   }
 
+  setOutfit(c: SkierColors): void {
+    this.model.setColors(c);
+  }
+
+  stats(): RunStats {
+    return runStats(this.run);
+  }
+
+  readyText = 'Press <b>↑</b> or an arrow key to drop in';
+
+  challengeRows(): ChallengeRow[] {
+    const st = this.stats();
+    return (CHALLENGES[this.track.def.id] ?? []).map((c) => {
+      const tier = Math.max(this.liveTiers[c.id] ?? 0, this.bestTiers[c.id] ?? 0);
+      return { title: CHALLENGE_TITLE[c.kind], goal: tier < 3 ? describeChallenge(c, tier + 1) : 'Gold ✓', value: progressText(c, st), tier };
+    });
+  }
+
   private step(): void {
     const s = this.skier;
     this.prevPos.copy(s.pos);
     this.prevHeading = s.heading;
     this.input.sample(this.inp, DT, s.airborne);
     if (this.bot) botInput(s, this.track, this.inp, this.bot, this.botGap);
+    if (this.phase === 'ready') {
+      // standing in the gate: the first real input starts the run (with a pole push)
+      if (!this.inp.tuck && !this.inp.jump && Math.abs(this.inp.steer) < 0.05 && !this.inp.brake) return;
+      this.phase = 'running';
+      this.inp.tuck = true;
+      this.onStart?.();
+    }
+    if (this.phase === 'finished') {
+      this.inp.steer = 0;
+      this.inp.tuck = false;
+      this.inp.jump = false;
+      this.inp.brake = true;
+    }
     this.sEv.length = 0;
     this.rEv.length = 0;
     stepSkier(s, this.inp, this.track, DT, this.sEv);
     stepRun(this.run, s, this.track, DT, this.sEv, this.rEv);
     for (const e of this.sEv) this.onSkierEvent(e);
     for (const e of this.rEv) this.onRunEvent(e);
+    if (this.phase === 'running') this.liveMedals();
+    if (this.finishTimer >= 0) {
+      this.finishTimer += DT;
+      if (this.finishTimer > 1.3) {
+        this.finishTimer = -1;
+        this.onFinish?.(this.stats());
+      }
+    }
+  }
+
+  /** Speed / air / chain / spin medals pop the moment they are earned (Traffic Rider's instant objective). */
+  private liveMedals(): void {
+    const st = this.stats();
+    for (const c of CHALLENGES[this.track.def.id] ?? []) {
+      const t = liveTier(c, st);
+      if (t > (this.liveTiers[c.id] ?? 0)) {
+        this.liveTiers[c.id] = t;
+        this.audio.chime(t + 1);
+        this.hud.pop(`${TIER_NAME[t]} · ${describeChallenge(c, t)}`, 'great');
+      }
+    }
   }
 
   private onSkierEvent(e: SkierEvent): void {
@@ -146,6 +215,14 @@ export class Game {
         break;
       case 'chainEnd':
         break;
+      case 'trick':
+        break;
+      case 'finish':
+        this.phase = 'finished';
+        this.finishTimer = 0;
+        this.audio.chime(4);
+        this.hud.pop('Finish!', 'great');
+        break;
     }
   }
 
@@ -182,6 +259,13 @@ export class Game {
     this.flakes.update(this.cam.camera, this.time, ps);
     this.audio.update(s.vel.length(), s.edge, s.skid, s.surface, s.airborne, crashed, realDt);
     this.hud.setSpeed(s.vel.length() * 3.6);
+    this.hud.setRun(this.run.time, this.run.score, Math.max(0, s.pos.z) / this.track.def.length);
+    this.hud.setReady(this.phase === 'ready' ? this.readyText : null);
+    this.hudTick += realDt;
+    if (this.hudTick > 0.2) {
+      this.hudTick = 0;
+      this.hud.setChallenges(this.challengeRows());
+    }
 
     this.fpsN++;
     this.fpsT += realDt;

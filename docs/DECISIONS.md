@@ -52,3 +52,13 @@ Format : **décision** · raison · alternatives écartées.
 34. **Clairières « justes »** : un écart d'au moins 6 m entre troncs d'une même rangée, et des rangées espacées de 10–15 m. Il y a toujours un couloir praticable, comme le prouve le bot (0 chute à allure prudente).
 35. **Le bot ne freine pas en virage** (freiner divise l'adhérence par trois). Il cherchait à tenir 50 km/h en freinant sur 23° et percutait les sapins. C'est aussi un conseil de pilotage pour le joueur.
 36. **Lisibilité** : bande damée plus claire avec une ligne de bord, piquets de la couleur de la difficulté (bleu, rouge, noir), drapeaux orange avant les tremplins, lèvres teintées, poteaux jaune et noir avant les falaises, arches de départ et d'arrivée.
+
+## Phase 4
+
+37. **Seuils des défis calibrés sur des descentes du bot** (prudent 45 km/h, rapide 60–75 km/h) : bronze ≈ prudent, argent ≈ rapide, or = mieux que le bot (lignes, tuck, figures, near-miss). Le test `balance.test.ts` vérifie la courbe à chaque changement de physique.
+38. **Couloir Noir à 9 ★ au lieu de 10.** Le joueur « en progrès » simulé obtenait exactement 9 ★ sur les deux premières pistes. 9 = un tiers des 27 étoiles : la courbe reste douce sans palier artificiel.
+39. **Défi « Propre » sur la noire** (0 / 1 / 2 chutes). Un joueur prudent y décroche de l'or. C'est voulu : la piste la plus dure offre aussi des étoiles au contrôle et pas seulement à la vitesse (pas de pic brutal).
+40. **Médailles en direct** pour vitesse, air, chaîne et vrille, au moment où elles tombent (l'objectif instantané de Traffic Rider). Course, Propre et Score se valident à l'arrivée.
+41. **Restart = on garde les médailles déjà gagnées pendant la descente** (vitesse, air…) : rejouer n'efface jamais un exploit. Restart mesuré : 19–26 ms jusqu'au premier rendu (porte < 1 s).
+42. **Départ « en attente »** : le skieur reste dans le portillon jusqu'à la première entrée. Le chrono part à z = 0, ce qui est juste et lisible.
+43. **Tenues purement cosmétiques**, débloquées à 3, 6, 9, 13, 18, 23 et 27 ★.

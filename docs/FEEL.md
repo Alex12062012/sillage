@@ -79,4 +79,5 @@ Unités : m, s, m/s (×3,6 = km/h), rad. Gravité 9,81 m/s². Masse du skieur 75
 - **(a)** desktop 60 FPS (min 60) ; mobile émulé (Pixel 7, CPU ×4) 60 FPS (min 60) ; 22 draw calls ; 218 k triangles ; GPU Apple M1 via ANGLE Metal.
 - **(b)** captures `docs/captures/p2-*` : gerbe en carve, mur de neige au freinage (hockey stop), air au tremplin avec recul de la caméra, réception avec gerbe et shake, near-miss avec popup et flash de FOV.
 - **(c)** le bot « suivre la ligne + éviter » finit la piste sans chute à 45 km/h (test `bot.test.ts`), et l'aide contextuelle s'affiche 6 s au départ.
+| 4 | traces | `MeshBasicMaterial` (non éclairé) → **Lambert éclairé** | en lumière du matin, les traces sortaient en blanc vif sur une neige plus sombre | capture HUD : sillons discrets et bleutés |
 
