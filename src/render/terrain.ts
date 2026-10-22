@@ -231,6 +231,7 @@ export class Terrain {
 
   dispose(): void {
     for (const b of this.cache.values()) disposeChunk(b.group);
+    this.material.dispose();
     this.cache.clear();
     this.shown.clear();
     this.group.clear();

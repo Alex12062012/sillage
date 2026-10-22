@@ -190,7 +190,16 @@ export class SkiTrails {
 
   /** Call every frame with the skier's ground position; samples every `spacing` metres. */
   update(pos: Vector3, heading: number, airborne: boolean, intensity: number, powder: boolean, width: number, g: Ground): void {
-    if (airborne) { this.wasAir = true; return; }
+    if (airborne) {
+      if (!this.wasAir) {
+        // fade the newest sample out so no ribbon bridges the gap (jump chord, crash → respawn)
+        const n = this.samples;
+        for (let ski = 0; ski < 2; ski++) for (let e = 0; e < 2; e++) this.col[(ski * n * 2 + (n - 1) * 2 + e) * 4 + 3] = 0;
+        this.mesh.geometry.attributes.color.needsUpdate = true;
+      }
+      this.wasAir = true;
+      return;
+    }
     if (this.last.distanceToSquared(pos) < this.spacing * this.spacing) return;
     const brk = this.wasAir; // first sample after air or reset: invisible joint
     this.wasAir = false;
