@@ -6,9 +6,13 @@ import { mkdirSync } from 'node:fs';
 const [scenario = 'greybox', url = 'http://localhost:5180/', outDir = 'docs/captures'] = process.argv.slice(2);
 mkdirSync(outDir, { recursive: true });
 
-const mobile = scenario.endsWith('-mobile');
+const mobile = scenario.endsWith('-mobile') || scenario.startsWith('touch');
+const landscape = scenario.includes('landscape');
 const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
-const context = await browser.newContext(mobile ? { ...devices['Pixel 7'] } : { viewport: { width: 1280, height: 720 } });
+const pixel = devices['Pixel 7'];
+const context = await browser.newContext(mobile
+  ? { ...pixel, viewport: landscape ? { width: pixel.viewport.height, height: pixel.viewport.width } : pixel.viewport }
+  : { viewport: { width: 1280, height: 720 } });
 const page = await context.newPage();
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -158,6 +162,117 @@ if (scenario.startsWith('loop')) {
   await page.evaluate(() => window.__sillage.autopilot(null));
   await wait(300);
   await shot('p4-after-restart');
+}
+
+if (scenario.startsWith('menus')) {
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => !!window.__sillage);
+  await wait(1200);
+  await shot('p5-main-menu');
+  // keyboard only: Play is focused → Enter; first card focused → Enter; ArrowUp drops in
+  await page.keyboard.press('Enter');
+  await wait(300);
+  await shot('p5-select');
+  await page.keyboard.press('Enter');
+  await wait(500);
+  console.log('after select:', JSON.stringify(await state(), (k, v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v)));
+  await shot('p5-ready-hint');
+  await page.keyboard.down('ArrowUp');
+  await wait(2500);
+  await page.keyboard.up('ArrowUp');
+  await page.keyboard.down('ArrowLeft');
+  await wait(600);
+  await page.keyboard.up('ArrowLeft');
+  await shot('p5-keyboard-run');
+  const st = await state();
+  console.log('keyboard run:', JSON.stringify({ phase: st.phase, mode: st.mode, kmh: Math.round(st.kmh), x: +st.x.toFixed(1), z: Math.round(st.z) }));
+  await page.keyboard.press('Escape');
+  await wait(300);
+  await shot('p5-pause');
+  await page.keyboard.press('Escape');
+  await wait(200);
+  await page.evaluate(() => window.__sillage.menu());
+  await wait(300);
+  await page.click('[data-go="locker"]');
+  await wait(300);
+  await shot('p5-locker');
+  await page.click('[data-go="main"]');
+  await page.click('[data-go="settings"]');
+  await wait(300);
+  await shot('p5-settings');
+}
+
+if (scenario.startsWith('touch')) {
+  const cdp = await context.newCDPSession(page);
+  const touch = async (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], i) => ({ x, y, id: i })) });
+  const vw = page.viewportSize().width;
+  const vh = page.viewportSize().height;
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => !!window.__sillage);
+  await wait(1200);
+  await shot(`p5-touch-${landscape ? 'land' : 'port'}-menu`);
+  await page.tap('[data-go="select"]');
+  await wait(300);
+  await shot(`p5-touch-${landscape ? 'land' : 'port'}-select`);
+  await page.tap('[data-run="combe-douce"]');
+  await wait(500);
+  await shot(`p5-touch-${landscape ? 'land' : 'port'}-ready`);
+  // both thumbs = tuck (drops in), then hold the right half = carve right (-x), then swipe up = jump
+  await touch('touchStart', [[vw * 0.2, vh * 0.7], [vw * 0.8, vh * 0.7]]);
+  await wait(2200);
+  await touch('touchEnd', []);
+  const s0 = await state();
+  await touch('touchStart', [[vw * 0.8, vh * 0.6]]);
+  await wait(900);
+  await touch('touchEnd', []);
+  const s1 = await state();
+  await shot(`p5-touch-${landscape ? 'land' : 'port'}-carve`);
+  await touch('touchStart', [[vw * 0.5, vh * 0.75]]);
+  await touch('touchMove', [[vw * 0.5, vh * 0.68]]);
+  await touch('touchMove', [[vw * 0.5, vh * 0.55]]);
+  await wait(120);
+  const s2 = await state();
+  await touch('touchEnd', []);
+  await shot(`p5-touch-${landscape ? 'land' : 'port'}-jump`);
+  console.log('touch:', JSON.stringify({ droppedIn: s0.phase, kmhAfterTuck: Math.round(s0.kmh), carveDx: +(s1.x - s0.x).toFixed(2), jumped: s2.airborne }));
+  await page.tap('.touch-btn.pause');
+  await wait(300);
+  console.log('pause menu:', (await state()).menu);
+  await shot(`p5-touch-${landscape ? 'land' : 'port'}-pause`);
+}
+
+if (scenario.startsWith('pad')) {
+  // a standard-mapping gamepad, driven from the test through window.__pad
+  await page.addInitScript(() => {
+    const pad = { connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+    window.__pad = pad;
+    navigator.getGamepads = () => [pad];
+  });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => !!window.__sillage);
+  await wait(900);
+  const press = async (i, ms = 120) => {
+    await page.evaluate((b) => { window.__pad.buttons[b] = { pressed: true, value: 1 }; }, i);
+    await wait(ms);
+    await page.evaluate((b) => { window.__pad.buttons[b] = { pressed: false, value: 0 }; }, i);
+    await wait(120);
+  };
+  await press(0); // A on Play
+  await press(0); // A on the first run
+  const st0 = await state();
+  await page.evaluate(() => { window.__pad.buttons[7] = { pressed: true, value: 1 }; }); // RT = tuck (drops in)
+  await wait(1500);
+  await page.evaluate(() => { window.__pad.buttons[7] = { pressed: false, value: 0 }; window.__pad.axes[0] = 0.9; }); // stick right
+  const x0 = (await state()).x;
+  await wait(800);
+  await page.evaluate(() => { window.__pad.axes[0] = 0; });
+  const st1 = await state();
+  await press(9); // Start = pause
+  const st2 = await state();
+  console.log('pad:', JSON.stringify({ menuToRun: st0.mode, phase: st1.phase, kmh: Math.round(st1.kmh), stickRightDx: +(st1.x - x0).toFixed(2), startPauses: st2.mode }));
 }
 
 if (scenario.startsWith('perf')) {

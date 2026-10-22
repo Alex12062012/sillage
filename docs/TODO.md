@@ -47,9 +47,9 @@ Légende : [x] fait · [~] en cours · [ ] à faire
 - [x] Commit de phase
 
 ## Phase 5 — UI/UX & contrôles
-- [ ] menus, sélection, HUD, pause, réglages, chargement
-- [ ] tactile, manette, gyroscope, gaucher, mode confort
-- [ ] Commit de phase
+- [x] menus, sélection, HUD, pause, réglages, chargement
+- [x] tactile, manette, gyroscope, gaucher, mode confort
+- [x] Commit de phase
 
 ## Phase 6 — Perf & qualité
 - [ ] profiling + budgets + bundle

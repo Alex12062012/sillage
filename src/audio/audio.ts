@@ -29,6 +29,11 @@ export class GameAudio {
   private gust = 0;
   private grainAcc = 0;
   private volume = 0.8;
+  private music = true;
+  private musicBus: GainNode | null = null;
+  private musicTone: BiquadFilterNode | null = null;
+  private musicClock = 0;
+  private chordIdx = 0;
 
   get ready(): boolean {
     return !!this.ctx && this.ctx.state === 'running';
@@ -37,6 +42,11 @@ export class GameAudio {
   setVolume(v: number): void {
     this.volume = v;
     if (this.ctx) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
+  }
+
+  setMusic(on: boolean): void {
+    this.music = on;
+    if (this.ctx && this.musicBus) this.musicBus.gain.setTargetAtTime(on ? 0.11 : 0, this.ctx.currentTime, 0.4);
   }
 
   unlock(): void {
@@ -81,6 +91,20 @@ export class GameAudio {
     hp.frequency.value = 700;
     this.loop(1.1).connect(hp).connect(this.carveFilter).connect(this.carveGain);
 
+    // music bus: soft low-pass + a feedback echo for space (a distant, calm keyboard)
+    this.musicBus = ctx.createGain();
+    this.musicBus.gain.value = this.music ? 0.11 : 0;
+    this.musicTone = ctx.createBiquadFilter();
+    this.musicTone.type = 'lowpass';
+    this.musicTone.frequency.value = 1500;
+    const delay = ctx.createDelay(1);
+    delay.delayTime.value = 0.37;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.38;
+    this.musicBus.connect(this.musicTone).connect(this.master);
+    this.musicTone.connect(delay).connect(fb).connect(delay);
+    fb.connect(this.master);
+
     // iOS can leave the context "interrupted" after the tab loses focus
     document.addEventListener('visibilitychange', () => {
       if (!this.ctx) return;
@@ -112,11 +136,51 @@ export class GameAudio {
     return src;
   }
 
+  /** Generative ambient: a slow 4-chord loop, gently arpeggiated, plus rare high sparkles. */
+  private musicStep(dt: number, speed: number): void {
+    if (!this.music || !this.musicBus || !this.ctx) return;
+    this.musicTone!.frequency.setTargetAtTime(1300 + clamp01(speed / 30) * 2400, this.ctx.currentTime, 0.8); // brighter when fast
+    this.musicClock -= dt;
+    if (this.musicClock > 0) return;
+    this.musicClock = 3.4;
+    const CHORDS = [
+      [174.6, 220, 261.6, 329.6], [220, 261.6, 329.6, 392], [146.8, 174.6, 220, 329.6], [130.8, 164.8, 196, 293.7],
+    ];
+    const chord = CHORDS[this.chordIdx++ % CHORDS.length];
+    const t0 = this.ctx.currentTime + 0.05;
+    chord.forEach((f, i) => this.note(t0 + i * 0.14, f, 0.16, 3.2));
+    if (Math.random() < 0.45) {
+      const hi = [523.3, 659.3, 784, 880, 1174.7];
+      this.note(t0 + 1.4 + Math.random(), hi[Math.floor(Math.random() * hi.length)], 0.07, 2.2);
+    }
+  }
+
+  private note(t: number, f: number, peak: number, dur: number): void {
+    const ctx = this.ctx!;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.connect(this.musicBus!);
+    for (const [type, mul, lvl] of [['sine', 1, 1], ['triangle', 2, 0.18]] as const) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = f * mul;
+      o.detune.value = (Math.random() - 0.5) * 6;
+      const og = ctx.createGain();
+      og.gain.value = lvl;
+      o.connect(og).connect(g);
+      o.start(t);
+      o.stop(t + dur + 0.1);
+    }
+  }
+
   /** Continuous layers; call once per frame. */
   update(speed: number, edge: number, skid: number, surface: Surface, airborne: boolean, crashed: boolean, dt: number): void {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
     const t = ctx.currentTime;
+    this.musicStep(dt, speed);
     this.gust = Math.max(-1, Math.min(1, this.gust * 0.985 + (Math.random() - 0.5) * dt * 3));
     const w = windParams(speed);
     this.windGain.gain.setTargetAtTime(w.gain * (1 + 0.25 * this.gust), t, 0.12);

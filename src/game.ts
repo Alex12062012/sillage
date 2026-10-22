@@ -52,6 +52,7 @@ export class Game {
   bot: number | null = null;
   botGap = 2.4;
   phase: Phase = 'ready';
+  paused = false;
   /** Best tier already owned per challenge (from the save): live pops only fire above it. */
   bestTiers: Record<string, number> = {};
   private liveTiers: Record<string, number> = {};
@@ -77,6 +78,7 @@ export class Game {
     this.world.clear();
     this.track = makeTrack(def);
     this.terrain = new Terrain(this.track, buildChunkProps);
+    this.terrain.viewDistance = this.viewDistance;
     this.world.add(this.terrain.group, buildLandmarks(this.track));
     this.sky.setTime(def.timeOfDay);
     this.reset();
@@ -97,6 +99,22 @@ export class Game {
     this.acc = 0;
     this.sky.setTime(this.track.def.timeOfDay);
     this.terrain?.prewarm(this.skier.pos.z);
+  }
+
+  /** Drop the skier mid-run at `z` (attract mode / tests): already moving, clock running. */
+  startAt(z: number, speed: number): void {
+    const s = this.skier;
+    const x = this.track.centerX(z);
+    const heading = Math.atan((this.track.centerX(z + 1) - this.track.centerX(z - 1)) / 2);
+    s.pos.set(x, this.track.height(x, z), z);
+    s.heading = heading;
+    s.vel.set(Math.sin(heading), 0, Math.cos(heading)).multiplyScalar(speed);
+    this.prevPos.copy(s.pos);
+    this.prevHeading = heading;
+    this.renderPos.copy(s.pos);
+    this.phase = 'running';
+    this.cam.snap(s.pos, heading);
+    this.terrain?.prewarm(z);
   }
 
   setOutfit(c: SkierColors): void {
@@ -128,6 +146,8 @@ export class Game {
       if (!this.inp.tuck && !this.inp.jump && Math.abs(this.inp.steer) < 0.05 && !this.inp.brake) return;
       this.phase = 'running';
       this.inp.tuck = true;
+      // skating push-off out of the gate: the run starts the instant you ask for it
+      s.vel.set(Math.sin(s.heading), 0, Math.cos(s.heading)).multiplyScalar(5);
       this.onStart?.();
     }
     if (this.phase === 'finished') {
@@ -226,7 +246,22 @@ export class Game {
     }
   }
 
+  /** Graphics level: view distance + fog, falling snow density. */
+  setQuality(q: 'low' | 'medium' | 'high'): void {
+    const view = { low: 300, medium: 390, high: 470 }[q];
+    if (this.terrain) this.terrain.viewDistance = view;
+    this.viewDistance = view;
+    this.sky.fog.far = view;
+    this.sky.fog.near = view * 0.26;
+    this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
+  }
+  private viewDistance = 470;
+
   frame(realDt: number): void {
+    if (this.paused) {
+      this.renderer.render(this.scene, this.cam.camera);
+      return;
+    }
     const scale = this.slowmo.update(realDt);
     const gdt = realDt * scale;
     this.time += gdt;

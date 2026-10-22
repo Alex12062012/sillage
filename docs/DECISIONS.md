@@ -62,3 +62,16 @@ Format : **décision** · raison · alternatives écartées.
 41. **Restart = on garde les médailles déjà gagnées pendant la descente** (vitesse, air…) : rejouer n'efface jamais un exploit. Restart mesuré : 19–26 ms jusqu'au premier rendu (porte < 1 s).
 42. **Départ « en attente »** : le skieur reste dans le portillon jusqu'à la première entrée. Le chrono part à z = 0, ce qui est juste et lisible.
 43. **Tenues purement cosmétiques**, débloquées à 3, 6, 9, 13, 18, 23 et 27 ★.
+
+## Phase 5
+
+44. **Tactile : zones (moitiés d'écran) + gestes, plutôt qu'un joystick virtuel.** C'est la logique « deux bâtons » du jeu de référence. Maintenir un côté = carver, les deux = tuck, glisser ↑ = saut (salto arrière en l'air), glisser ↓ = frein (salto avant en l'air). Un bouton saut optionnel existe pour qui préfère taper. Rien ne masque le centre de l'écran.
+45. **Mode gaucher = miroir des boutons à l'écran** (saut, pause). Les zones de carve sont symétriques et n'ont pas besoin d'être inversées.
+46. **Inclinaison (gyroscope) en option**, avec demande de permission iOS dans le geste et retour au tactile si refus. Avec le gyroscope, n'importe quel appui sert au tuck.
+47. **Manette au mapping standard** : stick / croix = carve, RT = tuck, LT / B = frein, A = saut, Start = pause, Y = restart, Select = caméra. Menus navigables à la croix et à A (vérifié avec une manette simulée).
+48. **Menu sur fond « attract »** : le bot dévale la dernière piste jouée derrière les menus. Le jeu se montre avant même qu'on joue, sans écran statique.
+49. **Poussée de départ (5 m/s) à la sortie du portillon.** Le départ était mou (21 km/h après 3 s) ; une boucle « encore une descente » exige un démarrage nerveux.
+50. **Résolution adaptative** : −10 % de pixel ratio après 90 frames de plus de 22 ms, retour progressif au-delà de 600 frames rapides. Le plafond dépend de la qualité (1 / 1,5 / 2). MSAA seulement en « High », choisi au démarrage.
+51. **`[hidden] { display: none !important }`** : un `display: flex` d'auteur annulait l'attribut `hidden`. Le calque de menu, invisible, interceptait les taps (trouvé par le test tactile).
+52. **Mode confort activé par défaut si l'OS demande `prefers-reduced-motion`** (recommandation des guides d'accessibilité : confort par défaut, désactivable).
+53. **Écran de chargement en HTML/CSS inline** dans `index.html` : il s'affiche avant le téléchargement du JS (≈ 170 Ko gzip).
