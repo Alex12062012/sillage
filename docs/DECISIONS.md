@@ -75,3 +75,29 @@ Format : **décision** · raison · alternatives écartées.
 51. **`[hidden] { display: none !important }`** : un `display: flex` d'auteur annulait l'attribut `hidden`. Le calque de menu, invisible, interceptait les taps (trouvé par le test tactile).
 52. **Mode confort activé par défaut si l'OS demande `prefers-reduced-motion`** (recommandation des guides d'accessibilité : confort par défaut, désactivable).
 53. **Écran de chargement en HTML/CSS inline** dans `index.html` : il s'affiche avant le téléchargement du JS (≈ 170 Ko gzip).
+
+## Phase 6 — revue adversariale (4 relecteurs en parallèle) et correctifs
+
+Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les principaux :
+
+54. **Critique — bassins remontants après les tremplins.** La récupération du creux de réception faisait remonter la pente jusqu'à −0,52 sur toute la largeur. Un skieur arrêté ou tombé y restait piégé, et le bot restait bloqué 400 s sur la noire. **Correctif :** la pente de base ne descend jamais sous 4°. *Test :* aucune remontée le long du couloir, sur les 3 pistes.
+55. **Majeur — réapparition dans un sapin**, d'où une seconde chute immédiate qui comptait pour le défi « Propre ». **Correctif :** le contrôle inclut les obstacles juste derrière le point, et à défaut on recule de 3 m. *Test :* 0 réapparition au contact d'un obstacle, avec un pas de 0,5 m sur les 3 pistes.
+56. **Critique — manette, A sur Retry.** Le pad est lu pendant un pas de physique ; la réinitialisation survenait en plein pas, et l'ancien skieur « finissait » la nouvelle descente en 0,02 s : faux record et médailles gratuites. **Correctif :** le pas est abandonné si la descente a changé. *Test e2e*, vérifié rouge (sans le correctif) puis vert.
+57. **Critique — manette en pause** : plus lue du tout. **Correctif :** lecture des boutons en pause, sans file de saut.
+58. **Majeur — Retry pendant les 1,3 s de glissade après l'arrivée** : la descente terminée (record, médailles) était perdue. **Correctif :** la descente est sauvegardée telle quelle. *Test e2e.*
+59. **Majeur — écran de fin.** Il n'était pas navigable à la manette ni aux flèches, et Entrée relançait toujours, même avec le focus sur « Menu ». **Correctif :** navigation dans l'écran de fin, Entrée active le bouton ciblé. *Test e2e.*
+60. **Majeur — audio muet sur iOS** : le geste n'est validé qu'au relâchement. **Correctif :** déverrouillage aussi sur pointerup et touchend.
+61. **Majeur — canvas étiré sur mobile** : 100vh en CSS contre innerHeight au rendu. **Correctif :** 100 % de la boîte fixe.
+62. **Mineurs corrigés :**
+    - traces « fantômes » entre décollage et réception, ou entre chute et réapparition ;
+    - cycle du jour qui sautait du crépuscule au matin ;
+    - écritures DOM du HUD à chaque frame (désormais seulement si ça change) ;
+    - fuite des arches, bannières et matériaux au changement de piste ;
+    - Espace bloqué sur les boutons ;
+    - vent qui continuait en pause ;
+    - bouton pause qui masquait le score ;
+    - compteur FPS invisible sur desktop ;
+    - focus perdu dans les réglages ;
+    - `setItem` non protégé (sonde d'écriture, avec repli en mémoire).
+63. **Effet de bord assumé : seuils recalibrés.** Sans bassins, les descentes sont plus rapides et le bot rapide prenait l'or « Course » partout. Nouveaux seuils course : 100/74/60, 135/100/80, 165/120/96 s ; score de la noire : 3 500/7 000/11 000. Le test d'équilibrage reste vert : débutant ≥ 1 ★ par piste, déblocages successifs, joueur « simple » à 17 ★ sur 27.
+64. **Bot : évitement d'urgence à court terme.** Il vire tout de suite si un obstacle est sur sa ligne dans les ~0,7 s suivantes. Le test fragile sur l'« ordre des chutes » est remplacé par « finit les 3 pistes à allure soutenue ».

@@ -9,25 +9,27 @@ Toutes les mesures portent sur le **build de production** (`npm run build && npm
 | FPS desktop | 60 | **60** (p95 59,5–59,9) |
 | FPS mobile émulé (CPU ×4) | ≥ 30 (cible 60) | **60** (p95 59,5–59,9) |
 | FPS « bas de gamme » (CPU ×6) | ≥ 30 | **60** (p95 59,9) |
-| Draw calls | < 60 | **56–58** |
-| Triangles visibles | < 250 k | **69–76 k** |
-| Construction d'un chunk (pire cas) | ≤ 1 par frame, < 16 ms | 4,8–5,6 ms (desktop), 6,3–6,8 ms (×4), 9,6–10,5 ms (×6) |
-| Heap JS | — | 11–14 Mo |
-| Bundle initial gzip | < 3 Mo | **172 Ko** (JS 167,4 Ko + CSS 3,3 Ko + HTML 1,1 Ko) |
+| Draw calls | < 60 | **52–58** |
+| Triangles visibles | < 250 k | **62–76 k** |
+| Construction d'un chunk (pire cas) | ≤ 1 par frame, < 16 ms | 3,7–5,7 ms (desktop), 6,8–8,4 ms (×4), 8,3–12,2 ms (×6) |
+| Heap JS | — | 11–15 Mo |
+| Bundle initial gzip | < 3 Mo | **172 Ko** (JS 167,9 Ko + CSS 3,3 Ko + HTML 1,1 Ko) |
 
 ## Détail par piste et profil
 
 | Profil | Piste | FPS moyen | FPS p95 (frames lentes) | Draw calls | Triangles | Chunk max (ms) | Heap JS (Mo) | DPR final |
 |---|---|---|---|---|---|---|---|---|
-| desktop 1280×720 | combe-douce | 59.6 | 59.5 | 58 | 75 k | 5.6 | 11 | 1.00 |
-| desktop 1280×720 | crete-du-loup | 60.1 | 59.9 | 57 | 69 k | 4.9 | 14 | 1.00 |
-| desktop 1280×720 | couloir-noir | 60.1 | 59.9 | 56 | 76 k | 4.8 | 11 | 1.00 |
-| mobile Pixel 7, CPU ×4 | combe-douce | 60.0 | 59.9 | 58 | 75 k | 6.3 | 11 | 2.00 |
-| mobile Pixel 7, CPU ×4 | crete-du-loup | 60.1 | 59.5 | 57 | 69 k | 6.6 | 11 | 2.00 |
-| mobile Pixel 7, CPU ×4 | couloir-noir | 60.1 | 59.5 | 57 | 76 k | 6.8 | 12 | 2.00 |
-| low-end stress, CPU ×6 | combe-douce | 60.0 | 59.9 | 58 | 75 k | 9.6 | 11 | 2.00 |
-| low-end stress, CPU ×6 | crete-du-loup | 59.9 | 59.9 | 57 | 69 k | 10.5 | 12 | 2.00 |
-| low-end stress, CPU ×6 | couloir-noir | 60.1 | 59.9 | 57 | 76 k | 10.1 | 11 | 2.00 |
+| desktop 1280×720 | combe-douce | 59.5 | 59.9 | 58 | 75 k | 3.7 | 11 | 1.00 |
+| desktop 1280×720 | crete-du-loup | 60.1 | 59.9 | 57 | 69 k | 4.2 | 14 | 1.00 |
+| desktop 1280×720 | couloir-noir | 60.1 | 59.5 | 56 | 76 k | 5.7 | 14 | 1.00 |
+| mobile Pixel 7, CPU ×4 | combe-douce | 60.1 | 59.9 | 55 | 72 k | 6.8 | 13 | 1.50 |
+| mobile Pixel 7, CPU ×4 | crete-du-loup | 60.1 | 59.9 | 52 | 62 k | 8.4 | 14 | 1.50 |
+| mobile Pixel 7, CPU ×4 | couloir-noir | 60.1 | 59.9 | 54 | 72 k | 6.9 | 14 | 1.50 |
+| low-end stress, CPU ×6 | combe-douce | 60.0 | 59.9 | 55 | 72 k | 8.3 | 12 | 1.50 |
+| low-end stress, CPU ×6 | crete-du-loup | 60.0 | 59.9 | 52 | 62 k | 12.2 | 14 | 1.50 |
+| low-end stress, CPU ×6 | couloir-noir | 60.1 | 59.9 | 54 | 72 k | 10.5 | 15 | 1.50 |
+
+*(Mesures refaites après les correctifs de la revue. Sur mobile, le DPR est 1,5 parce que « Medium » est désormais la qualité par défaut sur les appareils tactiles.)*
 
 ## Pire cas GPU : rendu logiciel (SwiftShader)
 

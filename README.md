@@ -58,7 +58,7 @@ Requires Node.js ≥ 22.12.
 ```bash
 npm install
 npm run dev          # http://localhost:5180
-npm test             # 65 unit tests (physics, terrain, scoring, progression, balance)
+npm test             # 67 unit tests (physics, terrain, scoring, progression, balance)
 npm run test:e2e     # Playwright smoke tests (desktop + mobile emulation) on a production build
 npm run build        # type-check + production bundle in dist/
 ```
@@ -77,7 +77,7 @@ src/
 docs/        design docs (French): GDD, FEEL, RESEARCH, ARCHITECTURE, RISKS, ROADMAP, DECISIONS, PERF
 ```
 
-Performance on the production build: 60 fps desktop, 60 fps mobile-emulated (CPU ×4), about 57 draw calls, about 75 k triangles, 172 KB gzipped. See [docs/PERF.md](docs/PERF.md).
+Performance on the production build: 60 fps desktop, 60 fps mobile-emulated (CPU ×4), 52–58 draw calls, 62–76 k triangles, 172 KB gzipped. See [docs/PERF.md](docs/PERF.md).
 
 ## Credits
 

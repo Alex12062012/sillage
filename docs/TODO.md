@@ -52,10 +52,10 @@ Légende : [x] fait · [~] en cours · [ ] à faire
 - [x] Commit de phase
 
 ## Phase 6 — Perf & qualité
-- [ ] profiling + budgets + bundle
-- [ ] suite Vitest + Playwright + captures
-- [ ] PERF.md
-- [ ] Commit de phase
+- [x] profiling + budgets + bundle
+- [x] suite Vitest + Playwright + captures
+- [x] PERF.md
+- [x] Commit de phase
 
 ## Phase 7 — GitHub & Vercel
 - [ ] auth gh / vercel
