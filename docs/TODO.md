@@ -14,14 +14,14 @@ Légende : [x] fait · [~] en cours · [ ] à faire
 - [x] Commit de phase
 
 ## Phase 1 — Boîte grise
-- [ ] rng + noise
-- [ ] track (pente simple pour commencer)
-- [ ] physique du skieur (gravité projetée, frottement, carving, frein, saut, décollage)
-- [ ] boucle fixe 60 Hz + interpolation
-- [ ] capsule + caméra de poursuite + clavier
-- [ ] tests physiques (stabilité, carving, frein, saut)
-- [ ] captures Playwright
-- [ ] Commit de phase
+- [x] rng + noise
+- [x] track (pente simple pour commencer)
+- [x] physique du skieur (gravité projetée, frottement, carving, frein, saut, décollage)
+- [x] boucle fixe 60 Hz + interpolation
+- [x] capsule + caméra de poursuite + clavier
+- [x] tests physiques (stabilité, carving, frein, saut)
+- [x] captures Playwright
+- [x] Commit de phase
 
 ## Phase 2 — Feeling
 - [ ] FOV dynamique, shake (trauma), caméra qui respire

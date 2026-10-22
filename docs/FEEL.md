@@ -61,4 +61,10 @@ Unités : m, s, m/s (×3,6 = km/h), rad. Gravité 9,81 m/s². Masse du skieur 75
 
 ## Journal de tuning
 
-*(rempli pendant la Phase 2)*
+| Phase | Paramètre | Avant → après | Pourquoi | Mesure |
+|---|---|---|---|---|
+| 1 | `gravity` | 9,81 → **11** | 0 → 50 km/h trop lent (≈ 5,3 s) et sauts trop flottants | 0 → 50 km/h ≈ 4 s ; pop sur plat 0,76 s (tests verts) |
+| 1 | `cdaTuck` / `cdaUpright` | 0,24 / 0,65 → **0,28 / 0,62** | g plus forte : légèrement plus de traînée pour garder des vitesses terminales crédibles | tuck 18° > 110 km/h, debout 75–100 km/h |
+| 1 | `KICKERS` | 1re géométrie (lèvre 24°, réception courte) → **lèvre plus basse + réception longue (≈ 32°)** | à 50 km/h, le skieur dépassait la réception : Vn = 15,6 m/s, chute | exploration à 30–80 km/h : réception douce jusqu'à 60 km/h (Vn ≤ 7,5) |
+| 1 | `landCrashVn` | 14,5 → 16 → **20** + perte de vitesse ∝ Vn (`hardLandMaxLoss` 0,5) | ton chill : on chute pour une mauvaise orientation, pas pour un tremplin pris trop vite | petit tremplin à 98 km/h : réception dure, 98 → 37 km/h, pas de chute |
+| 1 | verrou d'entrées en l'air | — | tenir ↑ (tuck) ou une direction au décollage déclenchait salto ou vrille involontaire | une entrée tenue au décollage doit être relâchée avant d'agir en l'air |
