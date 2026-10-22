@@ -24,14 +24,14 @@ Légende : [x] fait · [~] en cours · [ ] à faire
 - [x] Commit de phase
 
 ## Phase 2 — Feeling
-- [ ] FOV dynamique, shake (trauma), caméra qui respire
-- [ ] audio vent + carres + impacts
-- [ ] gerbes de neige, flocons, traces de skis
-- [ ] near-miss (+ effet), slow-mo de récompense
-- [ ] panneau debug `~`
-- [ ] tests de feel + bot + mesure FPS
-- [ ] journal de tuning
-- [ ] Commit de phase
+- [x] FOV dynamique, shake (trauma), caméra qui respire
+- [x] audio vent + carres + impacts
+- [x] gerbes de neige, flocons, traces de skis
+- [x] near-miss (+ effet), slow-mo de récompense
+- [x] panneau debug `~`
+- [x] tests de feel + bot + mesure FPS
+- [x] journal de tuning
+- [x] Commit de phase
 
 ## Phase 3 — Monde
 - [ ] terrain seedé complet + chunks + LOD

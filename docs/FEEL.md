@@ -68,3 +68,15 @@ Unités : m, s, m/s (×3,6 = km/h), rad. Gravité 9,81 m/s². Masse du skieur 75
 | 1 | `KICKERS` | 1re géométrie (lèvre 24°, réception courte) → **lèvre plus basse + réception longue (≈ 32°)** | à 50 km/h, le skieur dépassait la réception : Vn = 15,6 m/s, chute | exploration à 30–80 km/h : réception douce jusqu'à 60 km/h (Vn ≤ 7,5) |
 | 1 | `landCrashVn` | 14,5 → 16 → **20** + perte de vitesse ∝ Vn (`hardLandMaxLoss` 0,5) | ton chill : on chute pour une mauvaise orientation, pas pour un tremplin pris trop vite | petit tremplin à 98 km/h : réception dure, 98 → 37 km/h, pas de chute |
 | 1 | verrou d'entrées en l'air | — | tenir ↑ (tuck) ou une direction au décollage déclenchait salto ou vrille involontaire | une entrée tenue au décollage doit être relâchée avant d'agir en l'air |
+| 2 | FOV | 72° vertical → **62° + 18° de boost** (vertical), compensation en portrait | 72° vertical ≈ 103° horizontal en 16:9 : effet fish-eye | capture : 62° à l'arrêt, 66° à 36 km/h, 74° à 79 km/h ; tests de mapping verts |
+| 2 | gerbes | taille 0,16–0,38 m, alpha 0,85, 260 /s → **0,07–0,23 m, alpha 0,62, 420 /s** | « boules de coton » trop opaques qui masquaient les skis | capture carve : gerbe fine, skis visibles |
+| 2 | flocons | taille non bornée → **≤ 4,5 px** | les flocons proches devenaient de gros points blancs | capture : neige fine qui défile |
+| 2 | collision sapin | rayon 0,5–0,8 m (tronc) → **rayon du feuillage bas × 0,85** | hitbox = visuel (critique faite à Traffic Rider) | test near-miss à 1 m du feuillage |
+| 2 | réapparition | sur la ligne centrale → **ligne centrale, décalée si un obstacle est à moins de 12 m devant** | le bot rechutait en boucle sur un sapin placé sur la ligne | bot : 0 chute à 45 km/h |
+| 2 | slow-mo | — → 0,4× pendant 0,25 s (vol ≥ 2 s ou 360), hitstop 0,3× pendant 60 ms sur near-miss frôlé, 0,5× sur une chute | récompense sans casser le contrôle | tests SlowMo (temps réel, jamais bloqué) |
+
+**Porte Phase 2 (mesures du 22/10) :**
+- **(a)** desktop 60 FPS (min 60) ; mobile émulé (Pixel 7, CPU ×4) 60 FPS (min 60) ; 22 draw calls ; 218 k triangles ; GPU Apple M1 via ANGLE Metal.
+- **(b)** captures `docs/captures/p2-*` : gerbe en carve, mur de neige au freinage (hockey stop), air au tremplin avec recul de la caméra, réception avec gerbe et shake, near-miss avec popup et flash de FOV.
+- **(c)** le bot « suivre la ligne + éviter » finit la piste sans chute à 45 km/h (test `bot.test.ts`), et l'aide contextuelle s'affiche 6 s au départ.
+

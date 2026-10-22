@@ -32,8 +32,10 @@ const until = async (pred, timeout = 20000) => {
 };
 
 await page.goto(url);
+page.on('load', () => {});
 await page.waitForFunction(() => !!window.__sillage, null, { timeout: 15000 });
 await wait(800);
+console.log('GPU:', await page.evaluate(() => window.__sillage.gpu()));
 
 if (scenario.startsWith('greybox')) {
   await shot('p1-start');
@@ -62,6 +64,56 @@ if (scenario.startsWith('greybox')) {
   await drive({});
   await wait(200);
   await shot('p1-pop');
+}
+
+if (scenario.startsWith('feel')) {
+  await shot('p2-start');
+  await page.evaluate(() => window.__sillage.autopilot(60));
+  await wait(2500);
+  await shot('p2-cruise');
+  await page.evaluate(() => window.__sillage.autopilot(null));
+  await drive({ steer: 0.8 });
+  await wait(700);
+  await shot('p2-carve-spray');
+  await drive({ brake: true, steer: 0 });
+  await wait(450);
+  await shot('p2-brake-spray');
+  await drive(null);
+  await page.evaluate(() => window.__sillage.restart());
+  await page.evaluate(() => window.__sillage.autopilot(75));
+  await until((s) => s.z > 500, 45000);
+  await page.evaluate(() => window.__sillage.autopilot(null));
+  await drive({});
+  await until((s) => s.airborne, 6000);
+  await wait(500);
+  await shot('p2-kicker-air');
+  await until((s) => !s.airborne, 6000);
+  await wait(80);
+  await shot('p2-landing');
+  await page.evaluate(() => window.__sillage.autopilot(62, 0.9));
+  await until((s) => s.nearMisses > 0, 40000);
+  await wait(120);
+  await shot('p2-near-miss');
+  await page.evaluate(() => window.__sillage.debug());
+  await wait(500);
+  await shot('p2-debug-panel');
+}
+
+if (scenario.startsWith('perf')) {
+  if (mobile) {
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  }
+  await page.evaluate(() => window.__sillage.autopilot(65));
+  const samples = [];
+  for (let i = 0; i < 24; i++) {
+    await wait(500);
+    samples.push((await state()).fps);
+  }
+  const st = await state();
+  const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+  console.log(JSON.stringify({ scenario, avgFps: +avg.toFixed(1), minFps: +Math.min(...samples).toFixed(1), calls: st.calls, tris: st.tris, z: Math.round(st.z) }));
+  await shot(`perf-${mobile ? 'mobile' : 'desktop'}`);
 }
 
 console.log(errors.length ? `CONSOLE ERRORS (${errors.length}):\n${errors.join('\n')}` : 'no console errors');

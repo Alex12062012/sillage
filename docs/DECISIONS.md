@@ -34,3 +34,11 @@ Format : **décision** · raison · alternatives écartées.
 22. **Une réception trop rapide coûte de la vitesse au lieu de faire chuter.** On ne chute que pour une mauvaise orientation ou un impact extrême (Vn > 20 m/s). C'est le ton de Grand Mountain : la sanction comique vient d'une erreur de figure, pas d'un excès d'élan.
 23. **Verrou des entrées en l'air.** Une touche tenue au décollage doit être relâchée avant de faire vriller ou salto. Sans ce verrou, un débutant en tuck faisait des saltos involontaires.
 24. **Classes mathématiques de Three (`Vector3`) autorisées dans `sim/`.** Ce sont des maths pures, testables en Node : inutile de réinventer des vecteurs. Aucun objet de rendu n'entre dans `sim/`.
+
+## Phase 2
+
+25. **Skieur low-poly à pose procédurale dès la Phase 2** au lieu de la capsule. L'« inertie crédible » se *voit* surtout dans le corps : flexion en tuck, inclinaison ∝ charge latérale, hockey stop, bras en l'air, chute « yard sale ».
+26. **Flocons calculés dans le shader**, en boîte qui suit la caméra (0 CPU par frame) : c'est l'indice de vitesse le moins cher qui soit.
+27. **Bot de suivi de ligne** (`sim/bot.ts`) : il prouve qu'une piste se finit sans technique particulière (porte c), pilote les captures et sert de banc FPS reproductible.
+28. **API debug `window.__sillage`** (état, `drive`, `autopilot`, `gpu`) : elle rend les tests Playwright déterministes sans simuler le clavier.
+29. **Mesure FPS sur le GPU matériel** (ANGLE Metal), pas sur SwiftShader : les chiffres sont représentatifs du desktop. Le « mobile émulé » = CPU ×4 (référence Lighthouse) + viewport et DPR d'un Pixel 7. Le GPU n'est pas bridé : la marge GPU mobile est gérée par le pixel ratio adaptatif (Phase 6).

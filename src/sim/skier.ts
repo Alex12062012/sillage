@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { TUNING as T } from '../tuning';
-import { clamp, Surface, type Ground } from './track';
+import { clamp, Surface, type Ground, type Obstacle } from './track';
 
 /** steer: -1 left … +1 right (screen space). flip: -1 back … +1 front. jump: edge-triggered. */
 export interface SkierInput { steer: number; tuck: boolean; brake: boolean; jump: boolean; flip: number }
@@ -49,6 +49,7 @@ const wrapPi = (a: number) => a - 2 * PI * Math.floor((a + PI) / (2 * PI));
 const tmpN = new Vector3();
 const tmpF = new Vector3();
 const tmpC = new Vector3();
+const near: Obstacle[] = [];
 
 export function createSkier(g: Ground, x: number, z: number, heading: number): SkierState {
   return {
@@ -159,6 +160,7 @@ function groundStep(s: SkierState, inp: SkierInput, g: Ground, dt: number, ev: S
 
   // 6. Move, then decide: stick to the ground or take off.
   s.pos.addScaledVector(s.vel, dt);
+  if (collide(s, g, ev)) return;
   const h = g.height(s.pos.x, s.pos.z);
   const n2 = g.normal(s.pos.x, s.pos.z, tmpN);
   const vn = s.vel.dot(n2);
@@ -237,8 +239,32 @@ function airStep(s: SkierState, inp: SkierInput, g: Ground, dt: number, ev: Skie
   s.edge *= 0.9;
 
   s.pos.addScaledVector(s.vel, dt);
+  if (collide(s, g, ev)) return;
   const h = g.height(s.pos.x, s.pos.z);
   if (s.pos.y <= h) land(s, g, h, ev);
+}
+
+/** Trees, rocks, other skiers: circles in the ground plane. Fast hit = crash, slow touch = blocked. */
+function collide(s: SkierState, g: Ground, ev: SkierEvent[]): boolean {
+  if (!g.obstaclesNear) return false;
+  for (const o of g.obstaclesNear(s.pos.x, s.pos.z, T.skierRadius + 0.5, near)) {
+    const dx = s.pos.x - o.x;
+    const dz = s.pos.z - o.z;
+    const d = Math.hypot(dx, dz) || 1e-6;
+    const minD = o.r + T.skierRadius;
+    if (d >= minD || s.pos.y - g.height(o.x, o.z) > o.h) continue;
+    s.pos.x = o.x + (dx / d) * minD;
+    s.pos.z = o.z + (dz / d) * minD;
+    if (!s.airborne) s.pos.y = g.height(s.pos.x, s.pos.z);
+    if (s.vel.length() > 5) {
+      s.vel.multiplyScalar(0.25); // the tree wins
+      startCrash(s, ev, 'obstacle');
+      return true;
+    }
+    const into = (s.vel.x * dx + s.vel.z * dz) / d;
+    if (into < 0) { s.vel.x -= (into * dx) / d; s.vel.z -= (into * dz) / d; }
+  }
+  return false;
 }
 
 function land(s: SkierState, g: Ground, h: number, ev: SkierEvent[]): void {
