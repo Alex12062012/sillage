@@ -1,88 +1,116 @@
 # Sillage
 
-**A low-poly 3D skiing game about speed and the joy of carving. Runs in the browser, on phones and desktops.**
+**Un jeu de ski en 3D low-poly, autour de la vitesse et du plaisir de la courbe. Il se joue dans le navigateur, sur téléphone comme sur ordinateur.**
 
-> *Sillage* (French): the trail you leave behind — here, two clean lines in fresh snow.
+> Le *sillage*, c'est la trace qu'on laisse derrière soi : ici, deux lignes nettes dans la neige fraîche.
 
-![Sillage gameplay](docs/media/sillage.gif)
+![Aperçu du jeu](docs/media/sillage.gif)
 
-▶ **Play:** [sillage-hazel-kappa.vercel.app](https://sillage-hazel-kappa.vercel.app)
+▶ **Jouer :** [sillage-hazel-kappa.vercel.app](https://sillage-hazel-kappa.vercel.app)
 
-Short runs of 45–90 seconds down procedurally generated mountains. Carve to keep your speed, tuck to chase it, skim trees for near-miss chains, launch off kickers, then hit **Retry** and do it better. Every challenge has bronze, silver and gold tiers; stars unlock new runs and outfits.
+Ce sont des descentes courtes, de 45 à 90 secondes, sur des montagnes générées par le code :
+- **carve** pour garder ta vitesse, et **tuck** (position de recherche de vitesse) pour aller encore plus vite ;
+- **frôle les sapins** pour enchaîner les « near-miss », et **saute** sur les tremplins ;
+- puis appuie sur **Retry** et fais mieux.
+
+Chaque défi a trois paliers (bronze, argent, or), et les étoiles débloquent de nouvelles pistes et de nouvelles tenues.
 
 | | |
 |---|---|
-| ![Morning on Combe Douce](docs/captures/p3-combe-douce-run.jpg) | ![Results screen](docs/captures/p4-results.jpg) |
-| ![Golden hour on Couloir Noir](docs/captures/p3-couloir-noir-run.jpg) | ![Mobile, portrait](docs/captures/p5-touch-port-menu.jpg) |
+| ![Le matin sur Combe Douce](docs/captures/p3-combe-douce-run.jpg) | ![Écran de résultats](docs/captures/p4-results.jpg) |
+| ![Fin de journée sur le Couloir Noir](docs/captures/p3-couloir-noir-run.jpg) | ![Sur mobile, en portrait](docs/captures/p5-touch-port-menu.jpg) |
 
-## Controls
+## Commandes
 
-| Action | Keyboard | Touch | Gamepad |
+| Action | Clavier | Tactile | Manette |
 |---|---|---|---|
-| Carve left / right | ← → or A D | hold the left / right half of the screen | left stick or d-pad |
-| Tuck (speed) | ↑ or W | hold both halves | RT |
-| Brake (skid) | ↓ or S | swipe down and hold | LT or B |
-| Jump | Space | swipe up (or the ↑ button) | A |
-| Spin / flip in the air | ← → / ↑ ↓ | hold a side / swipe up or down | stick |
-| Restart · Pause · Camera | R · Esc · C | on-screen buttons | Y · Start · Select |
+| Carver à gauche / à droite | ← → ou A D | maintenir la moitié gauche / droite de l'écran | stick gauche ou croix |
+| Tuck (vitesse) | ↑ ou W | maintenir les deux moitiés | RT |
+| Freiner (dérapage) | ↓ ou S | glisser vers le bas et maintenir | LT ou B |
+| Sauter | Espace | glisser vers le haut (ou le bouton ↑) | A |
+| Vrille / salto en l'air | ← → / ↑ ↓ | maintenir un côté / glisser vers le haut ou le bas | stick |
+| Recommencer · Pause · Caméra | R · Échap · C | boutons à l'écran | Y · Start · Select |
 
-Options: tilt steering, steering sensitivity, left-handed layout, chase or helmet camera, and a **comfort mode** (fixed FOV, no shake, no camera roll). A live tuning panel opens with <kbd>~</kbd> or <kbd>F2</kbd>.
+**Options :**
+- direction par inclinaison du téléphone, sensibilité de la direction, disposition pour gaucher ;
+- caméra de poursuite ou vue casque ;
+- un **mode confort** : champ de vision fixe, sans secousses ni roulis de caméra.
 
-## What's inside
+Un panneau de réglages en direct s'ouvre avec <kbd>~</kbd> ou <kbd>F2</kbd>.
 
-- **Custom ski physics** (no physics engine), at a fixed 60 Hz step with interpolated rendering:
-  - gravity projected on the slope, snow friction, aero drag (upright, tuck, brake);
-  - grip-limited carving: over-steer becomes a skid that bleeds speed;
-  - rhythm "pump", kicker launches, spins and flips, landing quality, crashes and respawn.
-- **Procedural world from fixed seeds**:
-  - a winding centerline;
-  - a slope profile integrated with cubic Hermite;
-  - moguls, cliffs, ice, tree glades, log portiques;
-  - instanced low-poly firs and rocks;
-  - streamed terrain chunks with 2 LODs and skirts;
-  - a gradient sky with distant peaks and a slow day cycle.
-- **Feel layers**:
-  - dynamic FOV;
-  - trauma-based screen shake;
-  - speed rumble;
-  - snow spray and powder clouds, falling snow;
-  - the carved trails themselves;
-  - near-miss whooshes and slow-motion rewards.
-- **Synthesized audio** (WebAudio): wind that rises and whistles with speed, edge hiss and granular snow crunch, landing thumps, generative ambient music.
-- **Progression**: 3 runs × 3 challenges × 3 medal tiers, calibrated by simulated descents. Records, unlocks and cosmetic outfits are saved in `localStorage`.
+## Ce qu'il y a dedans
 
-## Run it locally
+- **Une physique du ski faite maison** (sans moteur physique), calculée 60 fois par seconde, avec un affichage interpolé :
+  - gravité projetée sur la pente, frottement de la neige, résistance de l'air (debout, en tuck, en freinage) ;
+  - carving limité par l'adhérence : si tu tournes trop fort, tu dérapes et tu perds de la vitesse ;
+  - « pump » en rythme, envol sur les tremplins, vrilles et saltos, qualité de la réception, chutes et réapparition.
+- **Un monde généré à partir de graines fixes** :
+  - une ligne de piste qui serpente ;
+  - un profil de pente lissé (interpolation d'Hermite cubique) ;
+  - bosses, barres rocheuses, plaques de glace, forêts, portiques en rondins ;
+  - sapins et rochers low-poly dessinés en instances ;
+  - un terrain découpé en morceaux chargés au fil de la descente, avec 2 niveaux de détail ;
+  - un ciel en dégradé, des sommets au loin et un lent cycle de la journée.
+- **Des effets pour les sensations** :
+  - champ de vision qui s'élargit avec la vitesse ;
+  - secousses de caméra ;
+  - vibration à grande vitesse ;
+  - gerbes de neige, nuages de poudreuse, neige qui tombe ;
+  - les traces des skis elles-mêmes ;
+  - souffle sonore et ralenti quand tu frôles un obstacle.
+- **Un son entièrement synthétisé** (WebAudio) :
+  - vent qui monte et siffle avec la vitesse ;
+  - crissement des carres et de la neige ;
+  - bruit sourd des réceptions ;
+  - musique d'ambiance générée.
+- **La progression** :
+  - 3 pistes × 3 défis × 3 paliers de médailles, calibrés grâce à des descentes simulées ;
+  - records, déblocages et tenues sont sauvegardés dans le navigateur (`localStorage`).
 
-Requires Node.js ≥ 22.12.
+## Lancer en local
+
+Il faut Node.js 22.12 ou plus récent.
 
 ```bash
 npm install
 npm run dev          # http://localhost:5180
-npm test             # 67 unit tests (physics, terrain, scoring, progression, balance)
-npm run test:e2e     # Playwright smoke tests (desktop + mobile emulation) on a production build
-npm run build        # type-check + production bundle in dist/
+npm test             # 67 tests unitaires (physique, terrain, score, progression, équilibrage)
+npm run test:e2e     # tests Playwright (ordinateur + mobile émulé) sur la version de production
+npm run build        # vérification des types + version de production dans dist/
 ```
 
-## Stack
+## Technique
 
-Vite · TypeScript · Three.js · WebAudio · Vitest · Playwright. No UI framework, no backend.
+Vite · TypeScript · Three.js · WebAudio · Vitest · Playwright. Aucun framework d'interface, aucun serveur.
 
 ```
 src/
-  sim/       pure, testable logic: skier physics, track generation, run/scoring, challenges, progression, bot
-  render/    Three.js: terrain chunks, props, sky, skier model, camera, particles and trails
-  audio/     WebAudio synthesis
-  input/     keyboard, touch, gamepad, tilt
-  ui/        HUD, menus, results, debug panel
-docs/        design docs (French): GDD, FEEL, RESEARCH, ARCHITECTURE, RISKS, ROADMAP, DECISIONS, PERF
+  sim/       logique pure et testable : physique du skieur, génération des pistes, score, défis, progression, bot
+  render/    Three.js : terrain, décor, ciel, modèle du skieur, caméra, particules et traces
+  audio/     synthèse sonore WebAudio
+  input/     clavier, tactile, manette, inclinaison
+  ui/        HUD, menus, résultats, panneau de réglages
+docs/        documents de conception : GDD, FEEL, RESEARCH, ARCHITECTURE, RISKS, ROADMAP, DECISIONS, PERF
 ```
 
-Performance on the production build: 60 fps desktop, 60 fps mobile-emulated (CPU ×4), 52–58 draw calls, 62–76 k triangles, 172 KB gzipped. See [docs/PERF.md](docs/PERF.md).
+**Performances de la version de production :**
 
-## Credits
+| Mesure | Résultat |
+|---|---|
+| Images par seconde, sur ordinateur | 60 |
+| Images par seconde, sur mobile émulé (processeur ralenti 4 fois) | 60 |
+| Appels de dessin par image | 52 à 58 |
+| Triangles affichés | 62 000 à 76 000 |
+| Poids total, compressé | 172 Ko |
 
-An original game. Its mechanics and feel are inspired by mountain-skiing and endless-riding games, but every asset (geometry, colours, sounds, music) is generated by code in this repository.
+Le détail est dans [docs/PERF.md](docs/PERF.md).
 
-## License
+**Mise en ligne :** chaque push sur `main` lance les tests sur GitHub Actions et redéploie automatiquement le jeu sur Vercel.
+
+## Crédits
+
+C'est un jeu original. Ses mécaniques et ses sensations s'inspirent des jeux de ski en montagne et des jeux de course sans fin. Mais tout ce qu'on voit et entend (formes, couleurs, sons, musique) est généré par le code de ce dépôt.
+
+## Licence
 
 [MIT](LICENSE)
