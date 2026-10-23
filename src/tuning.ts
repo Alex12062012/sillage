@@ -102,7 +102,7 @@ export const TUNING = {
   shakeFreq: 18,
   speedRumble: 0.012,
   // ── snow fx
-  sprayRate: 420,
+  sprayRate: 900,
   sprayLife: 0.8,
   sprayPowder: 1.8,
   trailWidth: 0.12,
@@ -116,6 +116,20 @@ export const TUNING = {
   handDragKmh: 45, // …above this speed
   shadowOpacity: 0.3,
   shadowMinElev: 35, // degrees: the planar shadow stays under the skier at dawn and dusk
+  // ── snow fx feel pass (src/render/fx.ts; sprayRate = rooster-tail grains/s at full load, sprayLife = grain life,
+  //    sprayPowder = powder billow scale, trailWidth = carved groove width)
+  fxGrain: 0.04, // grain size (m): small and crisp, never cotton balls over the skis
+  fxMist: 0.32, // mist puff size (m)
+  fxMistRate: 55, // mist puffs/s at full edge load
+  fxMistLife: 1.1,
+  fxBrake: 1.8, // hockey-stop curtain: × sprayRate
+  fxBurst: 1, // landing / takeoff / crash burst scale
+  fxTreeShake: 1, // snow shaken off a shaved tree
+  fxLines: 0.32, // speed-line opacity at full ramp (in tuck; ×0.55 standing)
+  fxLinesFrom: 70, // km/h where speed lines fade in
+  fxLinesFull: 115, // km/h at full strength
+  fxSparkle: 1, // sun glints on the snow (off on low quality)
+  trailGroove: 1, // carved trench contrast (groove shading + darkness)
 };
 
 /** Debug-panel slider ranges; anything not listed gets [0, 3×value]. */
