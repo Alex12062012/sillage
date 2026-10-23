@@ -298,6 +298,62 @@ if (scenario.startsWith('perf')) {
   await shot(`perf-${mobile ? 'mobile' : 'desktop'}`);
 }
 
+if (scenario.startsWith('juice')) {
+  // the feel pass: character poses, spray, flow, air + grab, landing, near-miss, crash, finish shot, dusk
+  const features = () => page.evaluate(() => window.__sillage.features());
+  await page.evaluate(() => window.__sillage.play('crete-du-loup'));
+  await wait(800);
+  await shot('p8-gate');
+  await drive({ tuck: true });
+  await wait(600);
+  await shot('p8-pole-push');
+  await wait(2600);
+  await drive({ steer: -0.9 });
+  await wait(900);
+  await shot('p8-carve');
+  for (let i = 0; i < 12; i++) {
+    await drive({ steer: i % 2 ? 0.75 : -0.75 });
+    await wait(720);
+  }
+  await shot('p8-flow');
+  await drive({ brake: true });
+  await wait(380);
+  await shot('p8-hockey-stop');
+  await drive(null);
+  const kicker = (await features()).find((f) => f.type === 'kicker');
+  await page.evaluate((z) => window.__sillage.teleport(z, 55), kicker.z0 - 45);
+  await drive({ tuck: true });
+  await until((s) => s.airborne, 8000);
+  await drive({ grab: true, steer: 1 });
+  await wait(420);
+  await shot('p8-air-grab-spin');
+  await drive({ grab: false, steer: 0 });
+  await until((s) => !s.airborne, 6000);
+  await wait(70);
+  await shot('p8-landing');
+  await drive(null);
+  await page.evaluate(() => window.__sillage.autopilot(64, 1.0));
+  await until((s) => s.nearMisses > 0, 40000);
+  await wait(90);
+  await shot('p8-near-miss');
+  await page.evaluate(() => window.__sillage.autopilot(null));
+  await drive({ steer: 1, tuck: true });
+  await until((s) => s.crashed, 15000);
+  await wait(260);
+  await shot('p8-crash');
+  await drive(null);
+  const arches = (await features()).filter((f) => f.type === 'arch');
+  await page.evaluate((z) => { window.__sillage.teleport(z, 60); window.__sillage.autopilot(60); }, arches[arches.length - 1].z0 - 50);
+  await until((s) => s.phase === 'finished', 20000);
+  await wait(800);
+  await shot('p8-finish-shot');
+  await wait(700);
+  await shot('p8-finish-shot-2');
+  await page.evaluate(() => { window.__sillage.time(0.9); window.__sillage.teleport(400, 50); window.__sillage.autopilot(55); });
+  await wait(3500);
+  await shot('p8-dusk');
+}
+
 console.log(errors.length ? `CONSOLE ERRORS (${errors.length}):\n${errors.join('\n')}` : 'no console errors');
 await browser.close();
 process.exit(errors.length ? 1 : 0);
