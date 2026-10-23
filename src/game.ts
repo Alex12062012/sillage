@@ -2,11 +2,11 @@ import { Group, MathUtils, Mesh, Scene, Vector3, type MeshBasicMaterial, type We
 import { GameAudio } from './audio/audio';
 import { Input } from './input/input';
 import { ChaseCamera } from './render/camera';
-import { Flakes, pointScale, SkiTrails, SnowSpray } from './render/fx';
+import { Flakes, pointScale, SkiTrails, SnowFx, type SceneLight } from './render/fx';
 import { buildChunkProps, buildLandmarks } from './render/props';
 import { SkierModel, type SkierColors } from './render/skierModel';
 import { Sky } from './render/sky';
-import { Terrain } from './render/terrain';
+import { addSnowSparkle, Terrain } from './render/terrain';
 import { botInput } from './sim/bot';
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
 import { createRun, runStats, SlowMo, stepRun, type RunEvent, type RunState } from './sim/run';
@@ -36,18 +36,21 @@ export class Game {
   skier!: SkierState;
   run!: RunState;
   private model = new SkierModel();
-  private spray = new SnowSpray();
+  private fx = new SnowFx();
+  private sparkle: ReturnType<typeof addSnowSparkle> | null = null;
+  private quality: 'low' | 'medium' | 'high' = 'high';
+  private light: SceneLight;
   private flakes = new Flakes(T.flakeCount);
   private trails = new SkiTrails();
   private slowmo = new SlowMo();
   private prevPos = new Vector3();
+  private fxPole = new Vector3();
   private renderPos = new Vector3();
   private prevHeading = 0;
   private inp: SkierInput = { steer: 0, tuck: false, brake: false, jump: false, flip: 0 };
   private sEv: SkierEvent[] = [];
   private rEv: RunEvent[] = [];
   private acc = 0;
-  private sprayAcc = 0;
   /** Autopilot target speed in m/s (tests, captures, attract mode), or null. */
   bot: number | null = null;
   botGap = 2.4;
@@ -69,7 +72,8 @@ export class Game {
 
   constructor(private renderer: WebGLRenderer, def: TrackDef, private hud: Hud) {
     this.sky = new Sky(this.scene);
-    this.scene.add(this.world, this.model.root, this.trails.mesh, this.spray.points, this.flakes.points);
+    this.scene.add(this.world, this.model.root, this.trails.mesh, ...this.fx.objects, this.flakes.points);
+    this.light = { sun: this.sky.sun.color, sunIntensity: 1, sky: this.sky.hemi.color, ground: this.sky.hemi.groundColor, sunDir: this.sky.sunDirection };
     this.cam = new ChaseCamera(1);
     this.load(def);
   }
@@ -87,6 +91,8 @@ export class Game {
     this.world.clear();
     this.track = makeTrack(def);
     this.terrain = new Terrain(this.track, buildChunkProps);
+    this.sparkle = addSnowSparkle(this.terrain.material);
+    this.sparkle.setQuality(this.quality);
     this.terrain.viewDistance = this.viewDistance;
     this.landmarks = buildLandmarks(this.track);
     this.world.add(this.terrain.group, this.landmarks);
@@ -202,11 +208,20 @@ export class Game {
     switch (e.type) {
       case 'takeoff':
         this.input.lockAirInputs();
+        this.fx.takeoff(s, s.pos, this.sEv.some((x) => x.type === 'jump'));
         break;
       case 'jump':
         this.audio.jump();
-        this.spray.burst(s.pos, 8, 2, 0.25);
         break;
+      case 'edgeChange': {
+        // pole plant on the new turn's inside, just ahead of the boots
+        const side = e.dir > 0 ? 1 : -1;
+        const px = s.pos.x + Math.sin(s.heading) * 0.6 + Math.cos(s.heading) * side * 0.45;
+        const pz = s.pos.z + Math.cos(s.heading) * 0.6 - Math.sin(s.heading) * side * 0.45;
+        this.fxPole.set(px, this.track.height(px, pz), pz);
+        this.fx.polePlant(this.fxPole);
+        break;
+      }
       case 'pump':
         this.audio.pump();
         break;
@@ -214,7 +229,7 @@ export class Game {
         if (e.quality === 'crash') break;
         this.audio.land(e.vn);
         this.cam.addTrauma(MathUtils.clamp((e.vn - 2.5) / 10, 0, 0.75));
-        this.spray.burst(s.pos, 10 + Math.round(e.vn * 4), 2 + e.vn * 0.35, s.surface === Surface.Powder ? 0.5 : 0.3);
+        this.fx.land(s, s.pos, e.vn, e.quality);
         const spins = Math.round(Math.abs(e.spin) / Math.PI) * 180;
         const trick = spins >= 360 ? `${spins}! ` : e.flips ? `${e.flips > 1 ? e.flips + 'x ' : ''}Flip! ` : '';
         if (e.quality === 'switch') this.hud.pop(`${trick || ''}Switch!`, 'great');
@@ -227,7 +242,7 @@ export class Game {
       case 'crash':
         this.audio.crash();
         this.cam.addTrauma(0.85);
-        this.spray.burst(s.pos, 70, 5, 0.45);
+        this.fx.crash(s, s.pos);
         this.hud.pop(e.reason === 'obstacle' ? 'Tree hugger!' : CRASH_LINES[this.run.crashes % CRASH_LINES.length], 'bad');
         this.slowmo.trigger(0.5, 0.15, 0.3);
         break;
@@ -238,6 +253,7 @@ export class Game {
     switch (e.type) {
       case 'nearMiss':
         this.audio.nearMiss(e.side, e.razor);
+        this.fx.treeShake(e.x, this.track.height(e.x, e.z), e.z, e.h, e.kind, e.razor);
         this.cam.fovPunch();
         this.cam.addTrauma(e.razor ? 0.15 : 0.06);
         this.hud.pop(`${e.razor ? 'RAZOR' : 'Close call'}${e.chain > 1 ? ` ×${e.chain}` : ''}  +${e.points}`, e.razor ? 'great' : 'good');
@@ -266,6 +282,9 @@ export class Game {
     this.sky.fog.far = view;
     this.sky.fog.near = view * 0.26;
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
+    this.quality = q;
+    this.fx.setQuality(q);
+    this.sparkle?.setQuality(q);
   }
   private viewDistance = 470;
 
@@ -297,14 +316,25 @@ export class Game {
     this.terrain!.update(this.cam.camera.position.z, 1);
     this.sky.setTime(Math.min(0.95, this.sky.time + gdt * 0.0012)); // slow day cycle, stops at dusk (no wrap to morning)
     this.sky.update(this.cam.camera.position);
-    this.emitSpray(heading, gdt);
-    this.spray.update(gdt);
     const powder = s.surface === Surface.Powder;
     const crashed = s.crashTimer > 0;
-    const intensity = crashed ? 0 : Math.min(0.75, (powder ? 0.6 : 0.32) + Math.abs(s.edge) * 0.3 + s.skid * 0.25);
-    this.trails.update(this.renderPos, heading, s.airborne || crashed, intensity, powder, T.trailWidth, this.track);
+    this.light.sunIntensity = this.sky.sun.intensity;
+    this.light.hemiIntensity = this.sky.hemi.intensity;
+    this.fx.setComfort(this.cam.comfort);
+    this.fx.update(s, this.renderPos, heading, gdt, this.cam.camera, this.renderer.domElement.height, this.light);
+    this.sparkle?.update(this.time);
+    // hand drag in the deepest carves (inside glove skims the snow)
+    const deep = Math.abs(s.edge) - 0.85;
+    if (deep > 0 && !s.airborne && !crashed && s.vel.length() > 14) {
+      const side = s.edge > 0 ? 1 : -1;
+      const hx = this.renderPos.x + Math.cos(heading) * side * 0.6;
+      const hz = this.renderPos.z - Math.sin(heading) * side * 0.6;
+      this.fxPole.set(hx, this.track.height(hx, hz), hz);
+      this.fx.handDrag(this.fxPole, deep / 0.15, gdt);
+    }
+    const intensity = crashed ? 0 : Math.min(0.9, (powder ? 0.7 : 0.5) + Math.abs(s.edge) * 0.3 + s.skid * 0.25);
+    this.trails.update(this.renderPos, heading, s.airborne || crashed, intensity, powder, T.trailWidth, this.track, s.skid, s.edge);
     const ps = pointScale(this.cam.camera, this.renderer.domElement.height);
-    this.spray.material.uniforms.uScale.value = ps;
     this.flakes.update(this.cam.camera, this.time, ps);
     this.audio.update(s.vel.length(), s.edge, s.skid, s.surface, s.airborne, crashed, realDt);
     this.hud.setSpeed(s.vel.length() * 3.6);
@@ -329,33 +359,6 @@ export class Game {
     this.renderer.render(this.scene, this.cam.camera);
   }
 
-  /** Snow kicked up by the edges: outward from the turn, a wall when braking, clouds in powder. */
-  private emitSpray(heading: number, gdt: number): void {
-    const s = this.skier;
-    const speed = s.vel.length();
-    if (s.airborne || s.crashTimer > 0 || speed < 2) return;
-    const powder = s.surface === Surface.Powder;
-    const load = Math.abs(s.edge) * 0.8 + s.skid * 1.6 + (powder ? 0.6 : 0.04) + (s.braking ? 1.2 : 0);
-    this.sprayAcc += T.sprayRate * MathUtils.smoothstep(speed, 2, 20) * load * gdt;
-    const fx = Math.sin(heading);
-    const fz = Math.cos(heading);
-    const lx = Math.cos(heading); // local +x (skier's left) in world
-    const lz = -Math.sin(heading);
-    const outward = s.edge >= 0 ? -1 : 1;
-    const sizeK = powder ? T.sprayPowder : 1;
-    while (this.sprayAcc >= 1) {
-      this.sprayAcc -= 1;
-      const side = Math.random() < 0.5 ? 0.12 : -0.12;
-      const back = 0.3 + Math.random() * 0.6;
-      const kick = 0.8 + Math.random() * (1 + 3 * Math.abs(s.edge) + 3 * s.skid);
-      this.spray.emit(
-        this.renderPos.x - fx * back + lx * side, this.renderPos.y + 0.05, this.renderPos.z - fz * back + lz * side,
-        s.vel.x * 0.3 + lx * outward * kick + (Math.random() - 0.5), 0.6 + Math.random() * (powder ? 2.4 : 1.4), s.vel.z * 0.3 + lz * outward * kick + (Math.random() - 0.5),
-        (0.07 + Math.random() * 0.16) * sizeK, (0.35 + Math.random() * 0.65) * T.sprayLife,
-      );
-    }
-  }
-
   resize(w: number, h: number): void {
     this.cam.camera.aspect = w / h;
     this.cam.camera.updateProjectionMatrix();
@@ -366,6 +369,6 @@ export class Game {
   }
 
   get particles(): number {
-    return this.spray.alive;
+    return this.fx.alive;
   }
 }

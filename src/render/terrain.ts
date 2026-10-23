@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, Color, Group, InstancedMesh, Mesh, MeshLambertMaterial, type Object3D } from 'three';
 import { kickerLength, smoothstep, Surface, type Track } from '../sim/track';
+import { TUNING as T } from '../tuning';
 
 export const CHUNK = 64;
 
@@ -236,4 +237,62 @@ export class Terrain {
     this.shown.clear();
     this.group.clear();
   }
+}
+
+/**
+ * Sun glints on the snow: sparse ice crystals (one random facet per ~11 cm cell) that flash when they
+ * mirror the sun into the camera. View dependent, so they twinkle as you ride; faded out beyond ~40 m
+ * (no shimmer far away), only on bright snow (not rock, lips or piste edges). Patches the terrain
+ * material in place; setQuality('low') turns it off, update(time) drives a slow twinkle.
+ */
+export function addSnowSparkle(material: MeshLambertMaterial): { setQuality(q: 'low' | 'medium' | 'high'): void; update(time: number): void } {
+  const uniforms = { uSparkle: { value: 1 }, uSparkleTime: { value: 0 } };
+  let level = 1;
+  material.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uniforms);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSparkleW;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvSparkleW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vSparkleW;
+        uniform float uSparkle;
+        uniform float uSparkleTime;
+        vec3 sparkleHash(vec2 p) {
+          vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+          p3 += dot(p3, p3.yxz + 33.33);
+          return fract((p3.xxy + p3.yzz) * p3.zyx);
+        }`)
+      .replace('#include <opaque_fragment>', `
+        #if NUM_DIR_LIGHTS > 0
+        if (uSparkle > 0.0) {
+          float dist = length(vViewPosition);
+          float fade = smoothstep(42.0, 6.0, dist) * uSparkle * smoothstep(0.6, 0.8, diffuseColor.g);
+          vec2 cp = vSparkleW.xz * 9.0;
+          vec3 r = sparkleHash(floor(cp));
+          if (fade > 0.0 && r.x > 0.76) {
+            // a crystal spot at a random place in its cell, never smaller than ~1 px
+            float rad = max(0.1, dist * 0.022);
+            float spot = smoothstep(rad, rad * 0.4, length(fract(cp) - 0.2 - 0.6 * r.yz));
+            vec3 facet = normalize(normal + (sparkleHash(floor(cp) + 17.0) - 0.5) * 0.9);
+            vec3 hv = normalize(directionalLights[0].direction + normalize(vViewPosition));
+            float spec = pow(max(dot(facet, hv), 0.0), 90.0);
+            float tw = 0.65 + 0.35 * sin(uSparkleTime * 2.3 + r.y * 60.0);
+            outgoingLight += directionalLights[0].color * (spec * spot * fade * tw * 6.0);
+          }
+        }
+        #endif
+        #include <opaque_fragment>`);
+  };
+  material.customProgramCacheKey = () => 'snow-sparkle';
+  material.needsUpdate = true;
+  return {
+    setQuality(q) {
+      level = { low: 0, medium: 0.75, high: 1 }[q];
+    },
+    update(time) {
+      uniforms.uSparkle.value = level * T.fxSparkle;
+      uniforms.uSparkleTime.value = time;
+    },
+  };
 }
