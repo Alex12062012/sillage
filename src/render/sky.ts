@@ -111,6 +111,11 @@ export class Sky {
     u.uSunDir.value.copy(this.sunDir);
   }
 
+  /** Unit vector pointing to the sun (world space); shared, do not modify. */
+  get sunDirection(): Vector3 {
+    return this.sunDir;
+  }
+
   /** Keep the dome, peaks and sun anchored on the camera. */
   update(cam: Vector3): void {
     this.dome.position.copy(cam);
