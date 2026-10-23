@@ -308,7 +308,7 @@ export class Game {
     this.flakes.update(this.cam.camera, this.time, ps);
     this.audio.update(s.vel.length(), s.edge, s.skid, s.surface, s.airborne, crashed, realDt);
     this.hud.setSpeed(s.vel.length() * 3.6);
-    this.hud.setRun(this.run.time, this.run.score, Math.max(0, s.pos.z) / this.track.def.length);
+    this.hud.setRun(this.run.time, this.run.score, Math.max(0, s.pos.z) / this.track.def.length, realDt);
     if (this.phase !== this.hudPhase) {
       this.hudPhase = this.phase;
       this.hud.setReady(this.phase === 'ready' ? this.readyText : null);

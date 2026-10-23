@@ -6,6 +6,8 @@ import { Surface, type Ground, type Obstacle } from './track';
 export type RunEvent =
   | { type: 'finish'; time: number; bonus: number }
   | { type: 'trick'; name: string; points: number; quality: string }
+  /** Everything a landing paid (air time + tricks), trick or not. */
+  | { type: 'landPoints'; points: number }
   /** x, z, h: the obstacle that was shaved (e.g. to shake the snow off that tree). */
   | { type: 'nearMiss'; dist: number; razor: boolean; side: number; points: number; chain: number; kind: Obstacle['kind']; offPiste: boolean; x: number; z: number; h: number }
   | { type: 'chainEnd'; chain: number }
@@ -61,6 +63,7 @@ function landPoints(run: RunState, e: Extract<SkierEvent, { type: 'land' }>, out
   const grabPts = (e.grab ?? 0) * T.grabPoints;
   const pts = Math.round((e.airTime * T.airPoints + spinPts + flipPts + grabPts) * mult);
   run.score += pts;
+  if (pts > 0) out.push({ type: 'landPoints', points: pts });
   if (deg >= 180) run.bestSpin = Math.max(run.bestSpin, deg);
   if (spinPts || flipPts || grabPts) {
     const name = [deg >= 180 ? String(deg) : '', e.flips ? (e.flips > 1 ? `${e.flips}x flip` : 'flip') : '', grabPts ? 'grab' : ''].filter(Boolean).join(' + ');

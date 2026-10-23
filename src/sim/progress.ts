@@ -30,6 +30,7 @@ export interface Settings {
   camera: 'chase' | 'helmet';
   tilt: boolean;
   showFps: boolean;
+  vibration: boolean;
 }
 
 export interface Save {
@@ -44,6 +45,7 @@ export interface Save {
 
 export const DEFAULT_SETTINGS: Settings = {
   quality: 'high', volume: 0.8, music: true, sensitivity: 1, leftHanded: false, comfort: false, camera: 'chase', tilt: false, showFps: false,
+  vibration: true,
 };
 
 const KEY = 'sillage.save.v1';

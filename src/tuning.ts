@@ -71,6 +71,17 @@ export const TUNING = {
   speedPoints: 12, // per second at 80 km/h (scales from 60 km/h)
   razorTimeScale: 0.3,
   razorHold: 0.06,
+  // ── flow (cosmetic "in the zone" meter, src/sim/flow.ts) & juice
+  flowBeat: 0.07, // per clean edge change (+10 % per beat of streak, up to ×2)
+  flowBeatWindow: 2.5, // s on the ground without a clean beat ends the streak
+  flowDecay: 0.05, // per s on the ground (×3 under 25 km/h)
+  flowSpeed: 0.08, // per s at 100 km/h (from 70), only up to level 2
+  flowSketchy: 0.25,
+  flowBrakeDrain: 0.4, // per s of braking
+  perfectHitstop: 0.05, // s of near-freeze on a perfect landing
+  camImpactDip: 0.045, // camera dip per m/s of landing impact (spring)
+  camCarveDrop: 0.22, // camera lowers in hard carves (m at full edge)
+  beatFovKick: 1.2, // degrees per clean beat (+ flow level × 0.4)
   // ── camera & speed feel (FEEL §2, §4); fov is vertical, in degrees
   fovBase: 62,
   fovMaxBoost: 18,

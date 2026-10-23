@@ -75,6 +75,7 @@ function applySettings(): void {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap) * qualityScale);
   game.setQuality(st.quality);
   game.input.sensitivity = st.sensitivity;
+  game.input.haptics = st.vibration;
   game.audio.setVolume(st.volume);
   game.audio.setMusic(st.music);
   game.cam.comfort = st.comfort;
@@ -122,8 +123,8 @@ function startRun(id: string): void {
   setMode('run');
   if (!save.seenHint) {
     hud.showHint(isTouch()
-      ? '<b>Hold</b> left / right to carve · <b>both</b> to tuck · swipe <b>↑</b> jump · swipe <b>↓</b> brake'
-      : '<b>← →</b> carve · <b>↑</b> tuck · <b>↓</b> brake · <b>Space</b> jump · <b>R</b> restart', 7);
+      ? '<b>Hold</b> left / right to carve · <b>both</b> to tuck (grab in the air) · swipe <b>↑</b> jump · swipe <b>↓</b> brake'
+      : '<b>← →</b> carve · <b>↑</b> tuck · <b>↓</b> brake · <b>Space</b> jump, hold to grab · <b>R</b> restart', 8);
     save.seenHint = true;
     persist();
   }

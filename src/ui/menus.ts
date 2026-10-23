@@ -125,6 +125,7 @@ export class Menus {
           <label>Comfort mode <small>fixed FOV, no shake or roll</small> ${tog('comfort')}</label>
           ${isTouch() ? `<label>Left-handed <small>mirrors the touch buttons</small> ${tog('leftHanded')}</label>
           <label>Tilt to steer ${tog('tilt')}</label>` : ''}
+          <label>Vibration <small>gamepad rumble, phone buzz</small> ${tog('vibration')}</label>
           <label>Show FPS ${tog('showFps')}</label>
         </div>
         <div class="buttons"><button class="primary" data-go="back">Done</button><button data-go="reset" class="danger">Reset progress</button></div>

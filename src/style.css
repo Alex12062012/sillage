@@ -20,15 +20,61 @@ html, body {
   touch-action: none;
 }
 #ui { position: fixed; inset: 0; pointer-events: none; }
+.hud-bottom {
+  position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
 .hud-speed {
-  position: absolute;
-  left: 50%;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  --heat: 0;
   font-size: 44px;
   font-weight: 800;
-  text-shadow: 0 2px 10px rgba(20, 40, 70, 0.35);
+  line-height: 1;
+  color: hsl(28 100% calc(100% - var(--heat) * 30%));
+  text-shadow: 0 2px 10px rgba(20, 40, 70, 0.35), 0 0 calc(var(--heat) * 22px) rgba(255, 150, 70, 0.45);
+  transform: scale(calc(1 + var(--heat) * 0.12));
+  transition: transform 0.3s;
 }
+.hud-flow {
+  display: flex; align-items: center; gap: 8px; height: 22px; font-size: 13px; font-weight: 800; letter-spacing: 0.04em;
+  text-shadow: 0 1px 6px rgba(15, 30, 55, 0.5); --c: #ffffff;
+}
+.hud-flow .segs { display: inline-flex; gap: 4px; }
+.hud-flow .segs i {
+  --fill: 0; width: 26px; height: 6px; border-radius: 4px; display: block; background: rgba(255, 255, 255, 0.22);
+  background-image: linear-gradient(90deg, var(--c) calc(var(--fill) * 100%), transparent calc(var(--fill) * 100%));
+  box-shadow: 0 1px 4px rgba(15, 30, 55, 0.25);
+}
+.hud-flow .name, .hud-streak { min-width: 74px; color: var(--c); }
+.hud-flow .name { text-align: left; }
+.hud-streak { text-align: right; opacity: 0.92; }
+.hud-flow.l0 .segs { opacity: 0.55; }
+.hud-flow.l2 { --c: #8fe9ff; }
+.hud-flow.l3 { --c: #ffd166; }
+.hud-flow.l4 { --c: #ff8ad8; }
+.hud-flow.l4 .segs i { box-shadow: 0 0 10px rgba(255, 138, 216, 0.7); }
+.hud-flow.pulse .segs { animation: flowpulse 0.22s ease-out; }
+@keyframes flowpulse { 40% { transform: scale(1.12); filter: brightness(1.5); } }
+.hud-streak.bump { animation: bump 0.25s cubic-bezier(.2, 1.8, .4, 1); }
+@keyframes bump { from { transform: scale(1.35); } }
+.hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.hud-score.bump { animation: bump 0.3s cubic-bezier(.2, 1.8, .4, 1); }
+.hud-gain {
+  font-size: 17px; font-weight: 800; color: var(--gold); opacity: 0; transition: opacity 0.35s; font-variant-numeric: tabular-nums;
+}
+.hud-gain.show { opacity: 1; animation: bump 0.3s cubic-bezier(.2, 1.8, .4, 1); }
+.hud-trick {
+  position: absolute; left: 0; right: 0; top: 33%; text-align: center; font-size: 40px; font-weight: 900; font-style: italic;
+  letter-spacing: 0.02em; color: #fff; opacity: 0; transition: opacity 0.15s;
+  text-shadow: 0 0 22px rgba(120, 200, 255, 0.55), 0 3px 12px rgba(15, 30, 55, 0.5);
+}
+.hud-trick.show { opacity: 1; animation: trickin 0.28s cubic-bezier(.2, 1.7, .4, 1); }
+@keyframes trickin { from { transform: scale(1.5); opacity: 0.4; } }
+.hud-flash { position: absolute; inset: 0; opacity: 0; --a: 1; pointer-events: none; }
+.hud-flash.perfect { background: radial-gradient(ellipse at center, rgba(255, 246, 220, 0.55), rgba(255, 214, 140, 0.25) 60%, rgba(255, 190, 90, 0.4)); }
+.hud-flash.razor { background: radial-gradient(ellipse at center, rgba(180, 235, 255, 0) 50%, rgba(160, 225, 255, 0.5)); }
+.hud-flash.crash { background: radial-gradient(ellipse at center, rgba(255, 120, 90, 0) 45%, rgba(255, 110, 80, 0.45)); }
+.hud-flash.go { animation: flash 0.32s ease-out; }
+@keyframes flash { from { opacity: var(--a); } to { opacity: 0; } }
 .hud-speed small { font-size: 16px; font-weight: 700; opacity: 0.8; margin-left: 4px; }
 .hud { position: absolute; inset: 0; pointer-events: none; }
 .hud-vignette {
@@ -40,23 +86,25 @@ html, body {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
 .pop {
-  font-size: 26px; font-weight: 800; letter-spacing: 0.5px;
+  font-size: 26px; font-weight: 800; letter-spacing: 0.5px; text-align: center;
   text-shadow: 0 2px 10px rgba(20, 40, 70, 0.45);
-  animation: pop 1.4s ease-out forwards;
+  animation: pop 1.5s ease-out forwards;
 }
+.pop small { display: block; font-size: 0.62em; opacity: 0.92; margin-top: -2px; }
 .pop-good { color: #ffffff; }
-.pop-great { color: #ffd166; font-size: 32px; }
+.pop-great { color: #ffd166; font-size: 34px; text-shadow: 0 0 18px rgba(255, 190, 80, 0.5), 0 2px 10px rgba(20, 40, 70, 0.45); }
 .pop-bad { color: #ffb3a1; }
 .pop-info { color: #d9ecff; font-size: 20px; }
 @keyframes pop {
-  0% { transform: scale(0.6) translateY(10px); opacity: 0; }
-  12% { transform: scale(1.12); opacity: 1; }
-  22% { transform: scale(1); }
-  75% { opacity: 1; }
-  100% { transform: translateY(-24px); opacity: 0; }
+  0% { transform: scale(0.5) translateY(10px); opacity: 0; }
+  9% { transform: scale(1.2); opacity: 1; }
+  17% { transform: scale(0.95); }
+  25% { transform: scale(1); }
+  76% { opacity: 1; }
+  100% { transform: translateY(-28px); opacity: 0; }
 }
 .hud-hint {
-  position: absolute; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: calc(104px + env(safe-area-inset-bottom)); transform: translateX(-50%);
   padding: 10px 16px; border-radius: 14px; background: rgba(20, 40, 70, 0.35); backdrop-filter: blur(6px);
   font-size: 15px; white-space: nowrap; opacity: 0; transition: opacity 0.5s; max-width: 94vw; text-align: center;
 }
@@ -150,6 +198,8 @@ html, body {
 button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 kbd { font: inherit; font-size: 11px; opacity: 0.75; border: 1px solid rgba(255,255,255,0.5); border-radius: 5px; padding: 0 4px; margin-left: 6px; }
 @media (max-width: 520px) {
+  .hud-trick { font-size: 32px; }
+  .hud-flow .name, .hud-streak { min-width: 60px; font-size: 12px; }
   .results .grid { grid-template-columns: repeat(2, 1fr); }
   .results .big { font-size: 38px; }
   .hud-rows { font-size: 11px; }
@@ -216,7 +266,7 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 .touch-btn.jump { bottom: calc(22px + env(safe-area-inset-bottom)); right: calc(22px + env(safe-area-inset-right)); }
 .left-handed .touch-btn.jump { right: auto; left: calc(22px + env(safe-area-inset-left)); }
 .left-handed .touch-btn.pause { right: auto; left: calc(12px + env(safe-area-inset-left)); }
-.touch.show ~ .hud .hud-score { margin-right: 52px; }
-.left-handed .touch.show ~ .hud .hud-score { margin-right: 0; }
+.touch.show ~ .hud .hud-right { margin-right: 52px; }
+.left-handed .touch.show ~ .hud .hud-right { margin-right: 0; }
 .left-handed .touch.show ~ .hud .hud-left { margin-left: 52px; }
 .fps { position: fixed; right: 8px; bottom: 6px; font: 700 12px ui-monospace, Menlo, monospace; opacity: 0.8; text-shadow: 0 1px 3px #000; }

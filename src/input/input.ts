@@ -30,6 +30,9 @@ export class Input {
   private padPrev: boolean[] = [];
   /** Any input this frame (used to leave the start gate / attract mode). */
   touched = false;
+  /** Rumble on gamepads, vibrate on phones (setting). */
+  haptics = true;
+  private lastTouch = -Infinity;
   onKey: ((code: string) => void) | null = null;
   onPad: ((button: 'a' | 'b' | 'start' | 'y' | 'select' | 'up' | 'down') => void) | null = null;
 
@@ -61,6 +64,7 @@ export class Input {
         side: e.clientX < window.innerWidth / 2 ? -1 : 1, mode: onButton ? 'button' : 'hold',
       });
       this.touched = true;
+      this.lastTouch = performance.now();
     });
     el.addEventListener('pointermove', (e) => {
       const f = this.fingers.get(e.pointerId);
@@ -76,6 +80,20 @@ export class Input {
     const end = (e: PointerEvent) => this.fingers.delete(e.pointerId);
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
+  }
+
+  /**
+   * Haptic hit: strong/weak motor 0..1 for `ms`. Gamepads get a dual rumble; a phone played by touch in
+   * the last 10 s gets navigator.vibrate (Android; iOS has none).
+   */
+  rumble(strong: number, weak: number, ms: number): void {
+    if (!this.haptics) return;
+    const pad = navigator.getGamepads?.().find((g) => g && g.connected);
+    if (pad?.vibrationActuator) {
+      pad.vibrationActuator.playEffect('dual-rumble', { duration: ms, strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, weak) }).catch(() => {});
+    } else if (performance.now() - this.lastTouch < 10_000 && Math.max(strong, weak) > 0.25) {
+      navigator.vibrate?.(Math.round(ms * Math.max(strong, weak)));
+    }
   }
 
   pressJump(): void {
