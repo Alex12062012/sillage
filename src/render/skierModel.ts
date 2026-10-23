@@ -233,6 +233,12 @@ export class SkierModel {
     this.firstPerson = on;
   }
 
+  /** On a chairlift: pos is then the seat; hips on it, knees bent, skis dangling, hands on the lap. */
+  setSeated(on: boolean): void {
+    this.seated = on;
+  }
+  private seated = false;
+
   /** True once per pole plant since the last call; writes the tip's world position. */
   consumePolePlant(out: Vector3): boolean {
     if (!this.plantPending) return false;
@@ -460,6 +466,13 @@ export class SkierModel {
       this.skiBase[i].y += lift;
       this.skiBase[i].z += lift * 0.25;
     }
+    if (this.seated) {
+      pel.set(0, 0.1, -0.1);
+      for (let i = 0; i < 2; i++) {
+        this.ankle[i].set(i === 0 ? 0.14 : -0.14, -0.42, 0.38);
+        this.skiBase[i].copy(this.ankle[i]).y -= ANKLE;
+      }
+    }
     this.qP.setFromEuler(eu.set(0.18 + ped * 1.2 + tk * 0.35 + fk * 0.6, by * 0.55 + this.counter.x * 0.4, -incl * 0.8, 'YZX'));
     // keep both legs within reach (outside leg long, inside leg folds)
     for (let pass = 0; pass < 2; pass++) {
@@ -524,6 +537,7 @@ export class SkierModel {
         else tg.lerp(v2.set(sg * 0.5, 0.28, -0.12).applyQuaternion(this.qU).add(shp), gk); // style arm
       }
       if (inside && this.dragK.x > 0) tg.lerp(v2.set(pel.x + sg * 0.3, 0.035, pel.z + 0.18), this.dragK.x); // glove on the snow
+      if (this.seated) tg.set(sg * 0.2, 0.2, 0.3).add(pel); // hands on the lap
       const hint = v2.set(sg * 0.7, -0.4, -0.6).applyQuaternion(this.qU);
       ik(shp, tg, UPPER_ARM, FOREARM + GRIP, hint, this.elbow[i]);
       this.grip[i].copy(tg);

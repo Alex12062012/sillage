@@ -141,13 +141,19 @@ export class MountainView {
   readonly group = new Group();
   readonly material = new MeshLambertMaterial({ vertexColors: true });
   private chairs: InstancedMesh;
+  private fine: Mesh;
+  private coarse: Mesh;
+  private forest: InstancedMesh;
   private riderChair: Mesh;
   private lifts: LiftView[] = [];
   private t = 0;
 
   constructor(private m: Mountain) {
     const b = m.bounds;
-    this.group.add(terrainMesh(m, 5, b.x0, b.x1, b.z0, b.z1, this.material), rangeMesh(m, this.material));
+    this.fine = terrainMesh(m, 5, b.x0, b.x1, b.z0, b.z1, this.material);
+    this.coarse = terrainMesh(m, 10, b.x0, b.x1, b.z0, b.z1, this.material); // phones: a quarter of the triangles
+    this.coarse.visible = false;
+    this.group.add(this.fine, this.coarse, rangeMesh(m, this.material));
     // the park gets a fine patch so the kickers' ramps are true to the physics
     for (const k of m.kickers) {
       const cx = m.centerX(k.z + 20);
@@ -158,8 +164,9 @@ export class MountainView {
     }
 
     const flat = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
-    const trees = m.obstaclesBetween(-1e4, 1e4).filter((o) => o.kind === 'tree');
-    const forest = new InstancedMesh(treeGeometry(), flat, trees.length);
+    // shuffled, so any prefix (lower quality) is an even thinning of the whole forest
+    const trees = m.obstaclesBetween(-1e4, 1e4).filter((o) => o.kind === 'tree').sort((a, b) => ((a.id * 0.618) % 1) - ((b.id * 0.618) % 1));
+    const forest = this.forest = new InstancedMesh(treeGeometry(), flat, trees.length);
     trees.forEach((o, i) => {
       q.setFromAxisAngle(up, (o.id * 2.39) % (Math.PI * 2));
       const s = o.h / 4.4;
@@ -269,7 +276,14 @@ export class MountainView {
     this.riderChair.position.copy(out);
     this.riderChair.rotation.set(0, this.lifts[i].yaw, 0);
     this.riderChair.visible = true;
-    return out.setY(out.y - 2.85); // crouched on the seat
+    return out.setY(out.y - 2.24); // the seat surface
+  }
+
+  /** Phones: coarser terrain off the park patches and a thinner forest (≈ 580k → 250k triangles on low). */
+  setQuality(q: 'low' | 'medium' | 'high'): void {
+    this.fine.visible = q === 'high';
+    this.coarse.visible = q !== 'high';
+    this.forest.count = Math.round(this.forest.instanceMatrix.count * { low: 0.35, medium: 0.6, high: 1 }[q]);
   }
 
   /** Off the chair. */

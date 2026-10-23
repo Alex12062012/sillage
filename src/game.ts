@@ -143,6 +143,7 @@ export class Game {
     this.skier = createSkier(this.track, this.track.centerX(z0), z0, 0);
     this.ride = null;
     this.view?.leaveSeat();
+    this.model.setSeated(false);
     this.run = createRun(this.track.def.length, this.track.def.par);
     this.flow = createFlow();
     this.phase = 'ready';
@@ -268,8 +269,8 @@ export class Game {
   /** Free ride: ski into a bottom station to take its chairlift; name the piste you enter. */
   private freeRide(s: SkierState): void {
     const m = this.mountain!;
-    if (!s.airborne && s.crashTimer <= 0 && s.vel.length() < 7) {
-      const i = m.lifts.findIndex((l) => Math.hypot(s.pos.x - l.bx, s.pos.z - l.bz) < 24);
+    if (!s.airborne && s.crashTimer <= 0 && s.vel.length() < 20) {
+      const i = m.lifts.findIndex((l) => Math.hypot(s.pos.x - l.bx, s.pos.z - l.bz) < 34);
       if (i >= 0) {
         this.ride = { lift: i, f: 0, t: 0 };
         this.hud.pop(m.lifts[i].name, 'info', this.bot ? undefined : 'any key to skip');
@@ -295,6 +296,7 @@ export class Game {
       const l = this.mountain!.lifts[r.lift];
       this.ride = null;
       view.leaveSeat();
+      this.model.setSeated(false);
       this.unload(l.tx, l.tz + 16);
       return;
     }
@@ -303,8 +305,9 @@ export class Game {
     s.vel.set(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(LIFT_SPEED);
     s.heading = yaw;
     s.airborne = true;
-    s.tuck = true;
+    s.tuck = false;
     s.edge = s.skid = 0;
+    this.model.setSeated(true);
   }
 
   /** Off the chair (or teleported): on the snow at (x, z), facing the nearest piste downhill. */
@@ -329,6 +332,7 @@ export class Game {
     if (!this.mountain || this.paused) return;
     this.ride = null;
     this.view?.leaveSeat();
+    this.model.setSeated(false);
     this.phase = 'running';
     this.unload(this.mountain.centerX(SUMMIT_SPAWN.z), SUMMIT_SPAWN.z);
   }
@@ -475,6 +479,7 @@ export class Game {
     this.sky.fog.near = this.mountain ? view * 0.9 : view * 0.26;
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
     this.quality = q;
+    this.view?.setQuality(q);
     this.fx.setQuality(q);
     this.sparkle?.setQuality(q);
   }
