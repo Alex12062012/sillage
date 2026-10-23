@@ -107,6 +107,15 @@ export const TUNING = {
   sprayPowder: 1.8,
   trailWidth: 0.12,
   flakeCount: 700,
+  // ── skier model & animation (src/render/skierModel.ts)
+  skierLean: 0.9, // × the physical inclination atan(lateral accel / g)
+  skierAngulation: 0.45, // share of the lean the upper body takes back (the "comma")
+  skierAbsorb: 3.2, // leg suspension frequency (Hz): soaks up moguls and landings
+  skierLandKick: 0.6, // landing compression speed (m/s) per m/s of impact
+  handDragEdge: 0.85, // |edge| above which the inside glove skims the snow…
+  handDragKmh: 45, // …above this speed
+  shadowOpacity: 0.3,
+  shadowMinElev: 35, // degrees: the planar shadow stays under the skier at dawn and dusk
 };
 
 /** Debug-panel slider ranges; anything not listed gets [0, 3×value]. */

@@ -31,7 +31,7 @@ const persist = () => saveSave(storage, save);
 
 // ── renderer (MSAA only on the high setting; it is chosen at boot)
 const canvas = document.getElementById('game') as HTMLCanvasElement;
-const renderer = new WebGLRenderer({ canvas, antialias: save.settings.quality === 'high', powerPreference: 'high-performance' });
+const renderer = new WebGLRenderer({ canvas, antialias: save.settings.quality === 'high', powerPreference: 'high-performance', stencil: true });
 const ui = document.getElementById('ui')!;
 const hud = new Hud(ui);
 const params = new URLSearchParams(location.search);

@@ -69,7 +69,7 @@ export class Game {
 
   constructor(private renderer: WebGLRenderer, def: TrackDef, private hud: Hud) {
     this.sky = new Sky(this.scene);
-    this.scene.add(this.world, this.model.root, this.trails.mesh, this.spray.points, this.flakes.points);
+    this.scene.add(this.world, this.model.root, this.trails.mesh, this.spray.points, this.flakes.points, this.model.shadow);
     this.cam = new ChaseCamera(1);
     this.load(def);
   }
@@ -198,6 +198,7 @@ export class Game {
   }
 
   private onSkierEvent(e: SkierEvent): void {
+    this.model.onEvent(e);
     const s = this.skier;
     switch (e.type) {
       case 'takeoff':
@@ -292,7 +293,7 @@ export class Game {
     const alpha = this.acc / DT;
     this.renderPos.lerpVectors(this.prevPos, s.pos, alpha);
     const heading = this.prevHeading + Math.atan2(Math.sin(s.heading - this.prevHeading), Math.cos(s.heading - this.prevHeading)) * alpha;
-    this.model.update(s, this.renderPos, heading, this.track, realDt);
+    this.model.update(s, this.renderPos, heading, this.track, realDt, this.sky.sunDirection);
     this.cam.update(this.renderPos, s, realDt, this.track.height);
     this.terrain!.update(this.cam.camera.position.z, 1);
     this.sky.setTime(Math.min(0.95, this.sky.time + gdt * 0.0012)); // slow day cycle, stops at dusk (no wrap to morning)
