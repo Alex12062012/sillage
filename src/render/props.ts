@@ -8,7 +8,7 @@ import { mulberry32 } from '../core/rng';
 import { TREE_CANOPY, TREE_HEIGHT, type Difficulty, type Obstacle, type Track } from '../sim/track';
 
 /** Paint every vertex of `g` with a colour from its position. */
-function paint(g: BufferGeometry, fn: (x: number, y: number, z: number) => Color): BufferGeometry {
+export function paint(g: BufferGeometry, fn: (x: number, y: number, z: number) => Color): BufferGeometry {
   const p = g.attributes.position;
   const c = new Float32Array(p.count * 3);
   for (let i = 0; i < p.count; i++) {
@@ -58,7 +58,7 @@ function rockGeometry(): BufferGeometry {
 const DIFF_COLOR: Record<Difficulty, number> = { easy: 0x2f6fde, medium: 0xe0393e, hard: 0x1d1f26 };
 
 /** Piste-edge pole with a difficulty-coloured top band. */
-function poleGeometry(): BufferGeometry {
+export function poleGeometry(): BufferGeometry {
   return paint(new CylinderGeometry(0.045, 0.045, 1.9, 5).translate(0, 0.95, 0).toNonIndexed(), (_x, y) =>
     y > 1.35 ? new Color(1, 1, 1) : new Color(0xf2f2f2));
 }

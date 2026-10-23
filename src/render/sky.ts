@@ -111,6 +111,11 @@ export class Sky {
     u.uSunDir.value.copy(this.sunDir);
   }
 
+  /** The distant peak ring (hidden in free ride, which has its own ranges). */
+  showPeaks(on: boolean): void {
+    this.peaks.visible = on;
+  }
+
   /** Unit vector pointing to the sun (world space); shared, do not modify. */
   get sunDirection(): Vector3 {
     return this.sunDir;

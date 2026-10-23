@@ -1,3 +1,4 @@
+import { FREE_DEF, FREE_ID } from './mountain';
 import type { TrackDef } from './track';
 
 /**
@@ -28,4 +29,4 @@ export const TRACKS: TrackDef[] = [
   },
 ];
 
-export const trackById = (id: string): TrackDef => TRACKS.find((t) => t.id === id) ?? TRACKS[0];
+export const trackById = (id: string): TrackDef => (id === FREE_ID ? FREE_DEF : TRACKS.find((t) => t.id === id) ?? TRACKS[0]);

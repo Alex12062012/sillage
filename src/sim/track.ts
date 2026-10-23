@@ -10,7 +10,7 @@ export interface Ground {
   normal(x: number, z: number, out?: Vector3): Vector3;
   surface(x: number, z: number): Surface;
   /** Where to put the skier back after a crash near `z` (defaults to in place, facing downhill). */
-  respawn?(z: number): { x: number; z: number; heading: number };
+  respawn?(z: number, x?: number): { x: number; z: number; heading: number };
   /** Obstacles whose circle may intersect a disc of `radius` around (x, z). Reuses `out`. */
   obstaclesNear?(x: number, z: number, radius: number, out: Obstacle[]): Obstacle[];
 }
@@ -151,7 +151,7 @@ export interface Track extends Ground {
   kickers: Kicker[];
   features: Feature[];
   centerX(z: number): number;
-  respawn(z: number): { x: number; z: number; heading: number };
+  respawn(z: number, x?: number): { x: number; z: number; heading: number };
   obstaclesNear(x: number, z: number, radius: number, out: Obstacle[]): Obstacle[];
   obstaclesBetween(z0: number, z1: number): Obstacle[];
 }
@@ -173,7 +173,7 @@ const FOOTPRINT: Record<FeatureType, [number, number]> = {
 };
 
 /** Spatial index of static obstacles in 16 m slices along z. */
-function indexObstacles(list: Obstacle[]) {
+export function indexObstacles(list: Obstacle[]) {
   const buckets = new Map<number, Obstacle[]>();
   for (const o of list) {
     const k = Math.floor(o.z / BUCKET);

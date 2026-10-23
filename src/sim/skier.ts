@@ -346,7 +346,7 @@ function crashStep(s: SkierState, g: Ground, dt: number): void {
 }
 
 function respawn(s: SkierState, g: Ground): void {
-  const r = g.respawn ? g.respawn(s.pos.z) : { x: s.pos.x, z: s.pos.z, heading: 0 };
+  const r = g.respawn ? g.respawn(s.pos.z, s.pos.x) : { x: s.pos.x, z: s.pos.z, heading: 0 };
   s.crashTimer = 0;
   s.pos.set(r.x, g.height(r.x, r.z), r.z);
   s.heading = r.heading;

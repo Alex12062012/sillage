@@ -361,6 +361,7 @@ export class SkiTrails {
   private nor: Float32Array;
   private col: Float32Array;
   private head: number;
+  private filled = 0;
   private last = new Vector3(Infinity, 0, 0);
   private dir = new Vector3();
   private n = new Vector3();
@@ -399,6 +400,8 @@ export class SkiTrails {
   }
 
   reset(): void {
+    this.filled = 0;
+    this.window();
     this.col.fill(0);
     this.last.set(Infinity, 0, 0);
     this.wasAir = true;
@@ -407,9 +410,10 @@ export class SkiTrails {
     a.needsUpdate = true;
   }
 
-  /** Draw every quad except the one joining the newest sample to the oldest. */
+  /** Draw the quads between the samples laid since the last reset (never the newest-to-oldest joint). */
   private window(): void {
-    this.mesh.geometry.setDrawRange(((this.head + 1) % this.samples) * QUADS * 6, (this.samples - 1) * QUADS * 6);
+    const n = Math.min(this.filled, this.samples);
+    this.mesh.geometry.setDrawRange((((this.head - n + 1) % this.samples) + this.samples) % this.samples * QUADS * 6, Math.max(0, n - 1) * QUADS * 6);
   }
 
   private upload(name: 'position' | 'normal' | 'color', size: number): void {
@@ -441,6 +445,7 @@ export class SkiTrails {
     else this.dir.subVectors(pos, this.last).setY(0).normalize();
     this.last.copy(pos);
     this.head = (this.head + 1) % this.samples;
+    this.filled++;
     this.window();
 
     const lx = this.dir.z; // path lateral (skier's left) in world

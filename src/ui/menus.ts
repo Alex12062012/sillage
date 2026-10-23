@@ -1,4 +1,5 @@
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge } from '../sim/missions';
+import { FREE_ID } from '../sim/mountain';
 import { COSMETICS, isUnlocked, starsOf, totalStars, UNLOCK, type Save, type Settings } from '../sim/progress';
 import { TRACKS } from '../sim/tracks';
 
@@ -61,6 +62,7 @@ export class Menus {
         <div class="brand"><h1>Sillage</h1><p>Carve your line.</p></div>
         <div class="stack">
           <button class="primary big" data-go="select">Play</button>
+          <button class="big" data-go="free">Free ride</button>
           <button data-go="locker">Locker</button>
           <button data-go="settings">Settings</button>
         </div>
@@ -68,6 +70,7 @@ export class Menus {
         ${isTouch() && innerHeight > innerWidth ? '<div class="rotate">↻ Turn your phone sideways for a wider view</div>' : ''}
       </div>`);
     this.on('[data-go="select"]', () => this.select());
+    this.on('[data-go="free"]', () => this.a.play(FREE_ID));
     this.on('[data-go="locker"]', () => this.locker());
     this.on('[data-go="settings"]', () => this.settings(() => this.main()));
   }

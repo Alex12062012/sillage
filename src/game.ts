@@ -7,7 +7,10 @@ import { buildChunkProps, buildLandmarks } from './render/props';
 import { SkierModel, type SkierColors } from './render/skierModel';
 import { Sky } from './render/sky';
 import { addSnowSparkle, Terrain } from './render/terrain';
+import { Crowd } from './render/crowd';
+import { LIFT_SPEED, MountainView } from './render/mountainView';
 import { botInput } from './sim/bot';
+import { FREE_ID, makeMountain, SUMMIT_SPAWN, type Mountain } from './sim/mountain';
 import { createFlow, stepFlow, type FlowEvent, type FlowState } from './sim/flow';
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
 import { createRun, runStats, SlowMo, spinDegrees, stepRun, type RunEvent, type RunState } from './sim/run';
@@ -36,6 +39,13 @@ export class Game {
   track!: Track;
   readonly sky: Sky;
   private terrain: Terrain | null = null;
+  /** Free ride only: the open mountain, its view (lifts, forests, village) and the other skiers. */
+  mountain: Mountain | null = null;
+  private view: MountainView | null = null;
+  private crowd: Crowd | null = null;
+  private ride: { lift: number; f: number; t: number } | null = null;
+  private piste: Mountain['pistes'][number] | null = null;
+  private pisteTick = 0;
   private world = new Group();
   skier!: SkierState;
   run!: RunState;
@@ -94,6 +104,8 @@ export class Game {
   /** Builds the world for a run definition (chunks stream in as the skier moves). */
   load(def: TrackDef): void {
     this.terrain?.dispose();
+    this.view?.dispose();
+    this.terrain = this.view = this.crowd = this.mountain = null;
     this.landmarks?.traverse((o) => {
       if (!(o instanceof Mesh)) return;
       o.geometry.dispose();
@@ -102,19 +114,35 @@ export class Game {
       m.dispose();
     });
     this.world.clear();
-    this.track = makeTrack(def);
-    this.terrain = new Terrain(this.track, buildChunkProps);
-    this.terrain.viewDistance = this.viewDistance;
-    this.sparkle = addSnowSparkle(this.terrain.material);
+    if (def.id === FREE_ID) {
+      // free ride: one open mountain, built once (no streaming), with its lifts and its crowd
+      this.track = this.mountain = makeMountain();
+      this.view = new MountainView(this.mountain);
+      this.crowd = new Crowd(this.mountain);
+      this.sparkle = addSnowSparkle(this.view.material);
+      this.landmarks = null;
+      this.world.add(this.view.group, this.crowd.group);
+    } else {
+      this.track = makeTrack(def);
+      this.terrain = new Terrain(this.track, buildChunkProps);
+      this.terrain.viewDistance = this.viewDistance;
+      this.sparkle = addSnowSparkle(this.terrain.material);
+      this.landmarks = buildLandmarks(this.track);
+      this.world.add(this.terrain.group, this.landmarks);
+    }
     this.sparkle.setQuality(this.quality);
-    this.landmarks = buildLandmarks(this.track);
-    this.world.add(this.terrain.group, this.landmarks);
+    this.setQuality(this.quality);
+    this.hud.el.classList.toggle('free', !!this.mountain);
+    this.sky.showPeaks(!this.mountain);
     this.sky.setTime(def.timeOfDay);
     this.reset();
   }
 
   reset(): void {
-    this.skier = createSkier(this.track, this.track.centerX(-8), -8, 0);
+    const z0 = this.mountain ? SUMMIT_SPAWN.z : -8;
+    this.skier = createSkier(this.track, this.track.centerX(z0), z0, 0);
+    this.ride = null;
+    this.view?.leaveSeat();
     this.run = createRun(this.track.def.length, this.track.def.par);
     this.flow = createFlow();
     this.phase = 'ready';
@@ -196,6 +224,10 @@ export class Game {
     this.input.sample(this.inp, DT, s.airborne);
     if (s !== this.skier) return; // a pad callback restarted / loaded the run mid-step: drop the stale step
     if (this.bot) botInput(s, this.track, this.inp, this.bot, this.botGap);
+    if (this.ride) {
+      this.rideStep(s);
+      return;
+    }
     if (this.phase === 'ready') {
       // standing in the gate: the first real input starts the run (with a pole push)
       if (!this.inp.tuck && !this.inp.jump && Math.abs(this.inp.steer) < 0.05 && !this.inp.brake) return;
@@ -218,6 +250,7 @@ export class Game {
     stepSkier(s, this.inp, this.track, DT, this.sEv);
     stepRun(this.run, s, this.track, DT, this.sEv, this.rEv);
     stepFlow(this.flow, s, DT, this.sEv, this.rEv, this.fEv);
+    if (this.mountain) this.freeRide(s);
     for (const e of this.sEv) this.onSkierEvent(e);
     for (const e of this.rEv) this.onRunEvent(e);
     for (const e of this.fEv) this.onFlowEvent(e);
@@ -230,6 +263,74 @@ export class Game {
         this.onFinish?.(this.stats());
       }
     }
+  }
+
+  /** Free ride: ski into a bottom station to take its chairlift; name the piste you enter. */
+  private freeRide(s: SkierState): void {
+    const m = this.mountain!;
+    if (!s.airborne && s.crashTimer <= 0 && s.vel.length() < 7) {
+      const i = m.lifts.findIndex((l) => Math.hypot(s.pos.x - l.bx, s.pos.z - l.bz) < 24);
+      if (i >= 0) {
+        this.ride = { lift: i, f: 0, t: 0 };
+        this.hud.pop(m.lifts[i].name, 'info', this.bot ? undefined : 'any key to skip');
+        if (this.bot) this.ride.f = 1; // attract mode: straight back to the top
+        return;
+      }
+    }
+    if ((this.pisteTick += DT) < 0.5) return;
+    this.pisteTick = 0;
+    const p = m.pistes.find((q) => Math.abs(s.pos.x - q.x(s.pos.z)) < q.halfWidth && s.pos.z > q.z0 + 20 && s.pos.z < 1040) ?? null;
+    if (p && p !== this.piste && this.live) this.hud.pop(p.name, 'info', p.difficulty === 'easy' ? 'blue' : p.difficulty === 'medium' ? 'red' : 'black');
+    this.piste = p;
+  }
+
+  /** Riding a chair: the seat carries the skier up; any input (after a moment) skips to the top. */
+  private rideStep(s: SkierState): void {
+    const r = this.ride!;
+    const view = this.view!;
+    r.t += DT;
+    r.f += (LIFT_SPEED * DT) / view.liftLength(r.lift);
+    const skip = r.t > 0.6 && (this.inp.jump || this.inp.tuck || this.inp.brake || Math.abs(this.inp.steer) > 0.5);
+    if (r.f >= 1 || skip) {
+      const l = this.mountain!.lifts[r.lift];
+      this.ride = null;
+      view.leaveSeat();
+      this.unload(l.tx, l.tz + 16);
+      return;
+    }
+    view.seat(r.lift, r.f, s.pos);
+    const yaw = view.liftYaw(r.lift);
+    s.vel.set(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(LIFT_SPEED);
+    s.heading = yaw;
+    s.airborne = true;
+    s.tuck = true;
+    s.edge = s.skid = 0;
+  }
+
+  /** Off the chair (or teleported): on the snow at (x, z), facing the nearest piste downhill. */
+  private unload(x: number, z: number): void {
+    const s = this.skier;
+    const m = this.mountain!;
+    let p = m.pistes[0];
+    for (const q of m.pistes) if (Math.abs(q.x(z + 30) - x) < Math.abs(p.x(z + 30) - x)) p = q;
+    s.pos.set(x, m.height(x, z), z);
+    s.heading = Math.atan2(p.x(z + 30) - x, 30);
+    s.vel.set(Math.sin(s.heading), 0, Math.cos(s.heading)).multiplyScalar(4);
+    s.airborne = false;
+    s.tuck = false;
+    m.normal(x, z, s.normal);
+    this.prevPos.copy(s.pos);
+    this.trails.reset();
+    this.cam.snap(s.pos, s.heading);
+  }
+
+  /** Free ride shortcut (T): straight to the summit. */
+  toSummit(): void {
+    if (!this.mountain || this.paused) return;
+    this.ride = null;
+    this.view?.leaveSeat();
+    this.phase = 'running';
+    this.unload(this.mountain.centerX(SUMMIT_SPAWN.z), SUMMIT_SPAWN.z);
   }
 
   /** Speed / air / chain / spin medals pop the moment they are earned (Traffic Rider's instant objective). */
@@ -369,8 +470,9 @@ export class Game {
     const view = { low: 300, medium: 390, high: 470 }[q];
     if (this.terrain) this.terrain.viewDistance = view;
     this.viewDistance = view;
-    this.sky.fog.far = view;
-    this.sky.fog.near = view * 0.26;
+    // the open mountain is seen whole: a much longer, thinner haze
+    this.sky.fog.far = this.mountain ? view * 3.2 : view;
+    this.sky.fog.near = this.mountain ? view * 0.9 : view * 0.26;
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
     this.quality = q;
     this.fx.setQuality(q);
@@ -404,7 +506,9 @@ export class Game {
     const heading = this.prevHeading + Math.atan2(Math.sin(s.heading - this.prevHeading), Math.cos(s.heading - this.prevHeading)) * alpha;
     this.model.update(s, this.renderPos, heading, this.track, realDt, this.sky.sunDirection);
     this.cam.update(this.renderPos, s, realDt, this.track.height);
-    this.terrain!.update(this.cam.camera.position.z, 1);
+    this.terrain?.update(this.cam.camera.position.z, 1);
+    this.view?.update(gdt);
+    this.crowd?.update(gdt, this.sky.sunDirection);
     this.sky.setTime(Math.min(0.95, this.sky.time + gdt * 0.0012)); // slow day cycle, stops at dusk (no wrap to morning)
     this.sky.update(this.cam.camera.position);
 

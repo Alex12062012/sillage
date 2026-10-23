@@ -194,6 +194,7 @@ game.input.onKey = (code) => {
   if (code === 'Backquote' || code === 'F2' || code === 'IntlBackslash') debug.toggle();
   if (mode === 'run') {
     if (code === 'KeyR') restart();
+    if (code === 'KeyT') game.toSummit();
     if (code === 'Escape' || code === 'KeyP') pause();
     if (code === 'KeyC') { save.settings.camera = save.settings.camera === 'chase' ? 'helmet' : 'chase'; persist(); applySettings(); }
   } else if (mode === 'paused' && (code === 'Escape' || code === 'KeyP')) {
@@ -273,7 +274,7 @@ window.__sillage = {
       heading: s.heading, fps: game.fps, score: game.run.score, nearMisses: game.run.nearMisses, crashes: game.run.crashes,
       time: game.run.time, finished: game.run.finished, phase: game.phase, mode, menu: menus.current, track: game.track.def.id,
       calls: renderer.info.render.calls, tris: renderer.info.render.triangles, fov: game.cam.camera.fov, buildMs: game.chunkBuildMs,
-      dpr: renderer.getPixelRatio(),
+      dpr: renderer.getPixelRatio(), cam: game.cam.camera.position.toArray().map((v) => Math.round(v)),
     };
   },
   drive: (o: Partial<SkierInput> | null) => { game.input.override = o; },

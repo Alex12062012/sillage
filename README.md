@@ -13,6 +13,8 @@ Ce sont des descentes courtes, de 45 à 90 secondes, sur des montagnes généré
 - **frôle les sapins** pour enchaîner les « near-miss », et **saute** sur les tremplins ;
 - puis appuie sur **Retry** et fais mieux.
 
+**Free ride** (bouton du menu) : une vraie montagne ouverte, tout débloqué : trois pistes (bleue avec un petit snowpark, rouge, noire), des forêts, deux télésièges (on embarque en arrivant à la gare du bas, n'importe quelle touche saute la montée, <kbd>T</kbd> ramène au sommet), d'autres skieurs à frôler et un village de chalets.
+
 Chaque défi a trois paliers (bronze, argent, or), et les étoiles débloquent de nouvelles pistes et de nouvelles tenues.
 
 | | |
