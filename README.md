@@ -29,6 +29,7 @@ Chaque défi a trois paliers (bronze, argent, or), et les étoiles débloquent d
 | Freiner (dérapage) | ↓ ou S | glisser vers le bas et maintenir | LT ou B |
 | Sauter | Espace | glisser vers le haut (ou le bouton ↑) | A |
 | Vrille / salto en l'air | ← → / ↑ ↓ | maintenir un côté / glisser vers le haut ou le bas | stick |
+| Grab en l'air (lâcher avant de toucher le sol) | maintenir Espace | maintenir les deux moitiés | maintenir A ou RT |
 | Recommencer · Pause · Caméra | R · Échap · C | boutons à l'écran | Y · Start · Select |
 
 **Options :**
@@ -51,6 +52,8 @@ Un panneau de réglages en direct s'ouvre avec <kbd>~</kbd> ou <kbd>F2</kbd>.
   - sapins et rochers low-poly dessinés en instances ;
   - un terrain découpé en morceaux chargés au fil de la descente, avec 2 niveaux de détail ;
   - un ciel en dégradé, des sommets au loin et un lent cycle de la journée.
+- **Un skieur réaliste** : un seul maillage articulé (20 os, 2 draw calls), technique de ski procédurale (angulation, jambe intérieure fléchie, contre-rotation, planté de bâton, tuck, poussée de bâtons, hockey stop, grabs, amorti des bosses, chute « yard sale »), ombre projetée.
+- **Le « flow »** : enchaîner des virages propres en rythme fait jouer la musique note par note ; une jauge à 4 niveaux (jusqu'à « Sillage! ») fait monter musique, caméra et interface.
 - **Des effets pour les sensations** :
   - champ de vision qui s'élargit avec la vitesse ;
   - secousses de caméra ;

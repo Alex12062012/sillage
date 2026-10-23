@@ -102,3 +102,13 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
 63. **Effet de bord assumé : seuils recalibrés.** Sans bassins, les descentes sont plus rapides et le bot rapide prenait l'or « Course » partout. Nouveaux seuils course : 100/74/60, 135/100/80, 165/120/96 s ; score de la noire : 3 500/7 000/11 000. Le test d'équilibrage reste vert : débutant ≥ 1 ★ par piste, déblocages successifs, joueur « simple » à 17 ★ sur 27.
 64. **Bot : évitement d'urgence à court terme.** Il vire tout de suite si un obstacle est sur sa ligne dans les ~0,7 s suivantes. Le test fragile sur l'« ordre des chutes » est remplacé par « finit les 3 pistes à allure soutenue ».
 65. **Déploiement : CLI Vercel déjà connecté plutôt qu'envoi inline.** `npx vercel@65.1.0 deploy --prod` envoie les vrais fichiers du dépôt (`.vercelignore` écarte le build, les rapports de test et les docs) : aucune recopie à la main. Le bundle en prod est identique au build local (même hash `index-Dpx5Y60E.js`). GitHub : `gh` n'est pas connecté, c'est le blocage autorisé ; je n'ai pas cherché de jeton ailleurs.
+
+## Phase 8 — passe « perso réaliste + énormément satisfaisant »
+
+66. **Trois spécialistes en parallèle (personnage, neige, son) dans des worktrees séparés**, sur un contrat posé d'abord dans la simulation (grab, événement `edgeChange`, position de l'obstacle frôlé). L'intégration dans `game.ts` est faite à la main.
+67. **Skieur = un seul `SkinnedMesh`** (20 os, poids rigides, primitives lisses fusionnées), 2 draw calls au lieu de 17, plus une ombre planaire au stencil (1 draw call). C'est ce qui libère le budget pour les nouveaux effets.
+68. **Grab :** maintenir en l'air ; les points ne comptent que si on lâche avant de toucher le sol (« release to bank »). Ça n'apporte aucune pénalité : le ton reste chill.
+69. **Le flow est purement sensoriel** (aucun point) : l'équilibrage des médailles, calibré sur le bot, reste intact. La vitesse seule plafonne au niveau 2.
+70. **Rythme musical :** chaque changement de carre propre joue une note de l'accord en cours, qui monte avec la série. Le joueur « joue » la musique en carvant.
+71. **Réception parfaite = coup marqué :** hitstop de 50 ms, flash chaud, plongée de caméra (ressort), sting en accord. Tout est atténué en mode confort.
+72. **Mesures (build de prod, M1) :** 59,7 FPS desktop, 59,5 FPS mobile émulé (CPU ×4), 52–55 draw calls (< 60). Les 76 tests unitaires et les 14 e2e sont verts.
