@@ -78,8 +78,8 @@ function applySettings(): void {
   game.input.haptics = st.vibration;
   game.audio.setVolume(st.volume);
   game.audio.setMusic(st.music);
-  game.cam.comfort = st.comfort;
-  game.cam.firstPerson = st.camera === 'helmet';
+  game.setComfort(st.comfort);
+  game.setFirstPerson(st.camera === 'helmet');
   ui.classList.toggle('left-handed', st.leftHanded);
   fpsEl.hidden = !st.showFps;
   if (st.tilt && !game.input.tilt) void game.input.enableTilt();

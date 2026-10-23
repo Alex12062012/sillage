@@ -130,6 +130,14 @@ export const TUNING = {
   fxLinesFull: 115, // km/h at full strength
   fxSparkle: 1, // sun glints on the snow (off on low quality)
   trailGroove: 1, // carved trench contrast (groove shading + darkness)
+  // ── audio feel pass (src/audio/audio.ts); levels are multipliers of the designed mix
+  sfxCarve: 1, // edge-bite hiss
+  sfxSkid: 1, // skid / braking scrape (the hockey-stop "kssshh")
+  sfxRumble: 1, // low ski-on-snow rumble
+  sfxRhythm: 1, // notes played by clean edge changes (×0.7 with music off)
+  sfxFlow: 1, // ambient layers added by flow (pad, pulse, arpeggio, shimmer)
+  sfxDuck: 0.6, // how far wind and carve dip under big events
+  sfxChordSeconds: 3.4, // length of one chord of the ambient progression
 };
 
 /** Debug-panel slider ranges; anything not listed gets [0, 3×value]. */
