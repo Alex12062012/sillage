@@ -48,6 +48,12 @@ export class Game {
   private rEv: RunEvent[] = [];
   private acc = 0;
   private sprayAcc = 0;
+  /** audio test hooks (the lead owns the real streak / flow logic) */
+  private beatStreak = 0;
+  private halfTurns = 0;
+  private flipCount = 0;
+  private kmhStep = 0;
+  private wasTuck = false;
   /** Autopilot target speed in m/s (tests, captures, attract mode), or null. */
   bot: number | null = null;
   botGap = 2.4;
@@ -174,6 +180,7 @@ export class Game {
     stepRun(this.run, s, this.track, DT, this.sEv, this.rEv);
     for (const e of this.sEv) this.onSkierEvent(e);
     for (const e of this.rEv) this.onRunEvent(e);
+    this.audioTicks();
     if (this.phase === 'running') this.liveMedals();
     if (this.finishTimer >= 0) {
       this.finishTimer += DT;
@@ -191,7 +198,7 @@ export class Game {
       const t = liveTier(c, st);
       if (t > (this.liveTiers[c.id] ?? 0)) {
         this.liveTiers[c.id] = t;
-        this.audio.chime(t + 1);
+        this.audio.medal(t);
         this.hud.pop(`${TIER_NAME[t]} · ${describeChallenge(c, t)}`, 'great');
       }
     }
@@ -202,6 +209,16 @@ export class Game {
     switch (e.type) {
       case 'takeoff':
         this.input.lockAirInputs();
+        this.audio.takeoff(this.sEv.some((x) => x.type === 'jump'));
+        this.halfTurns = 0;
+        this.flipCount = 0;
+        break;
+      case 'edgeChange':
+        this.beatStreak = e.clean ? this.beatStreak + 1 : 0;
+        this.audio.edgeChange(this.beatStreak, e.clean);
+        break;
+      case 'grab':
+        this.audio.grab(true);
         break;
       case 'jump':
         this.audio.jump();
@@ -212,7 +229,8 @@ export class Game {
         break;
       case 'land': {
         if (e.quality === 'crash') break;
-        this.audio.land(e.vn);
+        const trickEv = this.rEv.find((r) => r.type === 'trick');
+        this.audio.land(e.vn, e.quality, trickEv?.type === 'trick' ? trickEv.points : 0);
         this.cam.addTrauma(MathUtils.clamp((e.vn - 2.5) / 10, 0, 0.75));
         this.spray.burst(s.pos, 10 + Math.round(e.vn * 4), 2 + e.vn * 0.35, s.surface === Surface.Powder ? 0.5 : 0.3);
         const spins = Math.round(Math.abs(e.spin) / Math.PI) * 180;
@@ -226,6 +244,7 @@ export class Game {
       }
       case 'crash':
         this.audio.crash();
+        this.beatStreak = 0;
         this.cam.addTrauma(0.85);
         this.spray.burst(s.pos, 70, 5, 0.45);
         this.hud.pop(e.reason === 'obstacle' ? 'Tree hugger!' : CRASH_LINES[this.run.crashes % CRASH_LINES.length], 'bad');
@@ -237,7 +256,7 @@ export class Game {
   private onRunEvent(e: RunEvent): void {
     switch (e.type) {
       case 'nearMiss':
-        this.audio.nearMiss(e.side, e.razor);
+        this.audio.nearMiss(e.side, e.razor, e.chain);
         this.cam.fovPunch();
         this.cam.addTrauma(e.razor ? 0.15 : 0.06);
         this.hud.pop(`${e.razor ? 'RAZOR' : 'Close call'}${e.chain > 1 ? ` ×${e.chain}` : ''}  +${e.points}`, e.razor ? 'great' : 'good');
@@ -252,10 +271,30 @@ export class Game {
       case 'finish':
         this.phase = 'finished';
         this.finishTimer = 0;
-        this.audio.chime(4);
+        this.audio.finish();
         this.hud.pop('Finish!', 'great');
         break;
     }
+  }
+
+  /** Sim-rate audio cues read off the skier state: spin / flip ticks, speed milestones, tuck lock-in. */
+  private audioTicks(): void {
+    const s = this.skier;
+    if (s.airborne) {
+      const h = Math.floor(Math.abs(s.spin) / Math.PI);
+      if (h > this.halfTurns) this.audio.spinTick((this.halfTurns = h));
+      const f = Math.floor(Math.abs(s.flip) / (2 * Math.PI));
+      if (f > this.flipCount) {
+        this.flipCount = f;
+        this.audio.flipTick();
+      }
+    }
+    const kmh = s.vel.length() * 3.6;
+    const m = kmh >= 120 ? 3 : kmh >= 100 ? 2 : kmh >= 80 ? 1 : 0;
+    if (m > this.kmhStep) this.audio.speedMilestone(60 + m * 20);
+    this.kmhStep = kmh < 70 ? 0 : Math.max(this.kmhStep, m);
+    if (s.tuck && !this.wasTuck && kmh > 40) this.audio.tuck(true);
+    this.wasTuck = s.tuck;
   }
 
   /** Graphics level: view distance + fog, falling snow density. */
@@ -306,7 +345,7 @@ export class Game {
     const ps = pointScale(this.cam.camera, this.renderer.domElement.height);
     this.spray.material.uniforms.uScale.value = ps;
     this.flakes.update(this.cam.camera, this.time, ps);
-    this.audio.update(s.vel.length(), s.edge, s.skid, s.surface, s.airborne, crashed, realDt);
+    this.audio.update(s.vel.length(), s.edge, s.skid, s.surface, s.airborne, crashed, realDt, s.braking, s.tuck);
     this.hud.setSpeed(s.vel.length() * 3.6);
     this.hud.setRun(this.run.time, this.run.score, Math.max(0, s.pos.z) / this.track.def.length, realDt);
     if (this.phase !== this.hudPhase) {

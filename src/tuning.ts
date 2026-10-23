@@ -107,6 +107,14 @@ export const TUNING = {
   sprayPowder: 1.8,
   trailWidth: 0.12,
   flakeCount: 700,
+  // ── audio feel pass (src/audio/audio.ts); levels are multipliers of the designed mix
+  sfxCarve: 1, // edge-bite hiss
+  sfxSkid: 1, // skid / braking scrape (the hockey-stop "kssshh")
+  sfxRumble: 1, // low ski-on-snow rumble
+  sfxRhythm: 1, // notes played by clean edge changes (×0.7 with music off)
+  sfxFlow: 1, // ambient layers added by flow (pad, pulse, arpeggio, shimmer)
+  sfxDuck: 0.6, // how far wind and carve dip under big events
+  sfxChordSeconds: 3.4, // length of one chord of the ambient progression
 };
 
 /** Debug-panel slider ranges; anything not listed gets [0, 3×value]. */
