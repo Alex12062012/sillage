@@ -24,6 +24,7 @@ export interface BotMemory { offset: number }
 export function botInput(s: SkierState, t: Track, out: SkierInput, targetSpeed: number, gap = 2.4, mem: BotMemory = { offset: 0 }): SkierInput {
   out.jump = false;
   out.flip = 0;
+  out.grab = false;
   if (s.airborne) {
     out.steer = 0;
     out.brake = false;

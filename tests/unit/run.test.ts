@@ -157,6 +157,8 @@ describe('run lifecycle & scoring', () => {
     stepRun(run, s, g, DT, [landEvent(4 * Math.PI, 'clean')], ev);
     expect(run.bestSpin).toBe(720);
     expect(ev.some((e) => e.type === 'trick' && e.name === '720')).toBe(true);
+    const grab = (sec: number) => pts({ ...landEvent(0, 'clean'), grab: sec } as SkierEvent);
+    expect(grab(0.8)).toBe(air + Math.round(0.8 * TUNING.grabPoints));
   });
 
   it('adds a speed bonus above 60 km/h and a finish bonus that grows under par', () => {

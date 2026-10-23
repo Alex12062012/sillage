@@ -37,6 +37,9 @@ export const TUNING = {
   spinRate: 6.5,
   flipRate: 5.5,
   airResponse: 0.08,
+  grabDelay: 0.08, // s after takeoff before a held grab catches the skis
+  grabMinTime: 0.15, // shorter grabs are not tricks
+  grabPoints: 250, // per second of grab, banked only if released before touchdown
   // ── landing (Vn = normal impact speed; EFH = Vn²/2g)
   landCleanAngle: 0.6,
   landCrashAngle: 1.2,

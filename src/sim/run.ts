@@ -6,12 +6,13 @@ import { Surface, type Ground, type Obstacle } from './track';
 export type RunEvent =
   | { type: 'finish'; time: number; bonus: number }
   | { type: 'trick'; name: string; points: number; quality: string }
-  | { type: 'nearMiss'; dist: number; razor: boolean; side: number; points: number; chain: number; kind: Obstacle['kind']; offPiste: boolean }
+  /** x, z, h: the obstacle that was shaved (e.g. to shake the snow off that tree). */
+  | { type: 'nearMiss'; dist: number; razor: boolean; side: number; points: number; chain: number; kind: Obstacle['kind']; offPiste: boolean; x: number; z: number; h: number }
   | { type: 'chainEnd'; chain: number }
   | { type: 'slowmo'; scale: number; hold: number; ease: number };
 
 /** side: -1 = obstacle on the left of the screen, +1 = right (same convention as steer). */
-interface Pass { minD: number; side: number; speed: number; offPiste: boolean; kind: Obstacle['kind']; seen: boolean }
+interface Pass { minD: number; side: number; speed: number; offPiste: boolean; kind: Obstacle['kind']; seen: boolean; x: number; z: number; h: number }
 
 export interface RunState {
   /** Race time: counts from the start gate (z = 0) to the finish line. */
@@ -57,11 +58,12 @@ function landPoints(run: RunState, e: Extract<SkierEvent, { type: 'land' }>, out
   const deg = spinDegrees(e.spin);
   const spinPts = deg >= 180 ? (SPIN_POINTS[deg] ?? 1500 + ((deg - 1080) / 180) * 500) : 0;
   const flipPts = e.flips * 500;
-  const pts = Math.round((e.airTime * T.airPoints + spinPts + flipPts) * mult);
+  const grabPts = (e.grab ?? 0) * T.grabPoints;
+  const pts = Math.round((e.airTime * T.airPoints + spinPts + flipPts + grabPts) * mult);
   run.score += pts;
   if (deg >= 180) run.bestSpin = Math.max(run.bestSpin, deg);
-  if (spinPts || flipPts) {
-    const name = [deg >= 180 ? String(deg) : '', e.flips ? (e.flips > 1 ? `${e.flips}x flip` : 'flip') : ''].filter(Boolean).join(' + ');
+  if (spinPts || flipPts || grabPts) {
+    const name = [deg >= 180 ? String(deg) : '', e.flips ? (e.flips > 1 ? `${e.flips}x flip` : 'flip') : '', grabPts ? 'grab' : ''].filter(Boolean).join(' + ');
     out.push({ type: 'trick', name, points: pts, quality: e.quality });
   }
 }
@@ -120,7 +122,7 @@ export function stepRun(run: RunState, s: SkierState, g: Ground, dt: number, ski
     const p = run.passes.get(o.id);
     if (along > -1.5) {
       const d = Math.hypot(dx, dz) - o.r - T.skierRadius;
-      if (!p) run.passes.set(o.id, { minD: d, side: -Math.sign(fz * dx - fx * dz) || 1, speed, offPiste, kind: o.kind, seen: true });
+      if (!p) run.passes.set(o.id, { minD: d, side: -Math.sign(fz * dx - fx * dz) || 1, speed, offPiste, kind: o.kind, seen: true, x: o.x, z: o.z, h: o.h });
       else {
         p.seen = true;
         if (d < p.minD) { p.minD = d; p.speed = speed; p.offPiste = offPiste; p.side = -Math.sign(fz * dx - fx * dz) || p.side; }
@@ -144,7 +146,7 @@ function nearMiss(run: RunState, p: Pass, out: RunEvent[]): void {
   run.nearMisses++;
   const points = Math.round((razor ? T.razorPoints : T.nearMissPoints) * run.chain * (p.offPiste ? 2 : 1));
   run.score += points;
-  out.push({ type: 'nearMiss', dist: p.minD, razor, side: p.side, points, chain: run.chain, kind: p.kind, offPiste: p.offPiste });
+  out.push({ type: 'nearMiss', dist: p.minD, razor, side: p.side, points, chain: run.chain, kind: p.kind, offPiste: p.offPiste, x: p.x, z: p.z, h: p.h });
   if (razor) out.push({ type: 'slowmo', scale: T.razorTimeScale, hold: T.razorHold, ease: 0.08 });
 }
 

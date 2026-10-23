@@ -12,7 +12,8 @@ const SWIPE_MS = 320;
 /**
  * One SkierInput per physics step from keyboard, touch, gamepad and tilt.
  * Touch (default): hold left / right half = carve (analog ramp), both halves = tuck, swipe up = jump,
- * swipe down and hold = brake. In the air the same gestures spin (hold) and flip (swipe up / down).
+ * swipe down and hold = brake. In the air the same gestures spin (hold one side), grab (hold both) and
+ * flip (swipe up / down). Keyboard grab = hold Space in the air; pad grab = hold A or RT in the air.
  */
 export class Input {
   readonly keys = new Set<string>();
@@ -112,7 +113,7 @@ export class Input {
     this.pad(false);
   }
 
-  private pad(queueJump = true): { steer: number; tuck: boolean; brake: boolean; flip: number } | null {
+  private pad(queueJump = true): { steer: number; tuck: boolean; brake: boolean; flip: number; grab: boolean } | null {
     const p = navigator.getGamepads?.().find((g) => g && g.connected);
     if (!p) return null;
     const b = (i: number) => !!p.buttons[i]?.pressed;
@@ -131,7 +132,7 @@ export class Input {
     const tuck = (p.buttons[7]?.value ?? 0) > 0.3;
     const brake = b(1) || (p.buttons[6]?.value ?? 0) > 0.3;
     if (steer || tuck || brake) this.touched = true;
-    return { steer, tuck, brake, flip: Math.sign(ay) };
+    return { steer, tuck, brake, flip: Math.sign(ay), grab: b(0) || tuck };
   }
 
   sample(out: SkierInput, dt: number, airborne: boolean): SkierInput {
@@ -163,12 +164,14 @@ export class Input {
     down = down || swipeBrake;
     if (airborne && swipeFlip) flip = swipeFlip;
 
+    let grab = this.has('Space') || touchTuck;
     const pad = this.pad();
     if (pad) {
       if (Math.abs(pad.steer) > Math.abs(target)) target = pad.steer;
       up = up || pad.tuck;
       down = down || pad.brake;
       if (pad.flip) flip = pad.flip;
+      grab = grab || pad.grab;
     }
 
     // analog-ish ramp: a tap is a small carve, a hold a full one (sensitivity scales both)
@@ -179,6 +182,7 @@ export class Input {
     out.brake = down && !airborne;
     out.jump = this.jumpQueued;
     out.flip = airborne ? flip : 0;
+    out.grab = airborne && grab;
     this.jumpQueued = false;
 
     if (airborne) {

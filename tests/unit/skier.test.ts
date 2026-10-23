@@ -1,11 +1,21 @@
 import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { TUNING } from '../../src/tuning';
+import type { SkierEvent } from '../../src/sim/skier';
 import { DT, input, ms, simulate, skierAt, slopeGround } from './helpers';
 
 const n = new Vector3();
 
 describe('skier on the ground', () => {
+  it('reports every edge change; held, unskidded turns are clean beats', () => {
+    const g = slopeGround(15);
+    const s = skierAt(g, 0, ms(40));
+    const events = simulate(s, g, 6, (_st, t) => input({ steer: Math.sin(t * 4.5) > 0 ? 0.6 : -0.6 }));
+    const changes = events.filter((e) => e.type === 'edgeChange');
+    expect(changes.length).toBeGreaterThanOrEqual(6);
+    expect(changes.filter((e) => e.type === 'edgeChange' && e.clean).length).toBeGreaterThanOrEqual(4);
+  });
+
   it('stays glued to a plane slope for 10 s without jitter or NaN', () => {
     const g = slopeGround(18);
     const s = skierAt(g, 0, 5);
@@ -93,6 +103,25 @@ describe('air and landing', () => {
     let airFrames = 0;
     simulate(s, g, 3, () => input({ brake: s.vel.length() > ms(42) }), (st) => { if (st.airborne) airFrames++; });
     expect(airFrames).toBeLessThan(3);
+  });
+
+  it('banks a grab released before touchdown, not one still held at touchdown', () => {
+    const jumpAndGrab = (releaseAt: number) => {
+      const g = slopeGround(0);
+      const s = skierAt(g, 0, 8);
+      let t = 0;
+      const events = simulate(s, g, 2, () => {
+        t += DT;
+        return input({ jump: t <= DT, grab: t < releaseAt });
+      });
+      return events.find((e) => e.type === 'land') as Extract<SkierEvent, { type: 'land' }>;
+    };
+    const banked = jumpAndGrab(0.5);
+    expect(banked.grab).toBeGreaterThan(0.3);
+    expect(banked.lateGrab).toBe(false);
+    const late = jumpAndGrab(9);
+    expect(late.grab).toBe(0);
+    expect(late.lateGrab).toBe(true);
   });
 
   it('runs at a fixed step without drift: 600 steps of 1/60 s equal 10 s', () => {

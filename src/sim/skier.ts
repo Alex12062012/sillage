@@ -2,15 +2,19 @@ import { Vector3 } from 'three';
 import { TUNING as T } from '../tuning';
 import { clamp, Surface, type Ground, type Obstacle } from './track';
 
-/** steer: -1 left … +1 right (screen space). flip: -1 back … +1 front. jump: edge-triggered. */
-export interface SkierInput { steer: number; tuck: boolean; brake: boolean; jump: boolean; flip: number }
+/** steer: -1 left … +1 right (screen space). flip: -1 back … +1 front. jump: edge-triggered. grab: held in the air. */
+export interface SkierInput { steer: number; tuck: boolean; brake: boolean; jump: boolean; flip: number; grab?: boolean }
 
 export type LandQuality = 'perfect' | 'clean' | 'sketchy' | 'switch' | 'crash';
 export type SkierEvent =
   | { type: 'takeoff' }
   | { type: 'jump' }
   | { type: 'pump' }
-  | { type: 'land'; vn: number; quality: LandQuality; spin: number; flips: number; airTime: number; distance: number }
+  /** Every switch from one carving edge to the other; clean = a held, unskidded turn (the rhythm beat). */
+  | { type: 'edgeChange'; clean: boolean; carveTime: number; dir: number }
+  | { type: 'grab' }
+  /** grab = seconds of grab banked (released before touchdown); lateGrab = still grabbing at touchdown. */
+  | { type: 'land'; vn: number; quality: LandQuality; spin: number; flips: number; airTime: number; distance: number; grab?: number; lateGrab?: boolean }
   | { type: 'crash'; reason: 'landing' | 'obstacle' };
 
 export interface SkierState {
@@ -27,6 +31,9 @@ export interface SkierState {
   spinVel: number;
   flip: number;
   flipVel: number;
+  /** Holding a grab right now (air only), and for how long this jump. */
+  grab: boolean;
+  grabTime: number;
   /** Signed lateral load / grip in [-1, 1] (+ = turning left): drives lean, spray and carve audio. */
   edge: number;
   /** 0..1 sideways sliding: speed loss, spray, scrape audio. */
@@ -65,6 +72,8 @@ export function createSkier(g: Ground, x: number, z: number, heading: number): S
     spinVel: 0,
     flip: 0,
     flipVel: 0,
+    grab: false,
+    grabTime: 0,
     edge: 0,
     skid: 0,
     surface: g.surface(x, z),
@@ -197,6 +206,7 @@ function pump(s: SkierState, f: Vector3, dirSign: number, inp: SkierInput, dt: n
     return;
   }
   const speed = s.vel.length();
+  if (s.carveDir !== 0) ev.push({ type: 'edgeChange', clean: s.carveTime >= T.pumpMinTurn && s.carveClean && !inp.brake, carveTime: s.carveTime, dir });
   if (s.carveDir !== 0 && s.carveTime >= T.pumpMinTurn && s.carveClean && !inp.brake && speed < T.pumpMaxSpeed && T.pumpBoost > 0) {
     s.vel.addScaledVector(f, T.pumpBoost * dirSign);
     ev.push({ type: 'pump' });
@@ -213,6 +223,8 @@ function takeoff(s: SkierState, ev: SkierEvent[]): void {
   s.flip = 0;
   s.spinVel = s.yawRate;
   s.flipVel = 0;
+  s.grab = false;
+  s.grabTime = 0;
   s.takeoffX = s.pos.x;
   s.takeoffZ = s.pos.z;
   s.jumpCooldown = 0.25;
@@ -235,6 +247,10 @@ function airStep(s: SkierState, inp: SkierInput, g: Ground, dt: number, ev: Skie
   s.heading = wrapPi(s.heading + s.spinVel * dt);
   s.spin += s.spinVel * dt;
   s.flip += s.flipVel * dt;
+  const grab = !!inp.grab && s.airTime > T.grabDelay;
+  if (grab && !s.grab) ev.push({ type: 'grab' });
+  s.grab = grab;
+  if (grab) s.grabTime += dt;
   s.skid *= 0.9;
   s.edge *= 0.9;
 
@@ -285,8 +301,11 @@ function land(s: SkierState, g: Ground, h: number, ev: SkierEvent[]): void {
   else quality = 'crash';
 
   const distance = Math.hypot(s.pos.x - s.takeoffX, s.pos.z - s.takeoffZ);
-  ev.push({ type: 'land', vn, quality, spin: s.spin, flips, airTime: s.airTime, distance });
+  const held = s.grabTime >= T.grabMinTime;
+  ev.push({ type: 'land', vn, quality, spin: s.spin, flips, airTime: s.airTime, distance, grab: held && !s.grab ? s.grabTime : 0, lateGrab: held && s.grab });
   s.airborne = false;
+  s.grab = false;
+  s.grabTime = 0;
   s.spin = 0;
   s.flip = 0;
   s.spinVel = 0;
@@ -305,6 +324,7 @@ function land(s: SkierState, g: Ground, h: number, ev: SkierEvent[]): void {
 export function startCrash(s: SkierState, ev: SkierEvent[], reason: 'landing' | 'obstacle'): void {
   s.crashTimer = T.crashDuration;
   s.airborne = false;
+  s.grab = false;
   s.tuck = false;
   s.braking = false;
   s.skid = 1;
