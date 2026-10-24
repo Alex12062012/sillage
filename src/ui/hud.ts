@@ -94,7 +94,7 @@ export class Hud {
     if (v === this.lastSpeed) return;
     this.lastSpeed = v;
     this.speed.innerHTML = `${v}<small>km/h</small>`;
-    this.speed.classList.toggle('hot', v >= 100);
+    this.speed.classList.toggle('hot', v >= 125); // a peak, not the cruise (free ride cruises at 100–110)
     this.vignette.style.opacity = String(T.fxVignette * Math.min(1, Math.max(0, (kmh - T.fxLinesFrom) / (T.fxLinesFull - T.fxLinesFrom))));
     this.speed.style.setProperty('--heat', String(Math.min(1, Math.max(0, (kmh - 60) / 60)).toFixed(2)));
   }

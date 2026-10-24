@@ -180,7 +180,7 @@ function groundStep(s: SkierState, inp: SkierInput, g: Ground, dt: number, ev: S
     takeoff(s, ev);
     return;
   }
-  if (s.pos.y > h && vn > T.launchThreshold) {
+  if (s.pos.y > h && vn > (g.launch ?? T.launchThreshold)) {
     takeoff(s, ev);
     return;
   }

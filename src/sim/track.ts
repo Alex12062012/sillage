@@ -13,6 +13,8 @@ export interface Ground {
   respawn?(z: number, x?: number): { x: number; z: number; heading: number };
   /** Obstacles whose circle may intersect a disc of `radius` around (x, z). Reuses `out`. */
   obstaclesNear?(x: number, z: number, radius: number, out: Obstacle[]): Obstacle[];
+  /** Relative normal speed above which this ground lets go of the skis (defaults to TUNING.launchThreshold). */
+  launch?: number;
 }
 
 export interface Obstacle { id: number; x: number; z: number; r: number; h: number; kind: 'tree' | 'rock' | 'skier' }

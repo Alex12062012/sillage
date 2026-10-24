@@ -4,7 +4,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { fbm } from '../core/rng';
-import { DEEP, H0, STEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
+import { DEEP, STEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { ROUSSES } from '../sim/rousses-data';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
 
@@ -16,7 +16,7 @@ const C_LAKE = new Color(0x56789a);
 const C_FIELDS = new Color(0x9aa184);
 const C_PINES = new Color(0x4b5e52);
 const PISTE_COLOR: Record<PisteColor, Color> = { green: new Color(0x2fa84f), blue: new Color(0x2f6fde), red: new Color(0xe0393e), black: new Color(0x1d1f26) };
-const LAKE = H0 + (372 - H0) * STEEP; // Léman, steepened like the land
+const LAKE = 372; // Léman (the land below the ski area keeps its true heights)
 const CHAIR_GAP = 24;
 const PERCH_GAP = 14;
 const SIDE = 2.4; // half the distance between the up and down cables of a chair
@@ -63,7 +63,7 @@ function terrainMesh(m: Mountain, every: number, mat: MeshLambertMaterial): Mesh
       const k = (j * nx + i) * 3, g = j * every * G.nx + i * every;
       pos[k] = G.x0 + i * every * G.step;
       pos[k + 2] = G.z0 + j * every * G.step;
-      pos[k + 1] = G.h[g] - (i === 0 || j === 0 || i === nx - 1 || j === nz - 1 ? 25 : 0);
+      pos[k + 1] = G.h[g] - (i === 0 || j === 0 || i === nx - 1 || j === nz - 1 ? 25 * STEEP : 0);
     }
   }
   const mesh = gridMesh(nx, nz, pos, col, mat);
@@ -96,14 +96,15 @@ function aroundMesh(m: Mountain, mat: MeshLambertMaterial): Mesh {
     for (let i = 0; i < A.nx; i++) {
       const k = (j * A.nx + i) * 3, x = A.x0 + i * A.step, z = A.z0 + j * A.step;
       let y = A.h[j * A.nx + i];
+      const h0 = A.h0[j * A.nx + i];
       const inside = Math.min(x - b.x0, b.x1 - x, z - b.z0, b.z1 - z);
-      if (inside > 0) y -= inside > A.step ? 40 : 4;
+      if (inside > 0) y -= inside > A.step ? 40 * STEEP : 4; // well under the massif: the steepened facets bulge
       const woods = Math.max(0, fbm(31, x / 900, z / 900, 3)) * 1.6;
-      if (y < LAKE + 4) {
+      if (h0 < LAKE + 4) {
         y = Math.min(y, LAKE);
         c.copy(C_LAKE);
       } else {
-        const snow = Math.min(1, Math.max(0, (H0 + (y - H0) / STEEP - 620) / 380)); // snow line on the true heights
+        const snow = Math.min(1, Math.max(0, (h0 - 620) / 380)); // snow line on the true heights
         c.copy(C_FIELDS).lerp(C_POWDER, snow).lerp(C_PINES, Math.min(0.7, woods) * (0.5 + 0.5 * snow));
       }
       pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;
@@ -273,7 +274,11 @@ export class MountainView {
     this.group.add(new LineSegments(lines, new LineBasicMaterial({ color: 0x2b303a })));
 
     // the real buildings (OSM footprints), the roads, the radar dome on La Dôle
-    for (const [x, z, w, d, yaw, levels] of ROUSSES.buildings) built.push(building(x, m.height(x, z) - 0.4, z, w, d, yaw, levels));
+    const ends = m.lifts.flatMap((l) => [[l.pts[0], l.pts[1]], [l.pts[l.pts.length - 2], l.pts[l.pts.length - 1]]]);
+    for (const [x, z, w, d, yaw, levels] of ROUSSES.buildings) {
+      if (ends.some(([ex, ez]) => Math.hypot(ex - x, ez - z) < Math.max(w, d) / 2 + 3)) continue; // a station: drawn as one
+      built.push(building(x, m.height(x, z) - 0.4, z, w, d, yaw, levels));
+    }
     built.push(roads(m));
     if (ROUSSES.radar) {
       const [x, z] = ROUSSES.radar, y = m.height(x, z);

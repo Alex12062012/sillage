@@ -43,7 +43,8 @@ export class Game {
   mountain: Mountain | null = null;
   private view: MountainView | null = null;
   private crowd: Crowd | null = null;
-  private ride: { lift: number; f: number; t: number } | null = null;
+  /** On a lift: which, how far up, for how long; `held` until every key is up (a skip needs a fresh press). */
+  private ride: { lift: number; f: number; t: number; held: boolean } | null = null;
   private piste: Mountain['pistes'][number] | null = null;
   private pisteTick = 0;
   private world = new Group();
@@ -171,7 +172,7 @@ export class Game {
   /** Drop the skier mid-run at `z` (attract mode / tests): already moving, clock running. */
   startAt(z: number, speed: number): void {
     const s = this.skier;
-    const at = this.mountain?.spawn; // the open mountain: from the top of La Dôle
+    const at = this.mountain?.summit; // the open mountain (attract mode, teleports): from the top of La Dôle
     if (at) z = at.z;
     const x = at ? at.x : this.track.centerX(z);
     const heading = at ? at.heading : Math.atan((this.track.centerX(z + 1) - this.track.centerX(z - 1)) / 2);
@@ -227,7 +228,7 @@ export class Game {
     const s = this.skier;
     this.prevPos.copy(s.pos);
     this.prevHeading = s.heading;
-    this.input.sample(this.inp, DT, s.airborne);
+    this.input.sample(this.inp, DT, s.airborne && !this.ride); // seated on a chair, ↑ / ↓ still count (to skip)
     if (s !== this.skier) return; // a pad callback restarted / loaded the run mid-step: drop the stale step
     if (this.bot) botInput(s, this.track, this.inp, this.bot, this.botGap);
     if (this.ride) {
@@ -283,7 +284,7 @@ export class Game {
           if (d < bd) { bd = d; best = i; }
         });
         if (best >= 0) {
-          this.ride = { lift: best, f: 0, t: 0 };
+          this.ride = { lift: best, f: 0, t: 0, held: true };
           this.hud.pop(m.lifts[best].name, 'info', this.bot ? undefined : 'any key to skip');
           if (this.bot) this.ride.f = 1; // attract mode: straight back to the top
           return;
@@ -318,7 +319,9 @@ export class Game {
     const l = this.mountain!.lifts[r.lift];
     r.t += DT;
     r.f += (l.speed * DT) / l.len;
-    const skip = r.t > 0.6 && (this.inp.jump || this.inp.tuck || this.inp.brake || Math.abs(this.inp.steer) > 0.5);
+    const any = this.inp.jump || this.inp.tuck || this.inp.brake || Math.abs(this.inp.steer) > 0.5;
+    const skip = r.t > 0.6 && any && !r.held; // skating in with ↑ held does not skip: release, then press
+    r.held = any;
     if (r.f >= 1 || skip) {
       this.unload(this.mountain!.unload(r.lift));
       return;
