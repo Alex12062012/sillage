@@ -3,7 +3,7 @@ import { WebGLRenderer } from 'three';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
 import { applyRun, COSMETICS, emptySave, isUnlocked, loadSave, saveSave, totalStars, type Save, type Settings } from './sim/progress';
-import { FREE_ID } from './sim/mountain';
+import { loadedStation, loadStation, stationOfTrack } from './sim/stations';
 import { TRACKS, trackById } from './sim/tracks';
 import { TUNING } from './tuning';
 import { createDebugPanel } from './ui/debug';
@@ -37,7 +37,10 @@ const ui = document.getElementById('ui')!;
 const hud = new Hud(ui);
 const params = new URLSearchParams(location.search);
 const lastTrack = params.get('track') ?? storage.getItem('sillage.last') ?? TRACKS[0].id;
-const game = new Game(renderer, trackById(isUnlocked(save, lastTrack) || params.has('track') ? lastTrack : TRACKS[0].id), hud);
+let firstTrack = isUnlocked(save, lastTrack) || params.has('track') ? lastTrack : TRACKS[0].id;
+const firstStation = stationOfTrack(firstTrack); // the last run was an open mountain: behind the menu again (its data first)
+if (firstStation) await loadStation(firstStation).catch(() => { firstTrack = TRACKS[0].id; });
+const game = new Game(renderer, trackById(firstTrack), hud);
 
 // ── touch buttons (pause, jump), mirrored for left-handed players
 const touch = document.createElement('div');
@@ -112,7 +115,9 @@ function attractRun(): void {
   game.startAt(70, 13);
 }
 
-function startRun(id: string): void {
+async function startRun(id: string): Promise<void> {
+  const station = stationOfTrack(id);
+  if (station && !loadedStation(station)) await loadStation(station); // its own chunk, fetched the first time
   results?.remove();
   results = null;
   menus.hide();
@@ -123,9 +128,9 @@ function startRun(id: string): void {
   game.bestTiers = { ...save.medals };
   game.reset();
   setMode('run');
-  if (id === FREE_ID) {
-    hud.showHint(`<b>Les Rousses</b> · Dôle-Tuffes — ski into a lift's bottom station to ride up · ${isTouch()
-      ? 'hold <b>both</b> to skate on the flats' : '<b>↑</b> skates on the flats · <b>T</b> top of La Dôle'} · <small>map © OpenStreetMap</small>`, 8);
+  if (station) {
+    hud.showHint(`<b>${station.name}</b> · ${station.area} — ski into a lift's bottom station to ride up · ${isTouch()
+      ? 'hold <b>both</b> to skate on the flats' : `<b>↑</b> skates on the flats · <b>T</b> top of ${station.summitName}`} · <small>map © OpenStreetMap${station.id === 'rousses' ? '' : ' · IGN'}</small>`, 8);
   } else if (!save.seenHint) {
     hud.showHint(isTouch()
       ? '<b>Hold</b> left / right to carve · <b>both</b> to tuck (grab in the air) · swipe <b>↑</b> jump · swipe <b>↓</b> brake'

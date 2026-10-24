@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { botInput } from '../../src/sim/bot';
 import { makeMountain } from '../../src/sim/mountain';
+import { ROUSSES } from '../../src/sim/rousses-data';
+import { STATIONS } from '../../src/sim/stations';
 import { createSkier, stepSkier, type SkierEvent } from '../../src/sim/skier';
 import { DT, input } from './helpers';
 
 describe('free ride: Les Rousses, Dôle-Tuffes', () => {
-  const m = makeMountain();
+  const m = makeMountain(STATIONS[0], ROUSSES);
   const lift = (name: string) => m.lifts.find((l) => l.name === name)!;
   const end = (name: string, f: number) => {
     const o = { x: 0, z: 0, dx: 0, dz: 0 };

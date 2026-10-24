@@ -1,12 +1,16 @@
+import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { MountainView } from '../../src/render/mountainView';
+import { AVORIAZ } from '../../src/sim/avoriaz-data';
 import { botInput } from '../../src/sim/bot';
 import { makeMountain } from '../../src/sim/mountain';
+import { ROUSSES } from '../../src/sim/rousses-data';
+import { STATIONS } from '../../src/sim/stations';
 import { createSkier, stepSkier, type SkierEvent } from '../../src/sim/skier';
 import { DT, input } from './helpers';
 
 describe('free ride view: the snow you see is the snow you ski on', () => {
-  const m = makeMountain();
+  const m = makeMountain(STATIONS[0], ROUSSES);
   const view = new MountainView(m);
   const b = m.bounds;
 
@@ -71,4 +75,35 @@ describe('free ride view: the snow you see is the snow you ski on', () => {
     view.focus(edge + 2, z);
     expect(view.detailRect()).toEqual(r0); // clamped: no rebuild every frame
   });
+});
+
+describe('free ride view: Avoriaz (gondolas, the Alps as they are)', () => {
+  const m = makeMountain(STATIONS[1], AVORIAZ);
+  const view = new MountainView(m);
+
+  it('builds, cabins and all, and the skis stay on the drawn snow', () => {
+    view.setQuality('medium');
+    const o = { x: 0, z: 0, dx: 0, dz: 0 };
+    const ev: SkierEvent[] = [];
+    let worst = 0, where = '';
+    for (const p of m.pistes.filter((r) => !r.area && r.len > 600).filter((_, i) => i % 3 === 0)) {
+      m.along(p, 0, o);
+      const s = createSkier(m, o.x, o.z, Math.atan2(o.dx, o.dz));
+      const inp = input();
+      for (let t = 0; t < 12; t += DT) {
+        botInput(s, m, inp, 160 / 3.6);
+        inp.tuck = !s.airborne && !inp.brake;
+        stepSkier(s, inp, m, DT, ev);
+        view.focus(s.pos.x, s.pos.z);
+        if (s.airborne) continue;
+        const d = view.drawnHeight(s.pos.x, s.pos.z) - s.pos.y;
+        if (d > worst) { worst = d; where = `${p.name || 'piste'} at ${s.pos.x | 0}, ${s.pos.z | 0}`; }
+      }
+    }
+    expect(worst, where).toBeLessThan(0.2); // steeper and rougher than the Jura: a little more than at Les Rousses
+    // riding the Super-Morzine gondola: seated in a cabin, under the cable, well above the snow
+    const i = m.lifts.findIndex((l) => l.name === 'Super-Morzine');
+    const seat = view.seat(i, 0.5, new Vector3());
+    expect(seat.y - m.height(seat.x, seat.z)).toBeGreaterThan(3);
+  }, 30000);
 });

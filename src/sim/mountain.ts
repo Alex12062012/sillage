@@ -1,14 +1,13 @@
 import { fbm, mulberry32 } from '../core/rng';
-import { clamp, indexObstacles, normalOf, smoothstep, Surface, type Obstacle, type Track, type TrackDef } from './track';
-import { ROUSSES as R } from './rousses-data';
+import { freeDef, type Station, type StationData } from './stations';
+import { clamp, indexObstacles, normalOf, smoothstep, Surface, type Obstacle, type Track } from './track';
 
 /**
- * Free ride: the Dôle-Tuffes massif of the Station des Rousses (Jura), 1:1. Real relief (terrain tiles), real
- * pistes, lifts, forests and buildings (OpenStreetMap), baked by scripts/rousses.mjs. Metres, x east, z south.
+ * Free ride: a real ski area, 1:1 (Les Rousses, Avoriaz…). Real relief (terrain tiles), real pistes, lifts, forests
+ * and buildings (OpenStreetMap, IGN), baked by scripts/bake-station.mjs. Metres, x east, z south.
  * Pistes are graded like the real ones: a flat bench across, smoothed along, (almost) never climbing.
  * Pure, like track.ts.
  */
-export const FREE_ID = 'free';
 
 export type PisteColor = 'green' | 'blue' | 'red' | 'black';
 export interface Piste {
@@ -20,11 +19,15 @@ export interface Piste {
   /** Where the line runs into another piste at its end. */
   next: { p: Piste; s: number } | null;
 }
-export interface Lift { name: string; kind: 'chair' | 'drag' | 'carpet'; seats: number; pts: number[]; cum: number[]; len: number; speed: number }
+/** Chairs seat you, gondolas (and cable cars) carry you in a cabin, drag lifts and carpets pull you along the snow. */
+export interface Lift { name: string; kind: 'chair' | 'gondola' | 'drag' | 'carpet'; seats: number; pts: number[]; cum: number[]; len: number; speed: number }
 export interface PisteHit { p: Piste; d: number; s: number }
 export interface Spot { x: number; z: number; heading: number }
 
 export interface Mountain extends Track {
+  station: Station;
+  /** How many times its large-scale relief is steepened (1: as it is). */
+  steep: number;
   pistes: Piste[];
   lifts: Lift[];
   /** Moving skiers the near-miss / collision code should see (written by the free-ride crowd). */
@@ -35,9 +38,11 @@ export interface Mountain extends Track {
   /** The land around (48 × 40 km, 300 m): heights in metres, steepened like the massif (h) and true (h0). */
   around: { x0: number; z0: number; step: number; nx: number; nz: number; h: Float32Array; h0: Float32Array };
   bounds: { x0: number; x1: number; z0: number; z1: number };
-  /** At the foot of Les Jouvencelles, facing the Jouvenceaux chair. */
+  /** Roads, building boxes (x, z, width, depth, yaw, levels), a landmark dome: what the view draws as they are. */
+  scenery: { roads: number[][]; buildings: number[][]; radar: number[] | null };
+  /** In the start lift's queue, facing it. */
   spawn: Spot;
-  /** On top of La Dôle, at the head of its longest piste. */
+  /** Off the summit lift, at the head of the piste that drops the most. */
   summit: Spot;
   /** Nearest piste line within `max` m (areas excluded). */
   pisteAt(x: number, z: number, max?: number): PisteHit | null;
@@ -51,20 +56,13 @@ export interface Mountain extends Track {
   guide(x: number, z: number, ahead: number): { x: number; z: number; hw: number };
 }
 
-export const FREE_DEF: TrackDef = {
-  id: FREE_ID, name: 'Les Rousses', difficulty: 'easy', seed: 4242, length: Infinity, slopeDeg: 18, slopeVar: 0,
-  halfWidth: 14, curve: 0, kickers: [], moguls: 0, glades: 0, cliffs: 0, ice: 0, arches: 0, treeDensity: 1, rockDensity: 1,
-  timeOfDay: 0.5, par: 0,
-};
-
 /**
- * The Jura is gentle (8–12° pistes): the game steepens its large-scale relief (the 300 m land-around grid)
- * STEEP times above H0, the foot of Les Jouvencelles, keeping the local detail as it is; below, the land (the
- * valleys, the Léman) stays true. Tucked from the big lifts' tops you then average ≈ 105 km/h; La Dôle rises to ≈ 2 300 m.
+ * The Jura is gentle (8–12° pistes): Les Rousses steepens its large-scale relief (the 300 m land-around grid)
+ * station.steep times (2.3) above station.h0 (1160 m, the foot of Les Jouvencelles), keeping the local detail as
+ * it is; below, the land (the valleys, the Léman) stays true. Tucked from the big lifts' tops you then average
+ * ≈ 105 km/h; La Dôle rises to ≈ 2 300 m. The Alps (Avoriaz) are steep enough as they are.
  */
-export const STEEP = 2.3;
-export const H0 = 1160;
-const steep = (h: number) => h + (STEEP - 1) * 25 * Math.log1p(Math.exp((h - H0) / 25)); // softplus: no crease at H0
+const steepen = (S: number, H0: number) => (h: number) => (S === 1 ? h : h + (S - 1) * 25 * Math.log1p(Math.exp((h - H0) / 25))); // softplus: no crease at H0
 
 /** Trees this tall or more stand deep in the woods (the view draws them simpler). */
 export const DEEP = 25;
@@ -132,14 +130,15 @@ const pointIn = (poly: number[], x: number, z: number) => {
 
 const WIDTH: Record<PisteColor, number> = { green: 15, blue: 15, red: 14, black: 12 };
 
-export function makeMountain(): Mountain {
-  const seed = FREE_DEF.seed;
+export function makeMountain(st: Station, R: StationData): Mountain {
+  const seed = st.seed;
   const rnd = mulberry32(seed);
+  const steep = steepen(st.steep, st.h0);
 
   // ── raw relief: the massif (20 m) faded into the land around (300 m) over its last 300 m; the land around
   // (the large scale) steepened, the massif's own detail (fine − around) added back as it is
   const F = R.grid, A = R.around;
-  const fh = Float32Array.from(decode16(F.h), (v) => F.base + v / 100);
+  const fh = Float32Array.from(decode16(F.h), F.unit ? (v) => F.base + v * F.unit! : (v) => F.base + v / 100);
   const ah0 = Float32Array.from(decode16(A.h), (v) => v / 10);
   const ah = ah0.map(steep);
   const fx1 = F.x0 + (F.nx - 1) * F.step, fz1 = F.z0 + (F.nz - 1) * F.step;
@@ -289,7 +288,8 @@ export function makeMountain(): Mountain {
     const cum = [0];
     for (let k = 2; k < l.pts.length; k += 2) cum.push(cum[cum.length - 1] + Math.hypot(l.pts[k] - l.pts[k - 2], l.pts[k + 1] - l.pts[k - 1]));
     const kind = l.kind as Lift['kind'];
-    return { name: l.name, kind, seats: l.seats, pts: l.pts, cum, len: cum[cum.length - 1], speed: kind === 'chair' ? 5 : kind === 'drag' ? 4 : 2 };
+    const speed = kind === 'gondola' ? (l.seats > 12 ? 7 : 5) : kind === 'chair' ? 5 : kind === 'drag' ? 4 : 2; // a 3S runs at 7 m/s
+    return { name: l.name, kind, seats: l.seats, pts: l.pts, cum, len: cum[cum.length - 1], speed };
   });
   const liftPoint = (l: Lift, f: number, out: { x: number; z: number; dx: number; dz: number }) => {
     const s = clamp(f, 0, 1) * l.len;
@@ -321,19 +321,20 @@ export function makeMountain(): Mountain {
   const unload = (i: number): Spot => {
     const l = lifts[i];
     liftPoint(l, 1, pt);
-    const x = pt.x + pt.dx * (l.kind === 'chair' ? 12 : 5), z = pt.z + pt.dz * (l.kind === 'chair' ? 12 : 5);
+    const off = l.kind === 'chair' || l.kind === 'gondola' ? 12 : 5;
+    const x = pt.x + pt.dx * off, z = pt.z + pt.dz * off;
     return { x, z, heading: facing(x, z) };
   };
-  // the summit: on top of La Dôle, at the head of the piste dropping the most over 600 m from the Dappes chair's top
-  const top = unload(Math.max(0, lifts.findIndex((l) => l.name === 'Dappes')));
+  // the summit (La Dôle, the Mossettes…): at the head of the piste dropping the most over 600 m from the summit lift's top
+  const top = unload(Math.max(0, lifts.findIndex((l) => l.name === st.summit)));
   const first = steepest(top.x, top.z, 150, undefined, 600);
   let summit = top;
   if (first) {
     along(first.p, first.s + 8, pt);
     summit = { x: pt.x, z: pt.z, heading: Math.atan2(pt.dx, pt.dz) };
   }
-  // the start: at the foot of Les Jouvencelles, in the Jouvenceaux chair's queue, facing it
-  const base = lifts.find((l) => l.name === 'Jouvenceaux') ?? lifts[0];
+  // the start: in the start lift's queue (the Jouvenceaux at the foot of Les Jouvencelles, Super-Morzine in the village), facing it
+  const base = lifts.find((l) => l.name === st.start) ?? lifts[0];
   liftPoint(base, 0, pt);
   // beside the line, looking up it (the station, the chairs climbing): 12 m from the bottom, the first push boards it
   const spawn = { x: pt.x - pt.dx * 9 + pt.dz * 8, z: pt.z - pt.dz * 9 - pt.dx * 8, heading: Math.atan2(pt.dx, pt.dz) };
@@ -381,7 +382,9 @@ export function makeMountain(): Mountain {
   const dynamic: Obstacle[] = [];
 
   const m: Mountain = {
-    def: FREE_DEF,
+    def: freeDef(st),
+    station: st,
+    steep: st.steep,
     kickers: [],
     features: [],
     pistes,
@@ -391,6 +394,7 @@ export function makeMountain(): Mountain {
     forest,
     around: { x0: A.x0, z0: A.z0, step: A.step, nx: A.nx, nz: A.nz, h: ah, h0: ah0 },
     bounds,
+    scenery: { roads: R.roads, buildings: R.buildings, radar: R.radar },
     spawn,
     summit,
     height,

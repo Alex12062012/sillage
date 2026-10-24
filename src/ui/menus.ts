@@ -1,6 +1,6 @@
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge } from '../sim/missions';
-import { FREE_ID } from '../sim/mountain';
 import { COSMETICS, isUnlocked, starsOf, totalStars, UNLOCK, type Save, type Settings } from '../sim/progress';
+import { STATIONS } from '../sim/stations';
 import { TRACKS } from '../sim/tracks';
 
 const mmss = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
@@ -62,7 +62,7 @@ export class Menus {
         <div class="brand"><h1>Sillage</h1><p>Carve your line.</p></div>
         <div class="stack">
           <button class="primary big" data-go="select">Play</button>
-          <button class="big" data-go="free">Free ride · Les Rousses</button>
+          <button class="big" data-go="free">Free ride</button>
           <button data-go="locker">Locker</button>
           <button data-go="settings">Settings</button>
         </div>
@@ -70,7 +70,7 @@ export class Menus {
         ${isTouch() && innerHeight > innerWidth ? '<div class="rotate">↻ Turn your phone sideways for a wider view</div>' : ''}
       </div>`);
     this.on('[data-go="select"]', () => this.select());
-    this.on('[data-go="free"]', () => this.a.play(FREE_ID));
+    this.on('[data-go="free"]', () => this.stations());
     this.on('[data-go="locker"]', () => this.locker());
     this.on('[data-go="settings"]', () => this.settings(() => this.main()));
   }
@@ -94,6 +94,21 @@ export class Menus {
     }).join('');
     this.open('select', `<div class="menu wide"><h2>Choose a run</h2><div class="cards">${cards}</div><div class="buttons"><button data-go="main">Back</button></div></div>`);
     this.on('[data-run]', (b) => this.a.play(b.dataset.run!));
+    this.on('[data-go="main"]', () => this.main());
+  }
+
+  /** Free ride: pick a ski area (its data loads on the first pick: the card says so meanwhile). */
+  stations(): void {
+    const cards = STATIONS.map((st) => `<button class="run-card station" data-station="${st.trackId}">
+        <b>${st.name}</b>
+        <small>${st.area}</small>
+        <span class="rec">${st.km} km of pistes · ${st.lifts} lifts · ${st.alt[0].toLocaleString('en-US')}–${st.alt[1].toLocaleString('en-US')} m</span>
+      </button>`).join('');
+    this.open('stations', `<div class="menu wide"><h2>Free ride</h2><div class="cards">${cards}</div><div class="buttons"><button data-go="main">Back</button></div></div>`);
+    this.on('[data-station]', (b) => {
+      b.querySelector('.rec')!.textContent = 'Loading…';
+      this.a.play(b.dataset.station!);
+    });
     this.on('[data-go="main"]', () => this.main());
   }
 

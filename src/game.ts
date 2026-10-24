@@ -10,7 +10,8 @@ import { addSnowSparkle, Terrain } from './render/terrain';
 import { Crowd } from './render/crowd';
 import { MountainView } from './render/mountainView';
 import { botInput } from './sim/bot';
-import { FREE_ID, makeMountain, type Mountain, type Spot } from './sim/mountain';
+import { makeMountain, type Mountain, type Spot } from './sim/mountain';
+import { loadedStation, stationOfTrack } from './sim/stations';
 import { createFlow, stepFlow, type FlowEvent, type FlowState } from './sim/flow';
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
 import { createRun, runStats, SlowMo, spinDegrees, stepRun, type RunEvent, type RunState } from './sim/run';
@@ -117,9 +118,12 @@ export class Game {
       m.dispose();
     });
     this.world.clear();
-    if (def.id === FREE_ID) {
-      // free ride: one open mountain, built once (no streaming), with its lifts and its crowd
-      this.track = this.mountain = makeMountain();
+    const station = stationOfTrack(def.id);
+    if (station) {
+      // free ride: one open mountain, built once (no streaming), with its lifts and its crowd (its data loaded beforehand)
+      const data = loadedStation(station);
+      if (!data) throw new Error(`${station.name} is not loaded`);
+      this.track = this.mountain = makeMountain(station, data);
       this.view = new MountainView(this.mountain);
       const view = this.view, m = this.mountain;
       this.snow = { height: (x, z) => view.drawnHeight(x, z), normal: m.normal, surface: m.surface };
@@ -138,7 +142,7 @@ export class Game {
     this.sparkle.setQuality(this.quality);
     this.setQuality(this.quality);
     this.hud.el.classList.toggle('free', !!this.mountain);
-    this.cam.camera.far = this.mountain ? 40000 : 3000; // from La Dôle you see the Léman
+    this.cam.camera.far = this.mountain ? this.mountain.station.far : 3000; // from La Dôle you see the Léman, Mont Blanc from Avoriaz
     this.cam.camera.updateProjectionMatrix();
     this.sky.showPeaks(!this.mountain);
     this.sky.setTime(def.timeOfDay);
@@ -176,7 +180,7 @@ export class Game {
   /** Drop the skier mid-run at `z` (attract mode / tests): already moving, clock running. */
   startAt(z: number, speed: number): void {
     const s = this.skier;
-    const at = this.mountain?.summit; // the open mountain (attract mode, teleports): from the top of La Dôle
+    const at = this.mountain?.summit; // the open mountain (attract mode, teleports): from its summit (La Dôle, the Mossettes)
     if (at) z = at.z;
     const x = at ? at.x : this.track.centerX(z);
     const heading = at ? at.heading : Math.atan((this.track.centerX(z + 1) - this.track.centerX(z - 1)) / 2);
@@ -316,7 +320,7 @@ export class Game {
   }
   private stuck = 0;
 
-  /** Riding a lift: the chair carries the skier up, a drag lift tows them along the snow; any input skips to the top. */
+  /** Riding a lift: a chair or a cabin carries the skier up, a drag lift tows them along the snow; any input skips to the top. */
   private rideStep(s: SkierState): void {
     const r = this.ride!;
     const view = this.view!;
@@ -330,17 +334,17 @@ export class Game {
       this.unload(this.mountain!.unload(r.lift));
       return;
     }
-    const chair = l.kind === 'chair';
-    if (chair) view.seat(r.lift, r.f, s.pos);
+    const seated = l.kind === 'chair' || l.kind === 'gondola';
+    if (seated) view.seat(r.lift, r.f, s.pos);
     else view.tow(r.lift, r.f, s.pos);
     const yaw = view.liftYaw(r.lift, r.f);
     s.vel.set(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(l.speed);
     s.heading = yaw;
-    s.airborne = chair;
+    s.airborne = seated;
     s.tuck = false;
     s.edge = s.skid = 0;
-    if (!chair) this.mountain!.normal(s.pos.x, s.pos.z, s.normal);
-    this.model.setSeated(chair);
+    if (!seated) this.mountain!.normal(s.pos.x, s.pos.z, s.normal);
+    this.model.setSeated(seated);
   }
 
   /** Off the lift (or teleported): on the snow at a spot, facing down the nearest piste. */
@@ -361,7 +365,7 @@ export class Game {
     this.cam.snap(s.pos, s.heading);
   }
 
-  /** Free ride shortcut (T): straight to the top of La Dôle. */
+  /** Free ride shortcut (T): straight to the summit (the top of La Dôle, of the Mossettes). */
   toSummit(): void {
     if (!this.mountain || this.paused) return;
     this.phase = 'running';
@@ -506,7 +510,7 @@ export class Game {
     if (this.terrain) this.terrain.viewDistance = view;
     this.viewDistance = view;
     // the open mountain is seen whole, to the Léman and beyond: a long, thin haze
-    this.sky.fog.far = this.mountain ? view * 50 : view;
+    this.sky.fog.far = this.mountain ? view * this.mountain.station.haze : view;
     this.sky.fog.near = this.mountain ? view * 2 : view * 0.26;
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
     this.quality = q;

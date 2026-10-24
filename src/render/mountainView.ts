@@ -4,8 +4,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { fbm } from '../core/rng';
-import { DEEP, STEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
-import { ROUSSES } from '../sim/rousses-data';
+import { DEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { smoothstep } from '../sim/track';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
 
@@ -22,6 +21,25 @@ const CHAIR_GAP = 24;
 const PERCH_GAP = 14;
 const SIDE = 2.4; // half the distance between the up and down cables of a chair
 const DSIDE = 1.3; // … of a drag lift (the track runs under the up line)
+
+/**
+ * Per lift: tower height, half the distance between the cables, how high the cable stays over the snow, tower spacing
+ * (between the OSM pylons), station scale, cable sag, carrier spacing. A gondola hangs 6-seat cabins every 60 m from
+ * taller towers; a 3S (more than 12 seats) big cabins every 290 m, a few huge towers.
+ */
+interface Spec { towerH: number; side: number; clear: number; gap: number; station: number; sag: number; every: number; cabin: number }
+function specOf(l: Lift): Spec {
+  if (l.kind === 'gondola') {
+    return l.seats > 12
+      ? { towerH: 30, side: 4.5, clear: 14, gap: 420, station: 2.2, sag: 4, every: 290, cabin: 1.6 }
+      : { towerH: 16, side: 3.2, clear: 9, gap: 220, station: 1.6, sag: 2.5, every: 60, cabin: 1 };
+  }
+  return l.kind === 'chair'
+    ? { towerH: 10, side: SIDE, clear: 6.5, gap: 120, station: 1, sag: 1.4, every: CHAIR_GAP, cabin: 0 }
+    : { towerH: 6.5, side: DSIDE, clear: 4.5, gap: 80, station: 0.5, sag: 0.5, every: PERCH_GAP, cabin: 0 };
+}
+/** A gondola cabin (scale 1): hanger, roof, open windows between the corner posts, the lower body; floor 3.6 m under the cable. */
+const CABIN_FLOOR = 3.6;
 
 const m4 = new Matrix4();
 const q = new Quaternion();
@@ -82,7 +100,7 @@ function terrainMesh(m: Mountain, every: number, mat: MeshLambertMaterial): Mesh
       const k = (j * nx + i) * 3;
       pos[k] = G.x0 + i * every * G.step;
       pos[k + 2] = G.z0 + j * every * G.step;
-      pos[k + 1] = G.h[j * every * G.nx + i * every] - (i === 0 || j === 0 || i === nx - 1 || j === nz - 1 ? 25 * STEEP : 0);
+      pos[k + 1] = G.h[j * every * G.nx + i * every] - (i === 0 || j === 0 || i === nx - 1 || j === nz - 1 ? 25 * m.steep : 0);
     }
   }
   const mesh = gridMesh(nx, nz, pos, col, mat);
@@ -130,7 +148,7 @@ function aroundMesh(m: Mountain, mat: MeshLambertMaterial): Mesh {
       let y = A.h[j * A.nx + i];
       const h0 = A.h0[j * A.nx + i];
       const inside = Math.min(x - b.x0, b.x1 - x, z - b.z0, b.z1 - z);
-      if (inside > 0) y -= inside > A.step ? 40 * STEEP : 4; // well under the massif: the steepened facets bulge
+      if (inside > 0) y -= inside > A.step ? 40 * m.steep : 4; // well under the massif: the steepened facets bulge
       const woods = Math.max(0, fbm(31, x / 900, z / 900, 3)) * 1.6;
       if (h0 < LAKE + 4) {
         y = Math.min(y, LAKE);
@@ -168,10 +186,10 @@ function station(x: number, y: number, z: number, yaw: number, s: number, towerH
   ].map(noUv)).scale(s, s, s).rotateY(yaw).translate(x, y, z);
 }
 
-/** Cleared roads (Route de la Faucille, des Jouvencelles…): a wet-asphalt ribbon, not where a piste crosses. */
+/** Cleared roads (Route de la Faucille, des Jouvencelles, d'Avoriaz…): a wet-asphalt ribbon, not where a piste crosses. */
 function roads(m: Mountain): BufferGeometry {
   const pos: number[] = [];
-  for (const r of ROUSSES.roads) {
+  for (const r of m.scenery.roads) {
     const pts: [number, number][] = [];
     for (let k = 2; k < r.length; k += 2) {
       const l = Math.hypot(r[k] - r[k - 2], r[k + 1] - r[k - 1]);
@@ -191,11 +209,11 @@ function roads(m: Mountain): BufferGeometry {
   return paint(g, () => new Color(0x63686f));
 }
 
-interface LiftView { lift: Lift; anchors: Vector3[]; cum: number[]; towerH: number; side: number; clear: number }
+interface LiftView { lift: Lift; spec: Spec; anchors: Vector3[]; cum: number[]; towerH: number; side: number; clear: number }
 
 /**
- * Les Rousses, Dôle-Tuffes: terrain, the land around, forests, piste poles, chairlifts and drag lifts (towers,
- * cables, moving chairs and perches), the villages, roads and the radar on La Dôle. ~10 draw calls.
+ * A free-ride station: terrain, the land around, forests, piste poles, chairlifts, gondolas and drag lifts (towers,
+ * cables, moving chairs, cabins and perches), the villages, roads and landmarks (the radar on La Dôle). ~12 draw calls.
  */
 export class MountainView {
   readonly group = new Group();
@@ -205,6 +223,7 @@ export class MountainView {
   private massif = new MeshLambertMaterial({ vertexColors: true });
   private hole = { value: new Vector4() };
   private chairs: InstancedMesh;
+  private cabins: InstancedMesh;
   private perches: InstancedMesh;
   private fine: Mesh;
   private coarse: Mesh;
@@ -214,6 +233,7 @@ export class MountainView {
   private building: Detail | null = null;
   private trees: InstancedMesh[] = [];
   private riderChair: Mesh;
+  private riderCabin: Mesh;
   private riderPerch: Mesh;
   private lifts: LiftView[] = [];
   private t = 0;
@@ -275,18 +295,21 @@ export class MountainView {
     });
     this.group.add(poles);
 
-    // lifts: a tower at every OSM pylon (and every 120 / 80 m between), cables, stations
-    const towerGeo = (h: number, side: number) => mergeGeometries([
-      paint(new CylinderGeometry(0.3, 0.45, h, 6).translate(0, h / 2, 0).toNonIndexed(), () => new Color(0x5b6576)),
-      paint(new BoxGeometry(side * 2 + 1, 0.4, 0.4).translate(0, h, 0).toNonIndexed(), () => new Color(0x3b4352)),
-    ].map(noUv));
-    const towers: [Matrix4[], Matrix4[]] = [[], []];
+    // lifts: a tower at every OSM pylon (and every 120 / 80 / 220 m between), cables, stations
+    const towerGeo = (h: number, side: number) => {
+      const r = 0.3 * Math.max(1, h / 10); // gondola towers are stouter
+      return mergeGeometries([
+        paint(new CylinderGeometry(r, r * 1.5, h, 6).translate(0, h / 2, 0).toNonIndexed(), () => new Color(0x5b6576)),
+        paint(new BoxGeometry(side * 2 + 1, 0.4 * Math.max(1, h / 16), 0.4).translate(0, h, 0).toNonIndexed(), () => new Color(0x3b4352)),
+      ].map(noUv));
+    };
+    const towers = new Map<string, { h: number; side: number; list: Matrix4[] }>();
     const cable: number[] = [];
     const built: BufferGeometry[] = [];
     for (const lift of m.lifts) {
-      const chair = lift.kind === 'chair';
-      const v: LiftView = { lift, anchors: [], cum: [], towerH: chair ? 10 : 6.5, side: chair ? SIDE : DSIDE, clear: chair ? 6.5 : 4.5 };
-      const gap = chair ? 120 : 80;
+      const spec = specOf(lift);
+      const v: LiftView = { lift, spec, anchors: [], cum: [], towerH: spec.towerH, side: spec.side, clear: spec.clear };
+      const gap = spec.gap;
       for (let k = 0; k < lift.pts.length; k += 2) {
         const sub = k ? Math.max(1, Math.round((lift.cum[k / 2] - lift.cum[k / 2 - 1]) / gap)) : 1;
         for (let n = k ? 1 : 0; n <= (k ? sub : 0); n++) {
@@ -305,9 +328,11 @@ export class MountainView {
         }
         continue;
       }
+      const key = `${v.towerH}:${v.side}`;
+      if (!towers.has(key)) towers.set(key, { h: v.towerH, side: v.side, list: [] });
       for (let k = 1; k < v.anchors.length - 1; k++) {
         const a = v.anchors[k];
-        towers[chair ? 0 : 1].push(new Matrix4().compose(p3.set(a.x, a.y - v.towerH, a.z), q.setFromAxisAngle(up, this.yawAt(v, v.cum[k] / lift.len)), s3.set(1, 1, 1)));
+        towers.get(key)!.list.push(new Matrix4().compose(p3.set(a.x, a.y - v.towerH, a.z), q.setFromAxisAngle(up, this.yawAt(v, v.cum[k] / lift.len)), s3.set(1, 1, 1)));
       }
       for (const side of [-1, 1]) {
         const n = Math.ceil(lift.len / 10);
@@ -318,11 +343,11 @@ export class MountainView {
           cable.push(tmp.x, tmp.y, tmp.z);
         }
       }
-      const a = v.anchors[0], b = v.anchors[v.anchors.length - 1], s = chair ? 1 : 0.5;
+      const a = v.anchors[0], b = v.anchors[v.anchors.length - 1], s = spec.station;
       built.push(station(a.x, a.y - v.towerH, a.z, this.yawAt(v, 0), s, v.towerH), station(b.x, b.y - v.towerH, b.z, this.yawAt(v, 1) + Math.PI, s, v.towerH));
     }
-    for (const [i, list] of towers.entries()) {
-      const im = new InstancedMesh(towerGeo(i ? 6.5 : 10, i ? DSIDE : SIDE), flat, list.length);
+    for (const { h, side, list } of towers.values()) {
+      const im = new InstancedMesh(towerGeo(h, side), flat, list.length);
       list.forEach((t, k) => im.setMatrixAt(k, t));
       this.group.add(im);
     }
@@ -330,15 +355,15 @@ export class MountainView {
     lines.setAttribute('position', new Float32BufferAttribute(cable, 3));
     this.group.add(new LineSegments(lines, new LineBasicMaterial({ color: 0x2b303a })));
 
-    // the real buildings (OSM footprints), the roads, the radar dome on La Dôle
+    // the real buildings (OSM / IGN footprints), the roads, the radar dome on La Dôle
     const ends = m.lifts.flatMap((l) => [[l.pts[0], l.pts[1]], [l.pts[l.pts.length - 2], l.pts[l.pts.length - 1]]]);
-    for (const [x, z, w, d, yaw, levels] of ROUSSES.buildings) {
+    for (const [x, z, w, d, yaw, levels] of m.scenery.buildings) {
       if (ends.some(([ex, ez]) => Math.hypot(ex - x, ez - z) < Math.max(w, d) / 2 + 3)) continue; // a station: drawn as one
       built.push(building(x, m.height(x, z) - 0.4, z, w, d, yaw, levels));
     }
     built.push(roads(m));
-    if (ROUSSES.radar) {
-      const [x, z] = ROUSSES.radar, y = m.height(x, z);
+    if (m.scenery.radar) {
+      const [x, z] = m.scenery.radar, y = m.height(x, z);
       built.push(
         noUv(paint(new CylinderGeometry(5.5, 6.5, 9, 12).translate(x, y + 4.5, z).toNonIndexed(), () => new Color(0xd5d9de))),
         noUv(paint(new IcosahedronGeometry(8.5, 2).translate(x, y + 15, z), () => new Color(0xf6f8fa))),
@@ -356,14 +381,24 @@ export class MountainView {
       paint(new CylinderGeometry(0.03, 0.03, 4.6, 4).translate(0, -2.3, 0).toNonIndexed(), () => new Color(0x8a919c)),
       paint(new CylinderGeometry(0.2, 0.2, 0.06, 8).translate(0, -4.6, 0).toNonIndexed(), () => new Color(0xe2b23a)),
     ].map(noUv));
-    const count = (kind: Lift['kind'], gap: number) => this.lifts.filter((v) => v.lift.kind === kind).reduce((a, v) => a + Math.floor((2 * v.lift.len) / gap), 0);
-    this.chairs = new InstancedMesh(chairGeo, flat, count('chair', CHAIR_GAP));
-    this.perches = new InstancedMesh(perchGeo, flat, count('drag', PERCH_GAP));
-    this.chairs.frustumCulled = this.perches.frustumCulled = false;
+    const F = CABIN_FLOOR;
+    const cabinGeo = mergeGeometries([
+      paint(new BoxGeometry(0.1, 1.5, 0.1).translate(0, -0.75, 0).toNonIndexed(), () => new Color(0x3b4352)),
+      paint(new BoxGeometry(2.1, 0.3, 2.1).translate(0, -1.6, 0).toNonIndexed(), () => new Color(0xd23b33)),
+      ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([a, b]) => paint(new BoxGeometry(0.14, 1.0, 0.14).translate(a * 0.92, -2.25, b * 0.92).toNonIndexed(), () => new Color(0xd9dde3))),
+      paint(new BoxGeometry(1.98, 0.95, 1.98).translate(0, -F + 0.475, 0).toNonIndexed(), () => new Color(0xd23b33)), // the windows above it are open: the rider shows
+      paint(new BoxGeometry(2.0, 0.08, 2.0).translate(0, -F + 0.96, 0).toNonIndexed(), () => new Color(0xf2f4f7)),
+    ].map(noUv));
+    const count = (kind: Lift['kind']) => this.lifts.filter((v) => v.lift.kind === kind).reduce((a, v) => a + Math.floor((2 * v.lift.len) / v.spec.every), 0);
+    this.chairs = new InstancedMesh(chairGeo, flat, count('chair'));
+    this.cabins = new InstancedMesh(cabinGeo, flat, count('gondola'));
+    this.perches = new InstancedMesh(perchGeo, flat, count('drag'));
+    this.chairs.frustumCulled = this.cabins.frustumCulled = this.perches.frustumCulled = false;
     this.riderChair = new Mesh(chairGeo, flat);
+    this.riderCabin = new Mesh(cabinGeo, flat);
     this.riderPerch = new Mesh(perchGeo, flat);
-    this.riderChair.visible = this.riderPerch.visible = false;
-    this.group.add(this.chairs, this.perches, this.riderChair, this.riderPerch);
+    this.riderChair.visible = this.riderCabin.visible = this.riderPerch.visible = false;
+    this.group.add(this.chairs, this.cabins, this.perches, this.riderChair, this.riderCabin, this.riderPerch);
     this.update(0);
   }
 
@@ -386,7 +421,7 @@ export class MountainView {
     const [k, t] = this.span(v, f);
     const a = v.anchors[k - 1], b = v.anchors[k];
     out.lerpVectors(a, b, t);
-    out.y -= Math.sin(Math.PI * t) * (v.lift.kind === 'chair' ? 1.4 : 0.5);
+    out.y -= Math.sin(Math.PI * t) * v.spec.sag;
     const yaw = Math.atan2(b.x - a.x, b.z - a.z);
     out.x += Math.cos(yaw) * v.side * side;
     out.z -= Math.sin(yaw) * v.side * side;
@@ -394,12 +429,24 @@ export class MountainView {
     return out;
   }
 
-  /** Seat position on chairlift `i` at fraction f of the way up; moves the rider's own chair there. */
-  seat(i: number, f: number, out: Vector3): Vector3 {
+  /**
+   * Seat position on chairlift or gondola `i` at fraction f of the way (up, or `down` the return line); moves the
+   * rider's own chair or cabin there.
+   */
+  seat(i: number, f: number, out: Vector3, down = false): Vector3 {
     const v = this.lifts[i];
-    this.cablePoint(v, f, 1, out);
+    this.cablePoint(v, f, down ? -1 : 1, out);
+    const yaw = this.yawAt(v, f) + (down ? Math.PI : 0);
+    if (v.lift.kind === 'gondola') {
+      const s = v.spec.cabin;
+      this.riderCabin.position.copy(out);
+      this.riderCabin.rotation.set(0, yaw, 0);
+      this.riderCabin.scale.setScalar(s);
+      this.riderCabin.visible = true;
+      return out.setY(out.y - CABIN_FLOOR * s + 0.45); // the bench along the cabin wall
+    }
     this.riderChair.position.copy(out);
-    this.riderChair.rotation.set(0, this.yawAt(v, f), 0);
+    this.riderChair.rotation.set(0, yaw, 0);
     this.riderChair.scale.set(Math.max(1, v.lift.seats / 3), 1, 1);
     this.riderChair.visible = true;
     return out.setY(out.y - 2.24); // the seat surface
@@ -417,8 +464,8 @@ export class MountainView {
     return out.setY(this.m.height(out.x, out.z));
   }
 
-  liftYaw(i: number, f: number): number {
-    return this.yawAt(this.lifts[i], f);
+  liftYaw(i: number, f: number, down = false): number {
+    return this.yawAt(this.lifts[i], f) + (down ? Math.PI : 0);
   }
 
   /** Phones: coarser terrain and a thinner forest. */
@@ -545,16 +592,16 @@ export class MountainView {
 
   /** Off the lift. */
   leaveSeat(): void {
-    this.riderChair.visible = this.riderPerch.visible = false;
+    this.riderChair.visible = this.riderCabin.visible = this.riderPerch.visible = false;
   }
 
   update(dt: number): void {
     this.t += dt;
-    let c = 0, d = 0;
+    let c = 0, d = 0, g = 0;
     for (const v of this.lifts) {
-      const chair = v.lift.kind === 'chair';
-      if (!chair && v.lift.kind !== 'drag') continue;
-      const loop = 2 * v.lift.len, gap = chair ? CHAIR_GAP : PERCH_GAP;
+      const kind = v.lift.kind;
+      if (kind === 'carpet') continue;
+      const loop = 2 * v.lift.len, gap = v.spec.every;
       const n = Math.floor(loop / gap);
       for (let i = 0; i < n; i++) {
         const s = (i * gap + this.t * v.lift.speed) % loop;
@@ -562,11 +609,12 @@ export class MountainView {
         const f = goingUp ? s / v.lift.len : 2 - s / v.lift.len;
         this.cablePoint(v, f, goingUp ? 1 : -1, p3);
         q.setFromAxisAngle(up, this.yawAt(v, f) + (goingUp ? 0 : Math.PI));
-        if (chair) this.chairs.setMatrixAt(c++, m4.compose(p3, q, s3.set(Math.max(1, v.lift.seats / 3), 1, 1)));
+        if (kind === 'chair') this.chairs.setMatrixAt(c++, m4.compose(p3, q, s3.set(Math.max(1, v.lift.seats / 3), 1, 1)));
+        else if (kind === 'gondola') this.cabins.setMatrixAt(g++, m4.compose(p3, q, s3.setScalar(v.spec.cabin)));
         else this.perches.setMatrixAt(d++, m4.compose(p3, q, s3.set(1, goingUp ? 0.85 : 0.35, 1))); // empty perches ride back retracted
       }
     }
-    this.chairs.instanceMatrix.needsUpdate = this.perches.instanceMatrix.needsUpdate = true;
+    this.chairs.instanceMatrix.needsUpdate = this.cabins.instanceMatrix.needsUpdate = this.perches.instanceMatrix.needsUpdate = true;
   }
 
   dispose(): void {
