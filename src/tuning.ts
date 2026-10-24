@@ -101,6 +101,8 @@ export const TUNING = {
   shakeMaxRoll: 2,
   shakeFreq: 18,
   speedRumble: 0.012,
+  speedBuzz: 0.018, // m of high-frequency camera buzz on the snow, 90 → 125 km/h (off in the air and in comfort mode)
+  speedBuzzFreq: 40, // noise rate of the buzz (its top partial stays under 30 Hz)
   // ── snow fx
   sprayRate: 900,
   sprayLife: 0.8,
@@ -125,9 +127,11 @@ export const TUNING = {
   fxBrake: 1.8, // hockey-stop curtain: × sprayRate
   fxBurst: 1, // landing / takeoff / crash burst scale
   fxTreeShake: 1, // snow shaken off a shaved tree
-  fxLines: 0.32, // speed-line opacity at full ramp (in tuck; ×0.55 standing)
-  fxLinesFrom: 70, // km/h where speed lines fade in
-  fxLinesFull: 115, // km/h at full strength
+  fxLines: 0.5, // speed-line opacity at full ramp (in tuck; ×0.7 standing); they also get denser and longer
+  fxLinesLen: 0.16, // s of travel one streak spans at full ramp (40 % of it at fxLinesFrom)
+  fxLinesFrom: 70, // km/h where speed lines and the tunnel vignette fade in
+  fxLinesFull: 120, // km/h at full strength
+  fxVignette: 1, // tunnel vignette opacity at full ramp (edge darkening + faint radial streaks, no streaks in comfort mode)
   fxSparkle: 1, // sun glints on the snow (off on low quality)
   trailGroove: 1, // carved trench contrast (groove shading + darkness)
   // ── audio feel pass (src/audio/audio.ts); levels are multipliers of the designed mix

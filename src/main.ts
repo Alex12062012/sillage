@@ -82,6 +82,7 @@ function applySettings(): void {
   game.setComfort(st.comfort);
   game.setFirstPerson(st.camera === 'helmet');
   ui.classList.toggle('left-handed', st.leftHanded);
+  ui.classList.toggle('comfort', st.comfort); // gentler HUD overlays
   fpsEl.hidden = !st.showFps;
   if (st.tilt && !game.input.tilt) void game.input.enableTilt();
   if (!st.tilt) game.input.tilt = false;

@@ -1,3 +1,5 @@
+import { TUNING as T } from '../tuning';
+
 const mmss = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 
 export interface ChallengeRow { title: string; goal: string; value: string; tier: number }
@@ -92,8 +94,14 @@ export class Hud {
     if (v === this.lastSpeed) return;
     this.lastSpeed = v;
     this.speed.innerHTML = `${v}<small>km/h</small>`;
-    this.vignette.style.opacity = String(Math.min(1, Math.max(0, (kmh - 55) / 60)));
+    this.speed.classList.toggle('hot', v >= 100);
+    this.vignette.style.opacity = String(T.fxVignette * Math.min(1, Math.max(0, (kmh - T.fxLinesFrom) / (T.fxLinesFull - T.fxLinesFrom))));
     this.speed.style.setProperty('--heat', String(Math.min(1, Math.max(0, (kmh - 60) / 60)).toFixed(2)));
+  }
+
+  /** Crossing 100 / 120 km/h: the readout flares (`gentle`: brightness only, no pop). */
+  speedFlash(gentle: boolean): void {
+    this.speed.animate([{ filter: 'brightness(1.9) drop-shadow(0 0 12px #ffb35c)', ...(gentle ? {} : { transform: 'scale(1.45)' }) }, {}], { duration: 500, easing: 'ease-out' });
   }
 
   /** Per frame. The score rolls up toward the real value; returns true while it is rolling (score tick). */

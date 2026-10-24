@@ -574,6 +574,7 @@ export class Game {
         this.hud.pop(`${m} km/h!`, 'info');
         this.audio.speedMilestone(m);
         this.cam.fovKick(3);
+        if (m >= 100) this.hud.speedFlash(this.cam.comfort);
       }
     }
 

@@ -218,58 +218,64 @@ class Pool {
 }
 
 /**
- * Speed lines: world-anchored streaks wrapped in a box ahead of the camera and stretched along the
- * skier's velocity (so they rush past exactly at his speed). Zero CPU; the screen centre stays clear.
+ * Speed lines: world-anchored wind streaks wrapped in a box ahead of the camera and stretched along the
+ * skier's velocity (so they rush past exactly at his speed), denser and longer the faster he goes.
+ * Zero CPU; the screen centre stays clear.
  */
 class SpeedLines {
   readonly mesh: Mesh;
   private material: ShaderMaterial;
 
-  constructor(count: number) {
+  constructor(private count: number) {
     const box = new Vector3(22, 12, 46);
     const pos = new Float32Array(count * 4 * 3);
-    const corner = new Float32Array(count * 4 * 2);
+    const corner = new Float32Array(count * 4 * 3);
     const idx: number[] = [];
     for (let i = 0; i < count; i++) {
       const x = Math.random() * box.x, y = Math.random() * box.y, z = Math.random() * box.z;
+      const rank = Math.random();
       for (let c = 0; c < 4; c++) {
         pos.set([x, y, z], (i * 4 + c) * 3);
-        corner.set([c >> 1, (c & 1) * 2 - 1], (i * 4 + c) * 2);
+        corner.set([c >> 1, (c & 1) * 2 - 1, rank], (i * 4 + c) * 3);
       }
       const a = i * 4;
       idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3);
     }
     const geo = new BufferGeometry();
     geo.setAttribute('position', new BufferAttribute(pos, 3));
-    geo.setAttribute('aCorner', new BufferAttribute(corner, 2));
+    geo.setAttribute('aCorner', new BufferAttribute(corner, 3));
     geo.setIndex(idx);
     this.material = new ShaderMaterial({
       transparent: true, depthWrite: false, blending: AdditiveBlending,
       uniforms: {
         uCenter: { value: new Vector3() }, uBox: { value: box }, uVel: { value: new Vector3() },
         uRes: { value: new Vector3(1280, 720, 0) }, uAlpha: { value: 0 }, uColor: { value: new Color() },
+        uLen: { value: 0 }, uDensity: { value: 0 },
       },
       vertexShader: /* glsl */ `
-        attribute vec2 aCorner; // x: 0 head / 1 tail, y: side
+        attribute vec3 aCorner; // x: 0 head / 1 tail, y: side, z: rank (density order, brightness)
         uniform vec3 uCenter; uniform vec3 uBox; uniform vec3 uVel; uniform vec3 uRes; uniform float uAlpha;
+        uniform float uLen; uniform float uDensity;
         varying float vA;
         void main() {
           vec3 rel = mod(position - uCenter + uBox * 0.5, uBox) - uBox * 0.5;
           vec3 head = rel + uCenter;
+          // the tail trails toward where the air comes from: a comet fading into the vanishing point
           vec4 h = projectionMatrix * viewMatrix * vec4(head, 1.0);
-          vec4 t = projectionMatrix * viewMatrix * vec4(head - uVel * 0.07, 1.0);
+          vec4 t = projectionMatrix * viewMatrix * vec4(head + uVel * uLen, 1.0);
           if (h.w < 0.5 || t.w < 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vA = 0.0; return; }
           vec2 hn = h.xy / h.w, tn = t.xy / t.w;
           vec2 d = (hn - tn) * uRes.xy;
           d = length(d) > 1e-3 ? normalize(d) : vec2(1.0, 0.0);
           vec4 p = mix(h, t, aCorner.x);
-          p.xy += vec2(-d.y, d.x) * aCorner.y * (1.6 / uRes.xy) * p.w;
+          p.xy += vec2(-d.y, d.x) * aCorner.y * (mix(2.4, 0.6, aCorner.x) / uRes.xy) * p.w; // tapered
           gl_Position = p;
-          // periphery only, soft at the box borders (wrap pops), never on the lens
-          vec2 m = mix(hn, tn, 0.5) * vec2(uRes.x / uRes.y, 1.0);
+          // periphery only, soft at the box borders (wrap pops), never on the lens; more of them as speed builds
+          vec2 m = hn * vec2(uRes.x / uRes.y, 1.0);
           vec3 b = abs(rel) / (uBox * 0.5);
           float edge = (1.0 - smoothstep(0.6, 1.0, b.x)) * (1.0 - smoothstep(0.6, 1.0, b.y)) * (1.0 - smoothstep(0.5, 1.0, b.z));
-          vA = uAlpha * (1.0 - aCorner.x) * smoothstep(0.55, 1.1, length(m)) * edge * smoothstep(1.5, 4.0, h.w);
+          float dense = smoothstep(aCorner.z, aCorner.z + 0.15, uDensity) * (0.5 + 0.5 * fract(aCorner.z * 7.31));
+          vA = uAlpha * (1.0 - aCorner.x) * smoothstep(0.5, 1.05, length(m)) * edge * smoothstep(1.5, 4.0, h.w) * dense;
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uColor;
@@ -285,7 +291,13 @@ class SpeedLines {
     this.mesh.visible = false;
   }
 
-  update(cam: PerspectiveCamera, vel: Vector3, alpha: number, viewportH: number, light: SceneLight): void {
+  /** Fewer streaks on lower quality (a random subset: the ranks are shuffled). */
+  setQuality(k: number): void {
+    this.mesh.geometry.setDrawRange(0, Math.round(this.count * k) * 6);
+  }
+
+  /** ramp 0..1: a quarter of the streaks, 40 % long at 0; all of them, full length at 1. */
+  update(cam: PerspectiveCamera, vel: Vector3, alpha: number, ramp: number, viewportH: number, light: SceneLight): void {
     this.mesh.visible = alpha > 0.002;
     if (!this.mesh.visible) return;
     const u = this.material.uniforms;
@@ -294,6 +306,8 @@ class SpeedLines {
     u.uVel.value.copy(vel);
     u.uRes.value.set(viewportH * cam.aspect, viewportH, 0);
     u.uAlpha.value = alpha;
+    u.uLen.value = T.fxLinesLen * (0.4 + 0.6 * ramp);
+    u.uDensity.value = 0.25 + 0.75 * ramp;
     u.uColor.value.copy(light.sky).lerp(light.sun, 0.3);
   }
 }
@@ -509,7 +523,7 @@ export class SnowFx {
   readonly objects: Object3D[];
   private grains = new Pool(1100, false, 9.5, 1.6, 0.15);
   private mist = new Pool(400, true, 0.35, 2.4, 0.9);
-  private lines = new SpeedLines(90);
+  private lines = new SpeedLines(320);
   private q = 1;
   private comfort = false;
   private time = 0;
@@ -540,6 +554,7 @@ export class SnowFx {
     this.mist.cap = Math.round(this.mist.max * this.q);
     this.grains.n = Math.min(this.grains.n, this.grains.cap);
     this.mist.n = Math.min(this.mist.n, this.mist.cap);
+    this.lines.setQuality(this.q);
   }
 
   setComfort(on: boolean): void {
@@ -579,8 +594,8 @@ export class SnowFx {
 
     const kmh = speed * 3.6;
     const ramp = Math.min(1, Math.max(0, (kmh - T.fxLinesFrom) / (T.fxLinesFull - T.fxLinesFrom)));
-    const lines = this.comfort || s.crashTimer > 0 ? 0 : ramp * ramp * T.fxLines * (s.tuck ? 1 : 0.55);
-    this.lines.update(camera, s.vel, lines, viewportH, light);
+    const lines = this.comfort || s.crashTimer > 0 ? 0 : ramp * T.fxLines * (s.tuck ? 1 : 0.7);
+    this.lines.update(camera, s.vel, lines, ramp, viewportH, light);
   }
 
   private emitEdges(s: SkierState, p: Vector3, heading: number, speed: number, dt: number): void {

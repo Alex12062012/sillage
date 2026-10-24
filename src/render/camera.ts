@@ -143,14 +143,16 @@ export class ChaseCamera {
     const wantRoll = this.comfort ? 0 : -s.edge * MathUtils.degToRad(T.camRollMax);
     this.roll += (wantRoll - this.roll) * (1 - Math.exp(-dt / 0.25));
 
-    // shake = trauma² + a fine speed rumble
+    // shake = trauma² + a fine speed rumble + a high-frequency buzz near top speed (the snow chattering)
     this.trauma = Math.max(0, this.trauma - T.traumaDecay * dt);
     const shake = this.comfort ? 0 : this.trauma * this.trauma;
     const rumble = this.comfort || s.airborne ? 0 : T.speedRumble * MathUtils.smoothstep(speed, 19, 33);
+    const buzz = this.comfort || s.airborne ? 0 : T.speedBuzz * MathUtils.smoothstep(speed, 25, 34.7);
     const ft = this.t * T.shakeFreq;
+    const bt = this.t * T.speedBuzzFreq;
     this.camera.position.copy(this.pos);
-    this.camera.position.x += noise(ft, 1) * (shake * T.shakeMaxOffset + rumble);
-    this.camera.position.y += noise(ft, 2) * (shake * T.shakeMaxOffset + rumble) + this.dipY;
+    this.camera.position.x += noise(ft, 1) * (shake * T.shakeMaxOffset + rumble) + noise(bt, 4) * buzz;
+    this.camera.position.y += noise(ft, 2) * (shake * T.shakeMaxOffset + rumble) + noise(bt, 5) * buzz + this.dipY;
     this.camera.lookAt(this.look);
     this.camera.rotateZ(this.roll + noise(ft, 3) * shake * MathUtils.degToRad(T.shakeMaxRoll));
 
