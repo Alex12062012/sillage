@@ -15,7 +15,7 @@ import { createFlow, stepFlow, type FlowEvent, type FlowState } from './sim/flow
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
 import { createRun, runStats, SlowMo, spinDegrees, stepRun, type RunEvent, type RunState } from './sim/run';
 import { createSkier, stepSkier, type SkierEvent, type SkierInput, type SkierState } from './sim/skier';
-import { makeTrack, Surface, type Track, type TrackDef } from './sim/track';
+import { makeTrack, Surface, type Ground, type Track, type TrackDef } from './sim/track';
 import { TUNING as T } from './tuning';
 import { FLOW_NAMES, type ChallengeRow, type Hud } from './ui/hud';
 
@@ -42,6 +42,8 @@ export class Game {
   /** Free ride only: Les Rousses, its view (lifts, forests, villages) and the other skiers. */
   mountain: Mountain | null = null;
   private view: MountainView | null = null;
+  /** The snow as drawn, which the skier is shown standing on: the track, or on the open mountain the view's surface. */
+  private snow!: Ground;
   private crowd: Crowd | null = null;
   /** On a lift: which, how far up, for how long; `held` until every key is up (a skip needs a fresh press). */
   private ride: { lift: number; f: number; t: number; held: boolean } | null = null;
@@ -119,12 +121,14 @@ export class Game {
       // free ride: one open mountain, built once (no streaming), with its lifts and its crowd
       this.track = this.mountain = makeMountain();
       this.view = new MountainView(this.mountain);
-      this.crowd = new Crowd(this.mountain);
+      const view = this.view, m = this.mountain;
+      this.snow = { height: (x, z) => view.drawnHeight(x, z), normal: m.normal, surface: m.surface };
+      this.crowd = new Crowd(m, this.snow.height);
       this.sparkle = addSnowSparkle(this.view.material);
       this.landmarks = null;
       this.world.add(this.view.group, this.crowd.group);
     } else {
-      this.track = makeTrack(def);
+      this.track = this.snow = makeTrack(def);
       this.terrain = new Terrain(this.track, buildChunkProps);
       this.terrain.viewDistance = this.viewDistance;
       this.sparkle = addSnowSparkle(this.terrain.material);
@@ -536,7 +540,11 @@ export class Game {
     const alpha = this.acc / DT;
     this.renderPos.lerpVectors(this.prevPos, s.pos, alpha);
     const heading = this.prevHeading + Math.atan2(Math.sin(s.heading - this.prevHeading), Math.cos(s.heading - this.prevHeading)) * alpha;
-    this.model.update(s, this.renderPos, heading, this.track, realDt, this.sky.sunDirection);
+    if (this.view) {
+      this.view.focus(this.renderPos.x, this.renderPos.z);
+      if (!s.airborne) this.renderPos.y = this.snow.height(this.renderPos.x, this.renderPos.z); // skis on the drawn snow (a few cm off the smooth one)
+    }
+    this.model.update(s, this.renderPos, heading, this.snow, realDt, this.sky.sunDirection);
     this.cam.update(this.renderPos, s, realDt, this.track.height);
     this.terrain?.update(this.cam.camera.position.z, 1);
     this.view?.update(gdt);
@@ -558,7 +566,7 @@ export class Game {
     const powder = s.surface === Surface.Powder;
     const crashed = s.crashTimer > 0;
     const intensity = crashed ? 0 : Math.min(0.75, (powder ? 0.6 : 0.32) + Math.abs(s.edge) * 0.3 + s.skid * 0.25);
-    this.trails.update(this.renderPos, heading, s.airborne || crashed, intensity, powder, T.trailWidth, this.track, s.skid, s.edge);
+    this.trails.update(this.renderPos, heading, s.airborne || crashed, intensity, powder, T.trailWidth, this.snow, s.skid, s.edge);
     this.flakes.update(this.cam.camera, this.time, pointScale(this.cam.camera, this.renderer.domElement.height));
 
     // sound

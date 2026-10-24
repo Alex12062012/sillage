@@ -2,6 +2,7 @@ import { Group, Vector3 } from 'three';
 import { COSMETICS } from '../sim/progress';
 import type { Mountain, Piste } from '../sim/mountain';
 import { createSkier, type SkierState } from '../sim/skier';
+import type { Ground } from '../sim/track';
 import { SkierModel } from './skierModel';
 
 interface Rider { model: SkierModel; s: SkierState; piste: Piste; d: number; speed: number; phase: number; amp: number; wave: number; obstacle: number }
@@ -18,7 +19,11 @@ export class Crowd {
   private riders: Rider[] = [];
   private runs: Piste[];
 
-  constructor(private m: Mountain, count = 8) {
+  private ground: Ground;
+
+  /** `drawn`: the snow's height as the view draws it (far from the player, a little off the physics' smooth surface). */
+  constructor(private m: Mountain, private drawn: (x: number, z: number) => number = m.height, count = 8) {
+    this.ground = { height: drawn, normal: m.normal, surface: m.surface };
     this.runs = m.pistes.filter((p) => !p.area && p.len > 300 && p.name);
     for (let i = 0; i < count; i++) {
       const o = COSMETICS[(i * 3 + 1) % COSMETICS.length];
@@ -61,14 +66,14 @@ export class Crowd {
       this.line(r, r.d + 1, p2);
       const dx = (p2.x - p0.x) / 2, dz = (p2.z - p0.z) / 2;
       const turn = (p2.x - 2 * p1.x + p0.x) * dz - (p2.z - 2 * p1.z + p0.z) * dx; // signed curvature, roughly
-      s.pos.set(p1.x, this.m.height(p1.x, p1.z), p1.z);
+      s.pos.set(p1.x, this.drawn(p1.x, p1.z), p1.z);
       s.heading = Math.atan2(dx, dz);
       tmp.set(dx, 0, dz).normalize().multiplyScalar(r.speed);
       s.vel.copy(tmp);
       s.edge = Math.max(-1, Math.min(1, turn * r.speed * r.speed * 0.6)); // lateral accel / grip, roughly
       s.surface = this.m.surface(p1.x, p1.z);
       this.m.normal(p1.x, p1.z, s.normal);
-      r.model.update(s, s.pos, s.heading, this.m, dt, sunDir);
+      r.model.update(s, s.pos, s.heading, this.ground, dt, sunDir);
       const o = this.m.dynamic[r.obstacle];
       o.x = p1.x;
       o.z = p1.z;

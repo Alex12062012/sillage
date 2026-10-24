@@ -52,8 +52,10 @@ test('a run starts from the menu and answers the controls', async ({ page }, inf
 test('restart is instant (< 1 s to the next rendered frame)', async ({ page }) => {
   await page.getByRole('button', { name: 'Play' }).click();
   await page.locator('[data-run="combe-douce"]').click();
-  await call(page, (a) => a.drive({ tuck: true }));
-  await expect.poll(async () => (await call(page, (a) => a.state())).z, { timeout: 20_000 }).toBeGreaterThan(20);
+  // mid-run without riding there: CI renders in software at ~2 FPS, where game time (5 steps a frame at most)
+  // runs slower than the clock and 30 m of riding could outlast any poll
+  await call(page, (a) => a.teleport(60, 40));
+  expect((await call(page, (a) => a.state())).z).toBeGreaterThan(20);
   const ms = await page.evaluate(async () => {
     const api = (window as unknown as { __sillage: Api }).__sillage;
     const t0 = performance.now();

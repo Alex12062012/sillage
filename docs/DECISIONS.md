@@ -138,3 +138,10 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
     - un compteur blanc → or → orange qui flashe à 100 et 120 km/h et pulse au-delà de 125 km/h. La pulsation ne marque que les pointes, puisqu'on roule à 100–110.
     
     En mode confort : ni traînées, ni rayons, ni buzz, ni pulsation. Le jeu reste à 59 FPS en mobile émulé, sans draw call de plus.
+
+## Correctif — les skis sous la neige en free ride
+
+83. **La neige qu'on voit est celle sur laquelle on skie.** La physique suit la surface lisse (bicubique) de la grille à 10 m, alors que le maillage du massif trace des triangles plats entre ses nœuds. Dans un creux, ces triangles passaient au-dessus des skis : jusqu'à 1 m en qualité haute, et jusqu'à 4 m en moyen/bas (un nœud sur deux), soit plus de 30 cm pendant 14 % du temps de ski. Le skieur disparaissait, et la caméra passait parfois sous la neige. Le mode arcade n'était pas touché (moins de 10 cm).
+    - Correctif : un carré de 320 m autour du skieur trace lui-même la surface lisse, avec un point tous les 2,5 m. Le maillage du massif est percé à cet endroit (`discard` dans le shader). Sur ses 40 derniers mètres, le carré se plie sur les triangles du massif, et ses bords tombent sur les lignes de la grille à 20 m : aucune marche, aucune couture de couleur ni d'ombrage.
+    - Il est reconstruit 8 rangées par image pendant qu'on avance (environ 1 ms par image sur desktop, une reconstruction toutes les 0,75 s à 140 km/h), et d'un coup après une remontée, un respawn ou un changement de qualité (environ 11 ms).
+    - Résultat : 99 % du temps sous 5 cm, 15 cm au pire, dans toutes les qualités. Les autres skieurs sont posés sur la neige telle qu'elle est dessinée. Un test le garde (`tests/unit/mountain-view.test.ts`).
