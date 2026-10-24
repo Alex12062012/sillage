@@ -32,11 +32,13 @@ export interface Mountain extends Track {
   /** The 10 m height / grooming grids the view meshes directly; the forest mask. */
   grid: { x0: number; z0: number; step: number; nx: number; nz: number; h: Float32Array; groomed: Float32Array };
   forest(x: number, z: number): boolean;
-  /** The land around (48 × 40 km, 300 m): heights in metres. */
+  /** The land around (48 × 40 km, 300 m): heights in metres (steepened like the massif). */
   around: { x0: number; z0: number; step: number; nx: number; nz: number; h: Float32Array };
   bounds: { x0: number; x1: number; z0: number; z1: number };
-  /** On top of La Dôle, by the radar. */
+  /** At the foot of Les Jouvencelles, facing the Jouvenceaux chair. */
   spawn: Spot;
+  /** On top of La Dôle, at the head of its longest piste. */
+  summit: Spot;
   /** Nearest piste line within `max` m (areas excluded). */
   pisteAt(x: number, z: number, max?: number): PisteHit | null;
   /** Point (and unit direction) at arc length s down a piste. */
@@ -54,6 +56,15 @@ export const FREE_DEF: TrackDef = {
   halfWidth: 14, curve: 0, kickers: [], moguls: 0, glades: 0, cliffs: 0, ice: 0, arches: 0, treeDensity: 1, rockDensity: 1,
   timeOfDay: 0.5, par: 0,
 };
+
+/**
+ * The Jura is gentle (8–12° pistes): the game steepens its large-scale relief (the 300 m land-around grid)
+ * STEEP times around H0, the foot of Les Jouvencelles, keeping the local detail as it is. A tucked line then
+ * averages 100–110 km/h, and the summits rise accordingly (La Dôle ≈ 2 300 m).
+ */
+export const STEEP = 2.6;
+export const H0 = 1160;
+const steep = (h: number) => H0 + (h - H0) * STEEP;
 
 /** Trees this tall or more stand deep in the woods (the view draws them simpler). */
 export const DEEP = 25;
@@ -100,6 +111,17 @@ function resample(src: number[], ds: number): number[] {
   return out;
 }
 
+/** Moving average of a polyline's points over ±r neighbours, narrowing towards the ends (which stay put). */
+function smooth(src: number[], r: number): number[] {
+  const n = src.length / 2;
+  return src.map((_, k) => {
+    const i = k >> 1, w = Math.min(i, n - 1 - i, r);
+    let sum = 0;
+    for (let q = i - w; q <= i + w; q++) sum += src[2 * q + (k & 1)];
+    return sum / (2 * w + 1);
+  });
+}
+
 const pointIn = (poly: number[], x: number, z: number) => {
   let inside = false;
   for (let k = 0, m = poly.length - 2; k < poly.length; m = k, k += 2) {
@@ -114,17 +136,20 @@ export function makeMountain(): Mountain {
   const seed = FREE_DEF.seed;
   const rnd = mulberry32(seed);
 
-  // ── raw relief: the massif (20 m) faded into the land around (300 m) over its last 300 m
+  // ── raw relief: the massif (20 m) faded into the land around (300 m) over its last 300 m; the land around
+  // (the large scale) steepened, the massif's own detail (fine − around) added back as it is
   const F = R.grid, A = R.around;
   const fh = Float32Array.from(decode16(F.h), (v) => F.base + v / 100);
-  const ah = Float32Array.from(decode16(A.h), (v) => v / 10);
+  const ah0 = Float32Array.from(decode16(A.h), (v) => v / 10);
+  const ah = ah0.map(steep);
   const fx1 = F.x0 + (F.nx - 1) * F.step, fz1 = F.z0 + (F.nz - 1) * F.step;
-  const aroundH = (x: number, z: number) => bicubic(ah, A.nx, A.nz, (x - A.x0) / A.step, (z - A.z0) / A.step);
+  const aroundOf = (a: Float32Array, x: number, z: number) => bicubic(a, A.nx, A.nz, (x - A.x0) / A.step, (z - A.z0) / A.step);
+  const aroundH = (x: number, z: number) => aroundOf(ah, x, z);
   const inner = (x: number, z: number) => smoothstep(0, 300, Math.min(x - F.x0, fx1 - x, z - F.z0, fz1 - z));
   const raw = (x: number, z: number) => {
     const w = inner(x, z);
-    const a = w < 1 ? aroundH(x, z) : 0;
-    return w > 0 ? a * (1 - w) + bicubic(fh, F.nx, F.nz, (x - F.x0) / F.step, (z - F.z0) / F.step) * w : a;
+    const big = aroundH(x, z);
+    return w > 0 ? big + (bicubic(fh, F.nx, F.nz, (x - F.x0) / F.step, (z - F.z0) / F.step) - aroundOf(ah0, x, z)) * w : big;
   };
   const fbits = Uint8Array.from(atob(F.forest), (c) => c.charCodeAt(0));
   const forest = (x: number, z: number) => {
@@ -139,7 +164,10 @@ export function makeMountain(): Mountain {
     const area = 'area' in src && !!src.area;
     const diff = src.diff as PisteColor;
     const narrow = !src.name || /Liaison|Route|Balcon/.test(src.name);
-    const pts = area ? src.pts : resample(src.pts, DS);
+    let pts = area ? src.pts : resample(smooth(resample(src.pts, DS), 10), DS); // OSM corners rounded off: you carve, not zig-zag
+    if (!area && raw(pts[0], pts[1]) < raw(pts[pts.length - 2], pts[pts.length - 1])) {
+      pts = pts.map((_, k) => pts[pts.length - 2 - k + 2 * (k % 2)]); // downhill on the steepened relief
+    }
     const n = pts.length / 2;
     const hraw = Array.from({ length: n }, (_, k) => raw(pts[2 * k], pts[2 * k + 1]));
     const hs = hraw.map((_, k) => {
@@ -237,11 +265,22 @@ export function makeMountain(): Mountain {
     out.dx = (bx - ax) / l;
     out.dz = (bz - az) / l;
   };
-  for (const p of lines) {
-    const ex = p.pts[p.pts.length - 2], ez = p.pts[p.pts.length - 1];
-    const h = nearLines(ex, ez).filter((q) => q.p !== p && q.d < 25 && q.s < q.p.len - 20).sort((a, b) => a.d - b.d)[0];
-    if (h) p.next = { p: h.p, s: h.s };
-  }
+  /** The piste dropping the most over its next 200 m, from its point nearest (x, z) within r m. */
+  const steepest = (x: number, z: number, r: number, skip?: Piste): { p: Piste; s: number } | null => {
+    let best = 0, res: { p: Piste; s: number } | null = null;
+    for (const p of lines) {
+      if (p === skip) continue;
+      let k = -1, d = r;
+      for (let q = 0; q < p.pts.length; q += 2) {
+        const dq = Math.hypot(p.pts[q] - x, p.pts[q + 1] - z);
+        if (dq < d) { d = dq; k = q / 2; }
+      }
+      const drop = k < 0 ? 0 : p.hc[k] - benchAt(p, k * DS + 200);
+      if (drop > best) { best = drop; res = { p, s: k * DS }; }
+    }
+    return res;
+  };
+  for (const p of lines) p.next = steepest(p.pts[p.pts.length - 2], p.pts[p.pts.length - 1], 40, p);
 
   // ── lifts
   const lifts: Lift[] = R.lifts.map((l) => {
@@ -262,13 +301,12 @@ export function makeMountain(): Mountain {
     out.dz = (bz - az) / seg;
   };
   const pt = { x: 0, z: 0, dx: 0, dz: 0 };
-  /** Facing down the nearest piste (or the fall line) from (x, z). */
+  /** Facing the piste that drops fastest from within 120 m of (x, z) (else the fall line): off a lift, you look down the run. */
   const facing = (x: number, z: number): number => {
-    const h = pisteAt(x, z, 60);
+    const h = steepest(x, z, 120);
     if (h) {
-      along(h.p, h.s + 10, pt);
-      const down = height(x + pt.dx * 15, z + pt.dz * 15) <= height(x - pt.dx * 15, z - pt.dz * 15) ? 1 : -1; // short pieces may run either way
-      return Math.atan2(pt.dx * down, pt.dz * down);
+      along(h.p, h.s + 25, pt);
+      return Math.atan2(pt.x - x, pt.z - z);
     }
     const n = normalOf(height, x, z);
     return Math.atan2(n.x, n.z);
@@ -279,14 +317,18 @@ export function makeMountain(): Mountain {
     const x = pt.x + pt.dx * (l.kind === 'chair' ? 12 : 5), z = pt.z + pt.dz * (l.kind === 'chair' ? 12 : 5);
     return { x, z, heading: facing(x, z) };
   };
-  // the start: on top of La Dôle, at the head of the longest piste leaving the Dappes chair's top station
+  // the summit: on top of La Dôle, at the head of the longest piste leaving the Dappes chair's top station
   const top = unload(Math.max(0, lifts.findIndex((l) => l.name === 'Dappes')));
   const first = lines.filter((p) => Math.hypot(p.pts[0] - top.x, p.pts[1] - top.z) < 150).sort((a, b) => b.len - a.len)[0];
-  let spawn = top;
+  let summit = top;
   if (first) {
     along(first, 8, pt);
-    spawn = { x: pt.x, z: pt.z, heading: Math.atan2(pt.dx, pt.dz) };
+    summit = { x: pt.x, z: pt.z, heading: Math.atan2(pt.dx, pt.dz) };
   }
+  // the start: at the foot of Les Jouvencelles, in the Jouvenceaux chair's queue, facing it
+  const base = lifts.find((l) => l.name === 'Jouvenceaux') ?? lifts[0];
+  liftPoint(base, 0, pt);
+  const spawn = { x: pt.x - pt.dx * 12, z: pt.z - pt.dz * 12, heading: Math.atan2(pt.dx, pt.dz) }; // the first push boards it
 
   // ── obstacles: a cleared corridor under every lift, around roads and buildings
   const clear = new Uint8Array(nx * nz);
@@ -342,14 +384,15 @@ export function makeMountain(): Mountain {
     around: { x0: A.x0, z0: A.z0, step: A.step, nx: A.nx, nz: A.nz, h: ah },
     bounds,
     spawn,
+    summit,
     height,
     normal: (x, z, out) => normalOf(height, x, z, out),
     surface: (x, z) => (groomedAt(x, z) > 0.5 ? Surface.Groomed : Surface.Powder),
     centerX: () => m.spawn.x, // no single line on an open mountain: spawn / bot use spawn and guide()
-    respawn(z, x = m.spawn.x) {
+    respawn(z, x = m.summit.x) {
       // back onto the nearest piste, a little uphill, facing down its line
       const h = pisteAt(x, z, 250);
-      if (!h) return m.spawn;
+      if (!h) return m.summit;
       along(h.p, Math.max(0, h.s - 6), pt);
       return { x: pt.x, z: pt.z, heading: Math.atan2(pt.dx, pt.dz) };
     },
@@ -365,13 +408,17 @@ export function makeMountain(): Mountain {
     unload,
     guide(x, z, ahead) {
       const h = pisteAt(x, z, 40);
-      if (!h) {
+      let p = h?.p, s = (h?.s ?? 0) + ahead;
+      if (p && s > p.len) {
+        s = p.next ? p.next.s + s - p.len : s;
+        p = p.next?.p;
+      }
+      if (!p) {
+        // off the pistes (or at the end of the last one): down the fall line
         const n = normalOf(height, x, z);
         const l = Math.hypot(n.x, n.z) || 1;
         return { x: x + (n.x / l) * ahead, z: z + (n.z / l) * ahead, hw: 6 };
       }
-      let p = h.p, s = h.s + ahead;
-      if (s > p.len && p.next) { s = p.next.s + s - p.len; p = p.next.p; }
       along(p, s, pt);
       return { x: pt.x, z: pt.z, hw: p.halfWidth };
     },

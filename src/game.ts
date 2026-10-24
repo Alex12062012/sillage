@@ -358,7 +358,7 @@ export class Game {
   toSummit(): void {
     if (!this.mountain || this.paused) return;
     this.phase = 'running';
-    this.unload(this.mountain.spawn);
+    this.unload(this.mountain.summit);
   }
 
   /** Speed / air / chain / spin medals pop the moment they are earned (Traffic Rider's instant objective). */

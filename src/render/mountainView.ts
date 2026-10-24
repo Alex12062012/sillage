@@ -4,7 +4,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { fbm } from '../core/rng';
-import { DEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
+import { DEEP, H0, STEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { ROUSSES } from '../sim/rousses-data';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
 
@@ -16,7 +16,7 @@ const C_LAKE = new Color(0x56789a);
 const C_FIELDS = new Color(0x9aa184);
 const C_PINES = new Color(0x4b5e52);
 const PISTE_COLOR: Record<PisteColor, Color> = { green: new Color(0x2fa84f), blue: new Color(0x2f6fde), red: new Color(0xe0393e), black: new Color(0x1d1f26) };
-const LAKE = 372; // Léman
+const LAKE = H0 + (372 - H0) * STEEP; // Léman, steepened like the land
 const CHAIR_GAP = 24;
 const PERCH_GAP = 14;
 const SIDE = 2.4; // half the distance between the up and down cables of a chair
@@ -76,7 +76,7 @@ function terrainMesh(m: Mountain, every: number, mat: MeshLambertMaterial): Mesh
       c.copy(C_POWDER).lerp(C_GROOMED, groom);
       if (m.forest(x, z) && groom < 0.5) c.lerp(C_WOODS, 0.55);
       const ny = nrm.getY(v);
-      if (ny < 0.82) c.lerp(C_ROCK, Math.min(1, (0.82 - ny) / 0.14));
+      if (ny < 0.72) c.lerp(C_ROCK, Math.min(1, (0.72 - ny) / 0.14)); // snow holds up to ~45°: rock on the cliffs only
       c.multiplyScalar(0.95 + 0.05 * Math.sin(x * 0.07 + Math.sin(z * 0.05) * 2)); // wind-blown shading
       col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
     }
@@ -103,7 +103,7 @@ function aroundMesh(m: Mountain, mat: MeshLambertMaterial): Mesh {
         y = Math.min(y, LAKE);
         c.copy(C_LAKE);
       } else {
-        const snow = Math.min(1, Math.max(0, (y - 620) / 380));
+        const snow = Math.min(1, Math.max(0, (H0 + (y - H0) / STEEP - 620) / 380)); // snow line on the true heights
         c.copy(C_FIELDS).lerp(C_POWDER, snow).lerp(C_PINES, Math.min(0.7, woods) * (0.5 + 0.5 * snow));
       }
       pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;

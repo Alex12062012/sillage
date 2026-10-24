@@ -27,7 +27,7 @@ export class Crowd {
       const piste = this.runs[(i * 7) % this.runs.length];
       m.dynamic.push({ id: 900000 + i, x: 0, z: 0, r: 0.45, h: 1.8, kind: 'skier' });
       this.riders.push({
-        model, s: createSkier(m, piste.pts[0], piste.pts[1], 0), piste, d: (i * 397) % piste.len, speed: 8 + ((i * 7) % 6),
+        model, s: createSkier(m, piste.pts[0], piste.pts[1], 0), piste, d: (i * 397) % piste.len, speed: 12 + ((i * 7) % 6) * 1.6,
         phase: i * 1.7, amp: 0.35 + ((i * 5) % 4) * 0.12, wave: 26 + ((i * 11) % 5) * 6, obstacle: m.dynamic.length - 1,
       });
     }

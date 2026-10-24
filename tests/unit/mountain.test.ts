@@ -14,7 +14,7 @@ describe('free ride: Les Rousses, Dôle-Tuffes', () => {
   };
 
   it('is the real massif: La Dôle above 1640 m, the Dappes chair climbs ~400 m, every real lift goes up', () => {
-    expect(m.height(m.spawn.x, m.spawn.z)).toBeGreaterThan(1620);
+    expect(m.height(m.summit.x, m.summit.z)).toBeGreaterThan(1620);
     expect(end('Dappes', 1) - end('Dappes', 0)).toBeGreaterThan(350);
     expect(end('Dappes - Tuffes', 1)).toBeGreaterThan(1400);
     for (const l of m.lifts.filter((q) => q.len > 300)) expect(end(l.name, 1), l.name).toBeGreaterThan(end(l.name, 0) + 20);
@@ -43,8 +43,27 @@ describe('free ride: Les Rousses, Dôle-Tuffes', () => {
     }
   });
 
+  it('is fast: tucked down the main runs from a standstill, a line-follower averages 90+ km/h (100–110 once rolling)', () => {
+    const o = { x: 0, z: 0, dx: 0, dz: 0 };
+    const ev: SkierEvent[] = [];
+    let sum = 0, n = 0;
+    for (const p of m.pistes.filter((q) => !q.area && q.len > 400 && q.name && !/Liaison|Route|Balcon/.test(q.name))) {
+      m.along(p, 0, o);
+      const s = createSkier(m, o.x, o.z, Math.atan2(o.dx, o.dz));
+      const inp = input();
+      for (let t = 0; t < 40; t += DT) {
+        botInput(s, m, inp, 160 / 3.6);
+        inp.tuck = !s.airborne && !inp.brake;
+        stepSkier(s, inp, m, DT, ev);
+        sum += s.vel.length() * 3.6;
+        n++;
+      }
+    }
+    expect(sum / n).toBeGreaterThan(90);
+  });
+
   it('the line-following bot skis down from La Dôle without getting stuck', () => {
-    const s = createSkier(m, m.spawn.x, m.spawn.z, m.spawn.heading);
+    const s = createSkier(m, m.summit.x, m.summit.z, m.summit.heading);
     const h0 = s.pos.y, x0 = s.pos.x, z0 = s.pos.z;
     const inp = input();
     const ev: SkierEvent[] = [];
