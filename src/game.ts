@@ -119,7 +119,8 @@ export class Game {
       // free ride: one open mountain, built once (no streaming), with its lifts and its crowd
       this.track = this.mountain = makeMountain();
       this.view = new MountainView(this.mountain);
-      this.crowd = new Crowd(this.mountain);
+      const view = this.view;
+      this.crowd = new Crowd(this.mountain, (x, z) => view.drawnHeight(x, z));
       this.sparkle = addSnowSparkle(this.view.material);
       this.landmarks = null;
       this.world.add(this.view.group, this.crowd.group);
@@ -539,6 +540,7 @@ export class Game {
     this.model.update(s, this.renderPos, heading, this.track, realDt, this.sky.sunDirection);
     this.cam.update(this.renderPos, s, realDt, this.track.height);
     this.terrain?.update(this.cam.camera.position.z, 1);
+    this.view?.focus(this.renderPos.x, this.renderPos.z);
     this.view?.update(gdt);
     this.crowd?.update(gdt, this.sky.sunDirection);
     this.sky.setTime(Math.min(0.95, this.sky.time + gdt * 0.0012)); // slow day cycle, stops at dusk (no wrap to morning)

@@ -1,11 +1,12 @@
 import {
   BoxGeometry, BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, Group,
-  IcosahedronGeometry, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial, Quaternion, Vector3,
+  IcosahedronGeometry, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial, Quaternion, Vector3, Vector4,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { fbm } from '../core/rng';
 import { DEEP, STEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { ROUSSES } from '../sim/rousses-data';
+import { smoothstep } from '../sim/track';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
 
 const C_GROOMED = new Color(0xe9eff7);
@@ -28,6 +29,8 @@ const p3 = new Vector3();
 const s3 = new Vector3(1, 1, 1);
 const up = new Vector3(0, 1, 0);
 const tmp = new Vector3();
+const tmpC = new Color();
+const col3 = new Color();
 const pt = { x: 0, z: 0, dx: 0, dz: 0 };
 
 const noUv = (g: BufferGeometry) => (g.deleteAttribute('uv'), g);
@@ -51,19 +54,35 @@ function gridMesh(nx: number, nz: number, pos: Float32Array, col: Float32Array, 
 }
 
 /**
- * The massif from its 10 m grid (every `every` nodes): groomed pistes, powder, the dark of the spruce woods,
- * limestone on the steeps. The border drops 25 m so it tucks under the land around.
+ * Value at grid coordinates (fx, fz) as gridMesh's triangles draw it (each cell split from (i+1, j) to (i, j+1)):
+ * node (i, j) of the ni × nj grid holds a[(j * ni + i) * stride + o].
  */
+function onTriangles(a: ArrayLike<number>, stride: number, o: number, ni: number, nj: number, fx: number, fz: number): number {
+  const i = Math.max(0, Math.min(ni - 2, Math.floor(fx))), j = Math.max(0, Math.min(nj - 2, Math.floor(fz)));
+  const tx = fx - i, tz = fz - j;
+  const k = (j * ni + i) * stride + o, kx = k + stride, kz = k + ni * stride, kxz = kz + stride;
+  return tx + tz <= 1 ? a[k] + tx * (a[kx] - a[k]) + tz * (a[kz] - a[k]) : a[kxz] + (1 - tx) * (a[kz] - a[kxz]) + (1 - tz) * (a[kx] - a[kxz]);
+}
+
+/** Snow colour: groomed or powder, the dark of the spruce woods, limestone on the steeps, wind-blown shading. */
+function snowColor(m: Mountain, x: number, z: number, groom: number, ny: number, c: Color): Color {
+  c.copy(C_POWDER).lerp(C_GROOMED, groom);
+  if (m.forest(x, z) && groom < 0.5) c.lerp(C_WOODS, 0.55);
+  if (ny < 0.72) c.lerp(C_ROCK, Math.min(1, (0.72 - ny) / 0.14)); // snow holds up to ~45°: rock on the cliffs only
+  return c.multiplyScalar(0.95 + 0.05 * Math.sin(x * 0.07 + Math.sin(z * 0.05) * 2));
+}
+
+/** The massif from its 10 m grid (every `every` nodes). The border drops 25 m so it tucks under the land around. */
 function terrainMesh(m: Mountain, every: number, mat: MeshLambertMaterial): Mesh {
   const G = m.grid;
   const nx = Math.floor((G.nx - 1) / every) + 1, nz = Math.floor((G.nz - 1) / every) + 1;
   const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3);
   for (let j = 0; j < nz; j++) {
     for (let i = 0; i < nx; i++) {
-      const k = (j * nx + i) * 3, g = j * every * G.nx + i * every;
+      const k = (j * nx + i) * 3;
       pos[k] = G.x0 + i * every * G.step;
       pos[k + 2] = G.z0 + j * every * G.step;
-      pos[k + 1] = G.h[g] - (i === 0 || j === 0 || i === nx - 1 || j === nz - 1 ? 25 * STEEP : 0);
+      pos[k + 1] = G.h[j * every * G.nx + i * every] - (i === 0 || j === 0 || i === nx - 1 || j === nz - 1 ? 25 * STEEP : 0);
     }
   }
   const mesh = gridMesh(nx, nz, pos, col, mat);
@@ -71,18 +90,31 @@ function terrainMesh(m: Mountain, every: number, mat: MeshLambertMaterial): Mesh
   const c = new Color();
   for (let j = 0; j < nz; j++) {
     for (let i = 0; i < nx; i++) {
-      const v = j * nx + i, k = v * 3, x = pos[k], z = pos[k + 2];
-      const groom = G.groomed[j * every * G.nx + i * every];
-      c.copy(C_POWDER).lerp(C_GROOMED, groom);
-      if (m.forest(x, z) && groom < 0.5) c.lerp(C_WOODS, 0.55);
-      const ny = nrm.getY(v);
-      if (ny < 0.72) c.lerp(C_ROCK, Math.min(1, (0.72 - ny) / 0.14)); // snow holds up to ~45°: rock on the cliffs only
-      c.multiplyScalar(0.95 + 0.05 * Math.sin(x * 0.07 + Math.sin(z * 0.05) * 2)); // wind-blown shading
+      const v = j * nx + i, k = v * 3;
+      snowColor(m, pos[k], pos[k + 2], G.groomed[j * every * G.nx + i * every], nrm.getY(v), c);
       col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
     }
   }
   return mesh;
 }
+
+/**
+ * The snow around the skier. The physics rides the smooth (bicubic) surface of the 10 m grid, the massif mesh
+ * draws flat triangles between its nodes (every other node on phones): in a hollow they stand up to 1 m (4 m)
+ * above the skis. So a DETAIL_HALF m patch around the skier draws that smooth surface itself, every DETAIL_STEP
+ * m, in the massif's hole; over its last DETAIL_MORPH m it bends onto the massif's triangles, so it meets them
+ * without a step. Rebuilt a few rows a frame as you ride; its edges sit on the massif's 20 m grid lines.
+ */
+const DETAIL_HALF = 160;
+const DETAIL_STEP = 2.5;
+const DETAIL_SNAP = 20;
+const DETAIL_MORPH = 40;
+const DETAIL_N = (2 * DETAIL_HALF) / DETAIL_STEP + 1;
+const DETAIL_ROWS = 8; // per frame: a rebuild takes ~17 frames (~11 m at 140 km/h)
+const REFOCUS = 30; // the skier this far from the patch centre: build the next one
+const SAFE = 60; // … this close to its edge (a lift, a teleport): build it now
+
+interface Detail { mesh: Mesh; pos: Float32Array; nrm: Float32Array; col: Float32Array; x0: number; z0: number; every: number; row: number }
 
 /**
  * The land around (48 × 40 km, the real heights): the Jura ridges, the Swiss plateau, the Léman. Tucked under the
@@ -167,11 +199,19 @@ interface LiftView { lift: Lift; anchors: Vector3[]; cum: number[]; towerH: numb
  */
 export class MountainView {
   readonly group = new Group();
+  /** The snow near the skier (the detail patch, sun glints) and the land around. */
   readonly material = new MeshLambertMaterial({ vertexColors: true });
+  /** The massif mesh, with a hole where the detail patch is. */
+  private massif = new MeshLambertMaterial({ vertexColors: true });
+  private hole = { value: new Vector4() };
   private chairs: InstancedMesh;
   private perches: InstancedMesh;
   private fine: Mesh;
   private coarse: Mesh;
+  private every = 1;
+  private details: [Detail, Detail];
+  private shown: Detail | null = null;
+  private building: Detail | null = null;
   private trees: InstancedMesh[] = [];
   private riderChair: Mesh;
   private riderPerch: Mesh;
@@ -179,10 +219,27 @@ export class MountainView {
   private t = 0;
 
   constructor(private m: Mountain) {
-    this.fine = terrainMesh(m, 1, this.material);
-    this.coarse = terrainMesh(m, 2, this.material); // phones: a quarter of the triangles
+    this.massif.onBeforeCompile = (sh) => {
+      sh.uniforms.uHole = this.hole;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vHoleW;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvHoleW = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vHoleW;\nuniform vec4 uHole;')
+        .replace('#include <clipping_planes_fragment>', 'if (vHoleW.x > uHole.x && vHoleW.x < uHole.z && vHoleW.y > uHole.y && vHoleW.y < uHole.w) discard;\n#include <clipping_planes_fragment>');
+    };
+    this.fine = terrainMesh(m, 1, this.massif);
+    this.coarse = terrainMesh(m, 2, this.massif); // phones: a quarter of the triangles
     this.coarse.visible = false;
     this.group.add(this.fine, this.coarse, aroundMesh(m, this.material));
+    const detail = (): Detail => {
+      const pos = new Float32Array(DETAIL_N * DETAIL_N * 3), col = new Float32Array(DETAIL_N * DETAIL_N * 3);
+      const mesh = gridMesh(DETAIL_N, DETAIL_N, pos, col, this.material);
+      mesh.visible = false;
+      this.group.add(mesh);
+      return { mesh, pos, nrm: mesh.geometry.attributes.normal.array as Float32Array, col, x0: 0, z0: 0, every: 0, row: 0 };
+    };
+    this.details = [detail(), detail()];
 
     // spruces: shuffled, so any prefix (lower quality) is an even thinning; tall and slim
     const flat = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
@@ -368,7 +425,122 @@ export class MountainView {
   setQuality(q: 'low' | 'medium' | 'high'): void {
     this.fine.visible = q === 'high';
     this.coarse.visible = q !== 'high';
+    this.every = q === 'high' ? 1 : 2; // the detail patch, bent onto the other mesh, is rebuilt at the next focus()
     for (const t of this.trees) t.count = Math.round(t.instanceMatrix.count * { low: 0.3, medium: 0.5, high: 1 }[q]);
+  }
+
+  /** Height of the snow as drawn at (x, z): the detail patch near the skier, the massif's triangles beyond. */
+  drawnHeight(x: number, z: number): number {
+    const d = this.shown;
+    if (d && x >= d.x0 && x <= d.x0 + 2 * DETAIL_HALF && z >= d.z0 && z <= d.z0 + 2 * DETAIL_HALF) {
+      return onTriangles(d.pos, 3, 1, DETAIL_N, DETAIL_N, (x - d.x0) / DETAIL_STEP, (z - d.z0) / DETAIL_STEP);
+    }
+    return this.massifAt(x, z, 1);
+  }
+
+  /** Where the detail patch is drawn (empty before the first focus()). */
+  detailRect(): { x0: number; z0: number; x1: number; z1: number } {
+    const d = this.shown;
+    return d ? { x0: d.x0, z0: d.z0, x1: d.x0 + 2 * DETAIL_HALF, z1: d.z0 + 2 * DETAIL_HALF } : { x0: 0, z0: 0, x1: 0, z1: 0 };
+  }
+
+  /** Every frame, with the skier's position: keeps the detail patch around them. */
+  focus(x: number, z: number): void {
+    const d = this.shown;
+    const x0 = this.snap(x, this.m.bounds.x0, this.m.bounds.x1), z0 = this.snap(z, this.m.bounds.z0, this.m.bounds.z1);
+    const near = !d || x < d.x0 + SAFE || x > d.x0 + 2 * DETAIL_HALF - SAFE || z < d.z0 + SAFE || z > d.z0 + 2 * DETAIL_HALF - SAFE;
+    if (!d || d.every !== this.every || (near && (x0 !== d.x0 || z0 !== d.z0))) { // (at the massif's edge it cannot follow)
+      this.building = null; // a jump (lift top, respawn, quality change): now, whole
+      this.advance(this.start(this.spare(), x0, z0), DETAIL_N + 1);
+      return;
+    }
+    if (!this.building) {
+      if ((x0 === d.x0 && z0 === d.z0) || Math.max(Math.abs(x - d.x0 - DETAIL_HALF), Math.abs(z - d.z0 - DETAIL_HALF)) < REFOCUS) return;
+      this.building = this.start(this.spare(), x0, z0);
+    }
+    if (this.advance(this.building, DETAIL_ROWS)) this.building = null;
+  }
+
+  /** Component o (0 x, 1 y, 2 z) of the massif mesh's positions, normals or colours as drawn at (x, z); the land around beyond. */
+  private massifAt(x: number, z: number, o: number, what: 'position' | 'normal' | 'color' = 'position'): number {
+    const G = this.m.grid, b = this.m.bounds;
+    if (what === 'position' && (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1)) return this.m.height(x, z);
+    const ni = Math.floor((G.nx - 1) / this.every) + 1, nj = Math.floor((G.nz - 1) / this.every) + 1, st = G.step * this.every;
+    const a = (this.every === 1 ? this.fine : this.coarse).geometry.attributes[what].array;
+    return onTriangles(a, 3, o, ni, nj, (x - G.x0) / st, (z - G.z0) / st);
+  }
+
+  /** The patch corner for a skier at v: on the 20 m grid lines, inside the massif (off its tucked-under border). */
+  private snap(v: number, lo: number, hi: number): number {
+    const c = lo + Math.round((v - DETAIL_HALF - lo) / DETAIL_SNAP) * DETAIL_SNAP;
+    return Math.max(lo + DETAIL_SNAP, Math.min(hi - DETAIL_SNAP - 2 * DETAIL_HALF, c));
+  }
+
+  private spare(): Detail {
+    return this.details[0] === this.shown ? this.details[1] : this.details[0];
+  }
+
+  private start(d: Detail, x0: number, z0: number): Detail {
+    d.x0 = x0;
+    d.z0 = z0;
+    d.every = this.every;
+    d.row = 0;
+    return d;
+  }
+
+  /**
+   * `count` more rows of heights (the smooth surface, bent onto the massif's triangles near the edges), each
+   * shaded once the next one is in; true (and swapped in, hole and all) once complete.
+   */
+  private advance(d: Detail, count: number): boolean {
+    for (let n = 0; n < count && d.row <= DETAIL_N; n++, d.row++) {
+      const j = d.row;
+      if (j < DETAIL_N) {
+        for (let i = 0; i < DETAIL_N; i++) {
+          const k = (j * DETAIL_N + i) * 3, x = d.x0 + i * DETAIL_STEP, z = d.z0 + j * DETAIL_STEP;
+          const smooth = this.m.height(x, z), w = this.morph(i, j);
+          d.pos[k] = x;
+          d.pos[k + 1] = w > 0 ? smooth + (this.massifAt(x, z, 1) - smooth) * w : smooth;
+          d.pos[k + 2] = z;
+        }
+      }
+      if (j > 0) this.shade(d, j - 1);
+    }
+    if (d.row <= DETAIL_N) return false;
+    const g = d.mesh.geometry;
+    g.attributes.position.needsUpdate = g.attributes.normal.needsUpdate = g.attributes.color.needsUpdate = true;
+    g.computeBoundingSphere();
+    if (this.shown) this.shown.mesh.visible = false;
+    d.mesh.visible = true;
+    this.shown = d;
+    this.hole.value.set(d.x0, d.z0, d.x0 + 2 * DETAIL_HALF, d.z0 + 2 * DETAIL_HALF);
+    return true;
+  }
+
+  /** 1 on the patch's edge (it lies on the massif's triangles) … 0 from DETAIL_MORPH m in (the smooth surface). */
+  private morph(i: number, j: number): number {
+    return 1 - smoothstep(0, DETAIL_MORPH, Math.min(i, j, DETAIL_N - 1 - i, DETAIL_N - 1 - j) * DETAIL_STEP);
+  }
+
+  /** Normals (central differences) and colours of row j; near the edges both blend into the massif's, so the seam does not show. */
+  private shade(d: Detail, j: number): void {
+    const G = this.m.grid, N = DETAIL_N, h = (i: number, jj: number) => d.pos[(Math.max(0, Math.min(N - 1, jj)) * N + Math.max(0, Math.min(N - 1, i))) * 3 + 1];
+    const c = tmpC;
+    for (let i = 0; i < N; i++) {
+      const k = (j * N + i) * 3, x = d.pos[k], z = d.pos[k + 2];
+      tmp.set(h(i - 1, j) - h(i + 1, j), (i > 0 && i < N - 1 ? 2 : 1) * DETAIL_STEP, 0);
+      tmp.z = ((h(i, j - 1) - h(i, j + 1)) * tmp.y) / ((j > 0 && j < N - 1 ? 2 : 1) * DETAIL_STEP);
+      tmp.normalize();
+      const groom = onTriangles(G.groomed, 1, 0, G.nx, G.nz, (x - G.x0) / G.step, (z - G.z0) / G.step);
+      snowColor(this.m, x, z, groom, tmp.y, c);
+      const w = this.morph(i, j);
+      if (w > 0) {
+        tmp.lerp(p3.set(this.massifAt(x, z, 0, 'normal'), this.massifAt(x, z, 1, 'normal'), this.massifAt(x, z, 2, 'normal')), w).normalize();
+        c.lerp(col3.setRGB(this.massifAt(x, z, 0, 'color'), this.massifAt(x, z, 1, 'color'), this.massifAt(x, z, 2, 'color')), w);
+      }
+      d.nrm[k] = tmp.x; d.nrm[k + 1] = tmp.y; d.nrm[k + 2] = tmp.z;
+      d.col[k] = c.r; d.col[k + 1] = c.g; d.col[k + 2] = c.b;
+    }
   }
 
   /** Off the lift. */
@@ -402,5 +574,6 @@ export class MountainView {
       if (o instanceof Mesh || o instanceof LineSegments) o.geometry.dispose();
     });
     this.material.dispose();
+    this.massif.dispose();
   }
 }
