@@ -34,7 +34,7 @@ export function treeGeometry(): BufferGeometry {
 }
 
 /** Far LOD: a single snowy cone (14 triangles). */
-function treeGeometryLow(): BufferGeometry {
+export function treeGeometryLow(): BufferGeometry {
   return paint(new ConeGeometry(TREE_CANOPY * 0.95, 3.9, 6).translate(0, 0.5 + 1.95, 0).toNonIndexed(), (_x, y) =>
     y > 3.4 ? SNOW : NEEDLE.clone().lerp(SNOW, Math.max(0, y / 4.4 - 0.5)));
 }

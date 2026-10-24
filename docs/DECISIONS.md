@@ -112,3 +112,11 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
 70. **Rythme musical :** chaque changement de carre propre joue une note de l'accord en cours, qui monte avec la série. Le joueur « joue » la musique en carvant.
 71. **Réception parfaite = coup marqué :** hitstop de 50 ms, flash chaud, plongée de caméra (ressort), sting en accord. Tout est atténué en mode confort.
 72. **Mesures (build de prod, M1) :** 59,7 FPS desktop, 59,5 FPS mobile émulé (CPU ×4), 52–55 draw calls (< 60). Les 76 tests unitaires et les 14 e2e sont verts.
+
+## Phase 9 — free ride = Les Rousses, massif Dôle-Tuffes, 1:1
+
+73. **Données ouvertes plutôt que montagne inventée.** Le relief vient des tuiles « terrarium » AWS (z14, ≈ 6,6 m/px, rééchantillonnées à 20 m ; z11 à 300 m pour 48 × 40 km autour, Léman compris). Les pistes, remontées, forêts, routes et bâtiments viennent d'Overpass (OSM). Un script sans dépendance (`scripts/rousses.mjs`, avec son propre décodeur PNG) écrit un module de 300 ko : le jeu n'a pas besoin de réseau, et la simulation reste pure et testable.
+74. **Pistes damées « en banquette ».** Chaque piste est rééchantillonnée tous les 5 m. Son altitude est lissée sur 50 m et ne remonte jamais, mais elle peut descendre jusqu'à 6 m sous le relief (les tuiles lisent la cime des épicéas). En travers, elle est plate et se raccorde au relief sur 16 m. Sans ça, les chemins en dévers (Route forestière, Balcon de la Dôle) étaient inskiables. Une grille finale de 10 m, interpolée en bicubique (C1), sert à la fois à la physique et au maillage.
+75. **Plus de ligne unique.** Le bot suit `guide()` (un point plus bas sur la piste où il se trouve, puis la suivante). Sur les pistes en couloir, son comportement reste identique au bit près (avant = +z, voies = x) : les tests d'équilibrage ne bougent pas.
+76. **Téléskis = remorquage au sol** (le skieur reste debout, il laisse ses traces, la perche le relie au câble). Les télésièges gardent la pose assise. Les pylônes sont ceux d'OSM, complétés tous les 120 m pour les télésièges et tous les 80 m pour les téléskis.
+77. **Budget :** ≈ 1,9 M triangles en qualité haute (terrain 10 m, 36 k épicéas dont 23 k simplifiés au fond des bois). En moyen/bas, le terrain passe à 20 m et la forêt à 50 % / 30 %. On reste à 60 FPS sur desktop et en mobile émulé (CPU ×4), avec 43 draw calls.

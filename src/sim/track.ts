@@ -154,6 +154,8 @@ export interface Track extends Ground {
   respawn(z: number, x?: number): { x: number; z: number; heading: number };
   obstaclesNear(x: number, z: number, radius: number, out: Obstacle[]): Obstacle[];
   obstaclesBetween(z0: number, z1: number): Obstacle[];
+  /** Open terrain (free ride): a point `ahead` m down the piste under (x, z), and its half-width. */
+  guide?(x: number, z: number, ahead: number): { x: number; z: number; hw: number };
 }
 
 /** Lateral profile: gentle bowl on the piste, C1-continuous banks that steepen outside it. */

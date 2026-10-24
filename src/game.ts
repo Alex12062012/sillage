@@ -8,9 +8,9 @@ import { SkierModel, type SkierColors } from './render/skierModel';
 import { Sky } from './render/sky';
 import { addSnowSparkle, Terrain } from './render/terrain';
 import { Crowd } from './render/crowd';
-import { LIFT_SPEED, MountainView } from './render/mountainView';
+import { MountainView } from './render/mountainView';
 import { botInput } from './sim/bot';
-import { FREE_ID, makeMountain, SUMMIT_SPAWN, type Mountain } from './sim/mountain';
+import { FREE_ID, makeMountain, type Mountain, type Spot } from './sim/mountain';
 import { createFlow, stepFlow, type FlowEvent, type FlowState } from './sim/flow';
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
 import { createRun, runStats, SlowMo, spinDegrees, stepRun, type RunEvent, type RunState } from './sim/run';
@@ -39,7 +39,7 @@ export class Game {
   track!: Track;
   readonly sky: Sky;
   private terrain: Terrain | null = null;
-  /** Free ride only: the open mountain, its view (lifts, forests, village) and the other skiers. */
+  /** Free ride only: Les Rousses, its view (lifts, forests, villages) and the other skiers. */
   mountain: Mountain | null = null;
   private view: MountainView | null = null;
   private crowd: Crowd | null = null;
@@ -133,14 +133,17 @@ export class Game {
     this.sparkle.setQuality(this.quality);
     this.setQuality(this.quality);
     this.hud.el.classList.toggle('free', !!this.mountain);
+    this.cam.camera.far = this.mountain ? 40000 : 3000; // from La Dôle you see the Léman
+    this.cam.camera.updateProjectionMatrix();
     this.sky.showPeaks(!this.mountain);
     this.sky.setTime(def.timeOfDay);
     this.reset();
   }
 
   reset(): void {
-    const z0 = this.mountain ? SUMMIT_SPAWN.z : -8;
-    this.skier = createSkier(this.track, this.track.centerX(z0), z0, 0);
+    const z0 = -8;
+    const at = this.mountain?.spawn;
+    this.skier = at ? createSkier(this.track, at.x, at.z, at.heading) : createSkier(this.track, this.track.centerX(z0), z0, 0);
     this.ride = null;
     this.view?.leaveSeat();
     this.model.setSeated(false);
@@ -156,7 +159,7 @@ export class Game {
     this.prevPos.copy(this.skier.pos);
     this.prevHeading = this.skier.heading;
     this.renderPos.copy(this.skier.pos);
-    this.cam.snap(this.skier.pos, 0);
+    this.cam.snap(this.skier.pos, this.skier.heading);
     this.trails.reset();
     this.acc = 0;
     this.hud.trick(null);
@@ -168,8 +171,10 @@ export class Game {
   /** Drop the skier mid-run at `z` (attract mode / tests): already moving, clock running. */
   startAt(z: number, speed: number): void {
     const s = this.skier;
-    const x = this.track.centerX(z);
-    const heading = Math.atan((this.track.centerX(z + 1) - this.track.centerX(z - 1)) / 2);
+    const at = this.mountain?.spawn; // the open mountain: from the top of La Dôle
+    if (at) z = at.z;
+    const x = at ? at.x : this.track.centerX(z);
+    const heading = at ? at.heading : Math.atan((this.track.centerX(z + 1) - this.track.centerX(z - 1)) / 2);
     s.pos.set(x, this.track.height(x, z), z);
     s.heading = heading;
     s.vel.set(Math.sin(heading), 0, Math.cos(heading)).multiplyScalar(speed);
@@ -266,75 +271,94 @@ export class Game {
     }
   }
 
-  /** Free ride: ski into a bottom station to take its chairlift; name the piste you enter. */
+  /** Free ride: ski into a bottom station to take its lift; name the piste you enter; skate on the flats. */
   private freeRide(s: SkierState): void {
     const m = this.mountain!;
-    if (!s.airborne && s.crashTimer <= 0 && s.vel.length() < 20) {
-      const i = m.lifts.findIndex((l) => Math.hypot(s.pos.x - l.bx, s.pos.z - l.bz) < 34);
-      if (i >= 0) {
-        this.ride = { lift: i, f: 0, t: 0 };
-        this.hud.pop(m.lifts[i].name, 'info', this.bot ? undefined : 'any key to skip');
-        if (this.bot) this.ride.f = 1; // attract mode: straight back to the top
-        return;
+    const speed = s.vel.length();
+    if (!s.airborne && s.crashTimer <= 0) {
+      if (speed < 15) {
+        let best = -1, bd = 14;
+        m.lifts.forEach((l, i) => {
+          const d = Math.hypot(s.pos.x - l.pts[0], s.pos.z - l.pts[1]);
+          if (d < bd) { bd = d; best = i; }
+        });
+        if (best >= 0) {
+          this.ride = { lift: best, f: 0, t: 0 };
+          this.hud.pop(m.lifts[best].name, 'info', this.bot ? undefined : 'any key to skip');
+          if (this.bot) this.ride.f = 1; // attract mode: straight back to the top
+          return;
+        }
+      }
+      // skating: forward on the flats (and the liaisons' little climbs) pushes you along
+      if (this.inp.tuck && speed < 6) {
+        s.vel.x += Math.sin(s.heading) * 2.4 * DT;
+        s.vel.z += Math.cos(s.heading) * 2.4 * DT;
       }
     }
+    const b = m.bounds;
+    if (s.pos.x < b.x0 + 30 || s.pos.x > b.x1 - 30 || s.pos.z < b.z0 + 30 || s.pos.z > b.z1 - 30) {
+      this.hud.pop('Out of bounds', 'bad');
+      this.unload(m.respawn(s.pos.z, s.pos.x));
+      return;
+    }
+    if (this.bot && speed < 1 && (this.stuck += DT) > 4) this.toSummit(); // attract mode: never stand still
+    if (speed > 1) this.stuck = 0;
     if ((this.pisteTick += DT) < 0.5) return;
     this.pisteTick = 0;
-    const p = m.pistes.find((q) => Math.abs(s.pos.x - q.x(s.pos.z)) < q.halfWidth && s.pos.z > q.z0 + 20 && s.pos.z < 1040) ?? null;
-    if (p && p !== this.piste && this.live) this.hud.pop(p.name, 'info', p.difficulty === 'easy' ? 'blue' : p.difficulty === 'medium' ? 'red' : 'black');
-    this.piste = p;
+    const p = m.pisteAt(s.pos.x, s.pos.z)?.p ?? null;
+    if (p && p !== this.piste && p.name && this.live) this.hud.pop(p.name, 'info', p.difficulty);
+    if (p) this.piste = p;
   }
+  private stuck = 0;
 
-  /** Riding a chair: the seat carries the skier up; any input (after a moment) skips to the top. */
+  /** Riding a lift: the chair carries the skier up, a drag lift tows them along the snow; any input skips to the top. */
   private rideStep(s: SkierState): void {
     const r = this.ride!;
     const view = this.view!;
+    const l = this.mountain!.lifts[r.lift];
     r.t += DT;
-    r.f += (LIFT_SPEED * DT) / view.liftLength(r.lift);
+    r.f += (l.speed * DT) / l.len;
     const skip = r.t > 0.6 && (this.inp.jump || this.inp.tuck || this.inp.brake || Math.abs(this.inp.steer) > 0.5);
     if (r.f >= 1 || skip) {
-      const l = this.mountain!.lifts[r.lift];
-      this.ride = null;
-      view.leaveSeat();
-      this.model.setSeated(false);
-      this.unload(l.tx, l.tz + 16);
+      this.unload(this.mountain!.unload(r.lift));
       return;
     }
-    view.seat(r.lift, r.f, s.pos);
-    const yaw = view.liftYaw(r.lift);
-    s.vel.set(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(LIFT_SPEED);
+    const chair = l.kind === 'chair';
+    if (chair) view.seat(r.lift, r.f, s.pos);
+    else view.tow(r.lift, r.f, s.pos);
+    const yaw = view.liftYaw(r.lift, r.f);
+    s.vel.set(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(l.speed);
     s.heading = yaw;
-    s.airborne = true;
+    s.airborne = chair;
     s.tuck = false;
     s.edge = s.skid = 0;
-    this.model.setSeated(true);
+    if (!chair) this.mountain!.normal(s.pos.x, s.pos.z, s.normal);
+    this.model.setSeated(chair);
   }
 
-  /** Off the chair (or teleported): on the snow at (x, z), facing the nearest piste downhill. */
-  private unload(x: number, z: number): void {
+  /** Off the lift (or teleported): on the snow at a spot, facing down the nearest piste. */
+  unload(at: Spot): void {
     const s = this.skier;
     const m = this.mountain!;
-    let p = m.pistes[0];
-    for (const q of m.pistes) if (Math.abs(q.x(z + 30) - x) < Math.abs(p.x(z + 30) - x)) p = q;
-    s.pos.set(x, m.height(x, z), z);
-    s.heading = Math.atan2(p.x(z + 30) - x, 30);
+    this.ride = null;
+    this.view?.leaveSeat();
+    this.model.setSeated(false);
+    s.pos.set(at.x, m.height(at.x, at.z), at.z);
+    s.heading = at.heading;
     s.vel.set(Math.sin(s.heading), 0, Math.cos(s.heading)).multiplyScalar(4);
     s.airborne = false;
     s.tuck = false;
-    m.normal(x, z, s.normal);
+    m.normal(at.x, at.z, s.normal);
     this.prevPos.copy(s.pos);
     this.trails.reset();
     this.cam.snap(s.pos, s.heading);
   }
 
-  /** Free ride shortcut (T): straight to the summit. */
+  /** Free ride shortcut (T): straight to the top of La Dôle. */
   toSummit(): void {
     if (!this.mountain || this.paused) return;
-    this.ride = null;
-    this.view?.leaveSeat();
-    this.model.setSeated(false);
     this.phase = 'running';
-    this.unload(this.mountain.centerX(SUMMIT_SPAWN.z), SUMMIT_SPAWN.z);
+    this.unload(this.mountain.spawn);
   }
 
   /** Speed / air / chain / spin medals pop the moment they are earned (Traffic Rider's instant objective). */
@@ -474,9 +498,9 @@ export class Game {
     const view = { low: 300, medium: 390, high: 470 }[q];
     if (this.terrain) this.terrain.viewDistance = view;
     this.viewDistance = view;
-    // the open mountain is seen whole: a much longer, thinner haze
-    this.sky.fog.far = this.mountain ? view * 3.2 : view;
-    this.sky.fog.near = this.mountain ? view * 0.9 : view * 0.26;
+    // the open mountain is seen whole, to the Léman and beyond: a long, thin haze
+    this.sky.fog.far = this.mountain ? view * 50 : view;
+    this.sky.fog.near = this.mountain ? view * 2 : view * 0.26;
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
     this.quality = q;
     this.view?.setQuality(q);

@@ -3,6 +3,7 @@ import { WebGLRenderer } from 'three';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
 import { applyRun, COSMETICS, emptySave, isUnlocked, loadSave, saveSave, totalStars, type Save, type Settings } from './sim/progress';
+import { FREE_ID } from './sim/mountain';
 import { TRACKS, trackById } from './sim/tracks';
 import { TUNING } from './tuning';
 import { createDebugPanel } from './ui/debug';
@@ -121,7 +122,10 @@ function startRun(id: string): void {
   game.bestTiers = { ...save.medals };
   game.reset();
   setMode('run');
-  if (!save.seenHint) {
+  if (id === FREE_ID) {
+    hud.showHint(`<b>Les Rousses</b> · Dôle-Tuffes — ski into a lift's bottom station to ride up · ${isTouch()
+      ? 'hold <b>both</b> to skate on the flats' : '<b>↑</b> skates on the flats · <b>T</b> top of La Dôle'} · <small>map © OpenStreetMap</small>`, 8);
+  } else if (!save.seenHint) {
     hud.showHint(isTouch()
       ? '<b>Hold</b> left / right to carve · <b>both</b> to tuck (grab in the air) · swipe <b>↑</b> jump · swipe <b>↓</b> brake'
       : '<b>← →</b> carve · <b>↑</b> tuck · <b>↓</b> brake · <b>Space</b> jump, hold to grab · <b>R</b> restart', 8);
@@ -295,5 +299,6 @@ window.__sillage = {
   tune: (key: keyof typeof TUNING, value: number) => { TUNING[key] = value; },
   features: () => game.track.features.map((f) => ({ ...f })),
   teleport: (z: number, kmh = 40) => { game.reset(); game.startAt(z, kmh / 3.6); },
+  spot: (x: number, z: number, heading = 0) => { game.unload({ x, z, heading }); game.phase = 'running'; }, // free ride
   debug: () => debug.toggle(),
 };

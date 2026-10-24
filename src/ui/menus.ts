@@ -62,7 +62,7 @@ export class Menus {
         <div class="brand"><h1>Sillage</h1><p>Carve your line.</p></div>
         <div class="stack">
           <button class="primary big" data-go="select">Play</button>
-          <button class="big" data-go="free">Free ride</button>
+          <button class="big" data-go="free">Free ride · Les Rousses</button>
           <button data-go="locker">Locker</button>
           <button data-go="settings">Settings</button>
         </div>

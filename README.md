@@ -13,7 +13,7 @@ Ce sont des descentes courtes, de 45 à 90 secondes, sur des montagnes généré
 - **frôle les sapins** pour enchaîner les « near-miss », et **saute** sur les tremplins ;
 - puis appuie sur **Retry** et fais mieux.
 
-**Free ride** (bouton du menu) : une vraie montagne ouverte, tout débloqué : trois pistes (bleue avec un petit snowpark, rouge, noire), des forêts, deux télésièges (on embarque en arrivant à la gare du bas, n'importe quelle touche saute la montée, <kbd>T</kbd> ramène au sommet), d'autres skieurs à frôler et un village de chalets.
+**Free ride · Les Rousses** (bouton du menu) : le massif Dôle-Tuffes de la Station des Rousses (Jura), à l'échelle 1:1. Le relief est réel (tuiles de terrain AWS/Mapzen, 10 m), les pistes, remontées, forêts, routes et bâtiments viennent d'OpenStreetMap (`scripts/rousses.mjs` → `src/sim/rousses-data.ts`). On y trouve 36 km de pistes avec leurs vrais noms et couleurs, 4 télésièges (Dappes, Dappes - Tuffes, Jouvenceaux, Balancier) et 16 téléskis et tapis, plus le radar de La Dôle, les Jouvencelles, la vallée des Dappes et le Léman au loin. On embarque en arrivant à la gare du bas (assis sur un télésiège, tiré par la perche sur un téléski), n'importe quelle touche saute la montée, <kbd>↑</kbd> fait patiner sur les replats et <kbd>T</kbd> ramène au sommet de La Dôle. Données de carte © les contributeurs d'OpenStreetMap (ODbL).
 
 Chaque défi a trois paliers (bronze, argent, or), et les étoiles débloquent de nouvelles pistes et de nouvelles tenues.
 

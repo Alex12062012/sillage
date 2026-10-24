@@ -33,23 +33,30 @@ export function botInput(s: SkierState, t: Track, out: SkierInput, targetSpeed: 
   }
   const speed = s.vel.length();
   const look = 12 + speed * 0.7;
-  const aheadZ = s.pos.z + look;
-  const cx = t.centerX(aheadZ);
-  const hw = t.def.halfWidth;
-  const obstacles = t.obstaclesNear(s.pos.x, s.pos.z + look / 2, look / 2 + 6, near).filter((o) => o.z > s.pos.z + 0.5);
+  // the line a little ahead: down the corridor (+z, lanes along x), or down the piste under the skier
+  const g = t.guide?.(s.pos.x, s.pos.z, look);
+  const aheadZ = g ? g.z : s.pos.z + look;
+  const cx = g ? g.x : t.centerX(aheadZ);
+  const hw = g ? g.hw : t.def.halfWidth;
+  const fl = g ? Math.hypot(cx - s.pos.x, aheadZ - s.pos.z) || 1 : 1;
+  const fx = g ? (cx - s.pos.x) / fl : 0;
+  const fz = g ? (aheadZ - s.pos.z) / fl : 1;
+  const obstacles = t.obstaclesNear(s.pos.x + (fx * look) / 2, s.pos.z + (fz * look) / 2, look / 2 + 6, near)
+    .filter((o) => (o.x - s.pos.x) * fx + (o.z - s.pos.z) * fz > 0.5);
   let best = mem.offset;
   let bestScore = -Infinity;
   for (let o = -(hw - 2.5); o <= hw - 2.5 + 1e-6; o += 1.25) {
-    const ax = cx + o;
+    const ax = cx + o * fz;
+    const az = aheadZ - o * fx;
     let clear = gap + 1;
     for (const ob of obstacles) {
-      clear = Math.min(clear, segDist(ob.x, ob.z, s.pos.x, s.pos.z, ax, aheadZ) - ob.r - T.skierRadius);
+      clear = Math.min(clear, segDist(ob.x, ob.z, s.pos.x, s.pos.z, ax, az) - ob.r - T.skierRadius);
     }
     const score = Math.min(clear, gap + 1) * 10 - Math.abs(o - mem.offset) * 0.35 - Math.abs(o) * 0.12;
     if (score > bestScore) { bestScore = score; best = o; }
   }
   mem.offset = best;
-  let desired = Math.atan2(cx + best - s.pos.x, look);
+  let desired = g ? Math.atan2(cx + best * fz - s.pos.x, aheadZ - best * fx - s.pos.z) : Math.atan2(cx + best - s.pos.x, look);
   const current = speed > 1 ? Math.atan2(s.vel.x, s.vel.z) : s.heading;
   // emergency: something within ~0.7 s sits on the current line → turn away from it now
   const vx = Math.sin(current);
