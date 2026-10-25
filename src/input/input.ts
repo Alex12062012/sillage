@@ -24,6 +24,8 @@ export class Input {
   private tiltSteer = 0;
   private steer = 0;
   private jumpQueued = false;
+  /** Space / both thumbs / A or RT held at the last sample: a grab in the air, a faster lift when riding one. */
+  holding = false;
   private airLockSteer = false;
   private airLockFlip = false;
   private fingers = new Map<number, Finger>();
@@ -201,6 +203,7 @@ export class Input {
     out.jump = this.jumpQueued;
     out.flip = airborne ? flip : 0;
     out.grab = airborne && grab;
+    this.holding = grab;
     this.jumpQueued = false;
 
     if (airborne) {

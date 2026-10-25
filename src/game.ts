@@ -24,6 +24,8 @@ import { FLOW_NAMES, type ChallengeRow, type Hud } from './ui/hud';
 
 export const DT = 1 / 60;
 const MAX_STEPS = 5;
+/** Holding Space on a lift: the whole ride in this many seconds, however long the lift. */
+const LIFT_BOOST_S = 4;
 const CRASH_LINES = ['Yard sale!', 'Faceplant!', 'Oof!', 'Snow angel!'];
 const TIER_NAME = ['', 'Bronze', 'Silver', 'Gold'];
 const SPEED_MILESTONES = [80, 100, 120];
@@ -53,8 +55,8 @@ export class Game {
   private others: OtherSkiers | null = null;
   private colors: SkierColors | null = null;
   private wire: number[] = [];
-  /** On a lift: which, how far up, for how long; `held` until every key is up (a skip needs a fresh press). */
-  private ride: { lift: number; f: number; t: number; held: boolean } | null = null;
+  /** On a lift: which, how far up, for how long, and how much faster than the lift you are going (holding Space). */
+  private ride: { lift: number; f: number; t: number; boost: number } | null = null;
   private piste: Mountain['pistes'][number] | null = null;
   private pisteTick = 0;
   private world = new Group();
@@ -245,7 +247,7 @@ export class Game {
     const s = this.skier;
     this.prevPos.copy(s.pos);
     this.prevHeading = s.heading;
-    this.input.sample(this.inp, DT, s.airborne && !this.ride); // seated on a chair, ↑ / ↓ still count (to skip)
+    this.input.sample(this.inp, DT, s.airborne && !this.ride); // seated on a chair the keys still count (Space speeds it up)
     if (s !== this.skier) return; // a pad callback restarted / loaded the run mid-step: drop the stale step
     if (this.bot) botInput(s, this.track, this.inp, this.bot, this.botGap);
     if (this.ride) {
@@ -301,8 +303,8 @@ export class Game {
           if (d < bd) { bd = d; best = i; }
         });
         if (best >= 0) {
-          this.ride = { lift: best, f: 0, t: 0, held: true };
-          this.hud.pop(m.lifts[best].name, 'info', this.bot ? undefined : 'any key to skip');
+          this.ride = { lift: best, f: 0, t: 0, boost: 1 };
+          this.hud.pop(m.lifts[best].name, 'info', this.bot ? undefined : matchMedia('(pointer: coarse)').matches ? 'hold both thumbs to go faster' : 'hold Space to go faster');
           if (this.bot) this.ride.f = 1; // attract mode: straight back to the top
           return;
         }
@@ -329,17 +331,19 @@ export class Game {
   }
   private stuck = 0;
 
-  /** Riding a lift: a chair or a cabin carries the skier up, a drag lift tows them along the snow; any input skips to the top. */
+  /**
+   * Riding a lift: a chair or a cabin carries the skier up, a drag lift tows them along the snow. No skipping:
+   * holding Space (both thumbs, A) speeds it up, smoothly, until any lift takes LIFT_BOOST_S seconds end to end.
+   */
   private rideStep(s: SkierState): void {
     const r = this.ride!;
     const view = this.view!;
     const l = this.mountain!.lifts[r.lift];
     r.t += DT;
-    r.f += (l.speed * DT) / l.len;
-    const any = this.inp.jump || this.inp.tuck || this.inp.brake || Math.abs(this.inp.steer) > 0.5;
-    const skip = r.t > 0.6 && any && !r.held; // skating in with ↑ held does not skip: release, then press
-    r.held = any;
-    if (r.f >= 1 || skip) {
+    const top = Math.max(1, l.len / LIFT_BOOST_S / l.speed); // the fastest a held Space goes: the whole lift in a few seconds
+    r.boost += ((this.input.holding && r.t > 0.4 ? top : 1) - r.boost) * (1 - Math.exp(-DT / 0.35)); // eases in and out
+    r.f += (l.speed * r.boost * DT) / l.len;
+    if (r.f >= 1) {
       this.unload(this.mountain!.unload(r.lift));
       return;
     }
@@ -347,7 +351,7 @@ export class Game {
     if (seated) view.seat(r.lift, r.f, s.pos);
     else view.tow(r.lift, r.f, s.pos);
     const yaw = view.liftYaw(r.lift, r.f);
-    s.vel.set(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(l.speed);
+    s.vel.set(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(l.speed); // the lift's own speed: no speedometer at 1 000 km/h, no speed effects on a chair
     s.heading = yaw;
     s.airborne = seated;
     s.tuck = false;
