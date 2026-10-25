@@ -4,10 +4,12 @@ import { Input } from './input/input';
 import { ChaseCamera } from './render/camera';
 import { Flakes, pointScale, SkiTrails, SnowFx, type SceneLight } from './render/fx';
 import { buildChunkProps, buildLandmarks } from './render/props';
-import { SkierModel, type SkierColors } from './render/skierModel';
+import { DEFAULT_COLORS, SkierModel, type SkierColors } from './render/skierModel';
 import { Sky } from './render/sky';
 import { addSnowSparkle, Terrain } from './render/terrain';
 import { Crowd } from './render/crowd';
+import { OtherSkiers } from './render/others';
+import { FLAG, OnlineRide } from './net/online';
 import { MountainView } from './render/mountainView';
 import { botInput } from './sim/bot';
 import { makeMountain, type Mountain, type Spot } from './sim/mountain';
@@ -15,7 +17,7 @@ import { loadedStation, stationOfTrack } from './sim/stations';
 import { createFlow, stepFlow, type FlowEvent, type FlowState } from './sim/flow';
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
 import { createRun, runStats, SlowMo, spinDegrees, stepRun, type RunEvent, type RunState } from './sim/run';
-import { createSkier, stepSkier, type SkierEvent, type SkierInput, type SkierState } from './sim/skier';
+import { createSkier, startCrash, stepSkier, type SkierEvent, type SkierInput, type SkierState } from './sim/skier';
 import { makeTrack, Surface, type Ground, type Track, type TrackDef } from './sim/track';
 import { TUNING as T } from './tuning';
 import { FLOW_NAMES, type ChallengeRow, type Hud } from './ui/hud';
@@ -46,6 +48,11 @@ export class Game {
   /** The snow as drawn, which the skier is shown standing on: the track, or on the open mountain the view's surface. */
   private snow!: Ground;
   private crowd: Crowd | null = null;
+  /** Online free ride: the other players on the station (see goOnline). */
+  private online: OnlineRide | null = null;
+  private others: OtherSkiers | null = null;
+  private colors: SkierColors | null = null;
+  private wire: number[] = [];
   /** On a lift: which, how far up, for how long; `held` until every key is up (a skip needs a fresh press). */
   private ride: { lift: number; f: number; t: number; held: boolean } | null = null;
   private piste: Mountain['pistes'][number] | null = null;
@@ -109,6 +116,7 @@ export class Game {
   load(def: TrackDef): void {
     this.terrain?.dispose();
     this.view?.dispose();
+    this.goOffline();
     this.terrain = this.view = this.crowd = this.mountain = null;
     this.landmarks?.traverse((o) => {
       if (!(o instanceof Mesh)) return;
@@ -196,6 +204,7 @@ export class Game {
   }
 
   setOutfit(c: SkierColors): void {
+    this.colors = c;
     this.model.setColors(c);
   }
 
@@ -365,6 +374,47 @@ export class Game {
     this.cam.snap(s.pos, s.heading);
   }
 
+  /**
+   * Online free ride: join the station's players on the portal under `name` (you see them, they see you, and you
+   * can run into each other). Stays solo while the server sleeps or is out of reach.
+   */
+  goOnline(name: string, portal?: string): void {
+    const m = this.mountain, view = this.view;
+    if (!m || !view || this.online?.station === m.station.id) return;
+    this.goOffline();
+    const online = (this.online = new OnlineRide(m.station.id, name, this.colors ?? DEFAULT_COLORS));
+    this.others = new OtherSkiers(m, online, (x, z) => view.drawnHeight(x, z));
+    this.world.add(this.others.group);
+    online.onJoin = (r) => this.hud.pop(`${r.name} joined`, 'info');
+    online.onLeave = (r) => this.hud.pop(`${r.name} left`, 'info');
+    online.onBumped = (from) => {
+      const s = this.skier;
+      if (this.ride || s.crashTimer > 0) return;
+      const ev: SkierEvent[] = [];
+      startCrash(s, ev, 'obstacle');
+      this.model.onEvent(ev[0]);
+      this.audio.crash();
+      this.cam.addTrauma(0.85);
+      this.fx.crash(s, s.pos);
+      this.hud.pop(`${from?.name ?? 'Someone'} ran into you!`, 'bad');
+      this.rumble(1, 0.8, 380);
+    };
+    void online.start(portal).catch(() => { online.status = 'offline'; });
+  }
+
+  goOffline(): void {
+    this.online?.stop();
+    this.others?.dispose();
+    this.others?.group.removeFromParent();
+    this.online = null;
+    this.others = null;
+  }
+
+  /** Players online on this station (you included), or null when solo. */
+  onlineCount(): number | null {
+    return this.online?.status === 'online' ? this.online.remotes.size + 1 : null;
+  }
+
   /** Free ride shortcut (T): straight to the summit (the top of La Dôle, of the Mossettes). */
   toSummit(): void {
     if (!this.mountain || this.paused) return;
@@ -414,16 +464,19 @@ export class Game {
       case 'land':
         if (e.quality !== 'crash') this.landing = { e, points: 0 };
         break;
-      case 'crash':
+      case 'crash': {
+        const other = e.with !== undefined ? this.others?.remoteOf(e.with) : undefined;
+        if (other) this.online!.bump(other, s.vel.x * 4, s.vel.z * 4); // they fall too (the speed before the hit)
         this.audio.crash();
         this.cam.addTrauma(0.85);
         this.fx.crash(s, s.pos);
         this.hud.trick(null);
-        this.hud.pop(e.reason === 'obstacle' ? 'Tree hugger!' : CRASH_LINES[this.run.crashes % CRASH_LINES.length], 'bad');
+        this.hud.pop(other ? `You hit ${other.name}!` : e.reason === 'obstacle' ? 'Tree hugger!' : CRASH_LINES[this.run.crashes % CRASH_LINES.length], 'bad');
         if (!this.cam.comfort) this.hud.flash('crash', 0.7);
         this.slowmo.trigger(0.5, 0.15, 0.3);
         this.rumble(1, 0.8, 380);
         break;
+      }
     }
   }
 
@@ -552,7 +605,15 @@ export class Game {
     this.cam.update(this.renderPos, s, realDt, this.track.height);
     this.terrain?.update(this.cam.camera.position.z, 1);
     this.view?.update(gdt);
-    this.crowd?.update(gdt, this.sky.sunDirection);
+    this.crowd?.update(gdt, this.sky.sunDirection, this.cam.camera.position);
+    this.others?.update(gdt, this.sky.sunDirection);
+    if (this.online) {
+      const w = this.wire;
+      w.length = 0;
+      w.push(s.pos.x, s.pos.y, s.pos.z, s.heading, s.vel.x, s.vel.y, s.vel.z, s.edge, s.skid,
+        (s.airborne ? FLAG.air : 0) | (s.tuck ? FLAG.tuck : 0) | (s.braking ? FLAG.brake : 0) | (s.crashTimer > 0 ? FLAG.crash : 0) | (this.ride ? FLAG.lift : 0));
+      this.online.update(realDt, w);
+    }
     this.sky.setTime(Math.min(0.95, this.sky.time + gdt * 0.0012)); // slow day cycle, stops at dusk (no wrap to morning)
     this.sky.update(this.cam.camera.position);
 

@@ -50,6 +50,10 @@ ui.insertBefore(touch, hud.el); // before the HUD so `.touch.show ~ .hud` can sh
 const fpsEl = document.createElement('div');
 fpsEl.className = 'fps';
 ui.appendChild(fpsEl);
+const onlineEl = document.createElement('div'); // players online on the station (free ride)
+onlineEl.className = 'online';
+onlineEl.hidden = true;
+ui.appendChild(onlineEl);
 game.input.attachTouch(document.body);
 touch.querySelector('.jump')!.addEventListener('pointerdown', () => game.input.pressJump());
 
@@ -99,7 +103,21 @@ function setMode(m: Mode): void {
   touch.classList.toggle('show', m === 'run' && isTouch());
 }
 
+/** Your name for the online free ride (kept in the browser; a random one until you choose). */
+function playerName(): string {
+  try {
+    const n = storage.getItem('sillage.name')?.trim();
+    if (n) return n.slice(0, 16);
+    const fresh = `Skier${Math.floor(100 + Math.random() * 900)}`;
+    storage.setItem('sillage.name', fresh);
+    return fresh;
+  } catch {
+    return 'Skier';
+  }
+}
+
 function attract(): void {
+  game.goOffline();
   results?.remove();
   results = null;
   game.bestTiers = { ...save.medals };
@@ -128,6 +146,8 @@ async function startRun(id: string): Promise<void> {
   game.bestTiers = { ...save.medals };
   game.reset();
   setMode('run');
+  if (station) game.goOnline(playerName(), params.get('portal') ?? undefined); // the other players on the station, through the portal (?portal=<url> for a local one)
+  else game.goOffline();
   if (station) {
     hud.showHint(`<b>${station.name}</b> · ${station.area} — ski into a lift's bottom station to ride up · ${isTouch()
       ? 'hold <b>both</b> to skate on the flats' : `<b>↑</b> skates on the flats · <b>T</b> top of ${station.summitName}`} · <small>map © OpenStreetMap${station.id === 'rousses' ? '' : ' · IGN'}</small>`, 8);
@@ -255,6 +275,9 @@ function loop(now: number): void {
     if (slow > 60 && qualityScale > 0.5) { qualityScale = Math.max(0.5, qualityScale - (dt > 0.033 ? 0.15 : 0.1)); slow = 0; applySettings(); }
     if (fast > 600 && qualityScale < 1) { qualityScale = Math.min(1, qualityScale + 0.05); fast = 0; applySettings(); }
   }
+  const n = mode === 'run' || mode === 'paused' ? game.onlineCount() : null;
+  onlineEl.hidden = n === null;
+  if (n !== null) onlineEl.textContent = `● ${n} online`;
   fpsT += dt;
   if (fpsT > 0.5 && !fpsEl.hidden) { fpsEl.textContent = `${game.fps.toFixed(0)} fps`; fpsT = 0; }
   requestAnimationFrame(loop);

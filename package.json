@@ -19,6 +19,7 @@
     "feel": "vitest run tests/unit/feel.test.ts"
   },
   "dependencies": {
+    "socket.io-client": "4.8.3",
     "three": "0.186.1"
   },
   "devDependencies": {

@@ -15,7 +15,8 @@ export type SkierEvent =
   | { type: 'grab' }
   /** grab = seconds of grab banked (released before touchdown); lateGrab = still grabbing at touchdown. */
   | { type: 'land'; vn: number; quality: LandQuality; spin: number; flips: number; airTime: number; distance: number; grab?: number; lateGrab?: boolean }
-  | { type: 'crash'; reason: 'landing' | 'obstacle' };
+  /** with: the obstacle hit (its id), for an obstacle crash. */
+  | { type: 'crash'; reason: 'landing' | 'obstacle'; with?: number };
 
 export interface SkierState {
   pos: Vector3;
@@ -274,7 +275,7 @@ function collide(s: SkierState, g: Ground, ev: SkierEvent[]): boolean {
     if (!s.airborne) s.pos.y = g.height(s.pos.x, s.pos.z);
     if (s.vel.length() > 5) {
       s.vel.multiplyScalar(0.25); // the tree wins
-      startCrash(s, ev, 'obstacle');
+      startCrash(s, ev, 'obstacle', o.id);
       return true;
     }
     const into = (s.vel.x * dx + s.vel.z * dz) / d;
@@ -321,7 +322,7 @@ function land(s: SkierState, g: Ground, h: number, ev: SkierEvent[]): void {
   if (quality !== 'sketchy' && speed > 0.5) s.heading = Math.atan2(s.vel.x, s.vel.z); // forgiving: skis snap to the line
 }
 
-export function startCrash(s: SkierState, ev: SkierEvent[], reason: 'landing' | 'obstacle'): void {
+export function startCrash(s: SkierState, ev: SkierEvent[], reason: 'landing' | 'obstacle', obstacle?: number): void {
   s.crashTimer = T.crashDuration;
   s.airborne = false;
   s.grab = false;
@@ -329,7 +330,7 @@ export function startCrash(s: SkierState, ev: SkierEvent[], reason: 'landing' | 
   s.braking = false;
   s.skid = 1;
   s.edge = 0;
-  ev.push({ type: 'crash', reason });
+  ev.push({ type: 'crash', reason, ...(obstacle !== undefined ? { with: obstacle } : {}) });
 }
 
 function crashStep(s: SkierState, g: Ground, dt: number): void {

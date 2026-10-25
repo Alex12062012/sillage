@@ -289,3 +289,9 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 
 /* free ride: no clock, no challenges */
 .hud.free .hud-timer, .hud.free .hud-bar, .hud.free .hud-rows { display: none; }
+
+/* online free ride: your name, the players counter */
+.menu .name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 12px; font-weight: 600; }
+.menu .name small { opacity: 0.7; font-weight: 500; flex-basis: 100%; order: 3; }
+.menu .name input { font: inherit; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(0, 0, 0, 0.25); color: #fff; min-width: 0; flex: 1 1 160px; }
+.online { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: rgba(16, 22, 34, 0.55); color: #8ff0b0; font: 600 13px system-ui, sans-serif; pointer-events: none; }

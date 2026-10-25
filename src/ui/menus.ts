@@ -97,14 +97,21 @@ export class Menus {
     this.on('[data-go="main"]', () => this.main());
   }
 
-  /** Free ride: pick a ski area (its data loads on the first pick: the card says so meanwhile). */
+  /** Free ride: pick a ski area (its data loads on the first pick: the card says so meanwhile), under your online name. */
   stations(): void {
+    let name = '';
+    try { name = localStorage.getItem('sillage.name') ?? ''; } catch { /* private mode: a random name */ }
     const cards = STATIONS.map((st) => `<button class="run-card station" data-station="${st.trackId}">
         <b>${st.name}</b>
         <small>${st.area}</small>
         <span class="rec">${st.km} km of pistes · ${st.lifts} lifts · ${st.alt[0].toLocaleString('en-US')}–${st.alt[1].toLocaleString('en-US')} m</span>
       </button>`).join('');
-    this.open('stations', `<div class="menu wide"><h2>Free ride</h2><div class="cards">${cards}</div><div class="buttons"><button data-go="main">Back</button></div></div>`);
+    this.open('stations', `<div class="menu wide"><h2>Free ride</h2>
+      <label class="name">Your name <small>other players see it over your head</small><input data-name maxlength="16" placeholder="Skier" value="${name.replace(/[<>"&]/g, '')}"></label>
+      <div class="cards">${cards}</div><div class="buttons"><button data-go="main">Back</button></div></div>`, '[data-station]');
+    const input = this.el.querySelector<HTMLInputElement>('[data-name]')!;
+    input.addEventListener('input', () => { try { localStorage.setItem('sillage.name', input.value.trim().slice(0, 16)); } catch { /* not kept */ } });
+    input.addEventListener('keydown', (e) => e.stopPropagation()); // typing a name is not steering
     this.on('[data-station]', (b) => {
       b.querySelector('.rec')!.textContent = 'Loading…';
       this.a.play(b.dataset.station!);
