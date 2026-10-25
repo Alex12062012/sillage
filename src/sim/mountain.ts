@@ -52,6 +52,11 @@ export interface Mountain extends Track {
   liftPoint(l: Lift, f: number, out: { x: number; z: number; dx: number; dz: number }): void;
   /** Off lift i at the top, facing down the nearest piste. */
   unload(i: number): Spot;
+  /**
+   * `at`, or the nearest free place beside or behind it, never ahead: another skier standing there (a player
+   * online, a bot) would be hit again and again by every spawn there (T, R, the respawn after a fall, a lift's top).
+   */
+  clearSpot(at: Spot): Spot;
   /** A point `ahead` m down the piste under (x, z), for the bot. */
   guide(x: number, z: number, ahead: number): { x: number; z: number; hw: number };
 }
@@ -129,6 +134,8 @@ const pointIn = (poly: number[], x: number, z: number) => {
 };
 
 const WIDTH: Record<PisteColor, number> = { green: 15, blue: 15, red: 14, black: 12 };
+/** Where clearSpot looks, in order: [metres ahead (never > 0), metres to the side]. */
+const SLOTS = [[0, 0], [0, 4], [0, -4], [-6, 0], [-6, 4], [-6, -4], [-12, 0], [0, 8], [0, -8], [-12, 5], [-12, -5], [-18, 0], [-18, 6], [-18, -6], [-26, 0]];
 
 export function makeMountain(st: Station, R: StationData): Mountain {
   const seed = st.seed;
@@ -408,10 +415,21 @@ export function makeMountain(st: Station, R: StationData): Mountain {
       if (!h) {
         const l = lifts.reduce((a, b) => (Math.hypot(b.pts[0] - x, b.pts[1] - z) < Math.hypot(a.pts[0] - x, a.pts[1] - z) ? b : a));
         liftPoint(l, 0, pt);
-        return { x: pt.x - pt.dx * 12, z: pt.z - pt.dz * 12, heading: Math.atan2(pt.dx, pt.dz) };
+        return m.clearSpot({ x: pt.x - pt.dx * 12, z: pt.z - pt.dz * 12, heading: Math.atan2(pt.dx, pt.dz) });
       }
       along(h.p, Math.max(0, h.s - 6), pt);
-      return { x: pt.x, z: pt.z, heading: Math.atan2(pt.dx, pt.dz) };
+      return m.clearSpot({ x: pt.x, z: pt.z, heading: Math.atan2(pt.dx, pt.dz) });
+    },
+    clearSpot(at) {
+      const fx = Math.sin(at.heading), fz = Math.cos(at.heading);
+      const near: Obstacle[] = [];
+      for (const [a, side] of SLOTS) {
+        const x = at.x + fx * a + fz * side, z = at.z + fz * a - fx * side;
+        near.length = 0;
+        const busy = m.obstaclesNear(x, z, 2.5, near).some((o) => Math.hypot(o.x - x, o.z - z) < o.r + (o.kind === 'skier' ? 2.5 : 0.8));
+        if (!busy) return { x, z, heading: at.heading };
+      }
+      return at;
     },
     obstaclesNear(x, z, radius, out) {
       idx.near(x, z, radius, out);

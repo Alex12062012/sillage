@@ -162,7 +162,8 @@ export class Game {
   reset(): void {
     const z0 = -8;
     const at = this.mountain?.spawn;
-    this.skier = at ? createSkier(this.track, at.x, at.z, at.heading) : createSkier(this.track, this.track.centerX(z0), z0, 0);
+    const start = at && this.mountain!.clearSpot(at); // (R: beside or behind whoever stands in the queue)
+    this.skier = start ? createSkier(this.track, start.x, start.z, start.heading) : createSkier(this.track, this.track.centerX(z0), z0, 0);
     this.ride = null;
     this.view?.leaveSeat();
     this.model.setSeated(false);
@@ -361,9 +362,10 @@ export class Game {
   }
 
   /** Off the lift (or teleported): on the snow at a spot, facing down the nearest piste. */
-  unload(at: Spot): void {
+  unload(spot: Spot): void {
     const s = this.skier;
     const m = this.mountain!;
+    const at = m.clearSpot(spot); // someone already there: beside or behind them
     this.ride = null;
     this.view?.leaveSeat();
     this.model.setSeated(false);

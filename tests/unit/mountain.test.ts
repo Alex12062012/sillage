@@ -80,4 +80,23 @@ describe('free ride: Les Rousses, Dôle-Tuffes', () => {
     expect(Math.hypot(s.pos.x - x0, s.pos.z - z0)).toBeGreaterThan(800);
     expect(crashes).toBeLessThan(3);
   });
+
+  it('a spawn where someone stands moves beside or behind them, never ahead (no hit again and again)', () => {
+    const at = m.summit;
+    expect(m.clearSpot(at)).toEqual(at); // nobody there: right there
+    const other = { id: 123456, x: at.x, z: at.z, r: 0.45, h: 1.8, kind: 'skier' as const };
+    m.dynamic.push(other);
+    try {
+      const sp = m.clearSpot(at);
+      const dx = sp.x - at.x, dz = sp.z - at.z;
+      expect(Math.hypot(dx, dz)).toBeGreaterThan(2.5);
+      expect(dx * Math.sin(at.heading) + dz * Math.cos(at.heading)).toBeLessThanOrEqual(1e-9); // not ahead
+      expect(sp.heading).toBe(at.heading);
+      // the respawn after a fall there too
+      const r = m.respawn!(at.z, at.x);
+      expect(Math.hypot(r.x - other.x, r.z - other.z)).toBeGreaterThan(2.5);
+    } finally {
+      m.dynamic.splice(m.dynamic.indexOf(other), 1);
+    }
+  });
 });
