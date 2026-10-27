@@ -4,7 +4,7 @@ import { Game } from './game';
 import type { SkierInput } from './sim/skier';
 import { applyRun, COSMETICS, emptySave, isUnlocked, loadSave, saveSave, totalStars, type Save, type Settings } from './sim/progress';
 import { loadedStation, loadStation, stationOfTrack } from './sim/stations';
-import { DEFAULT_CONFIG, type StationConfig } from './sim/stationConfig';
+import { configFromUrl, DEFAULT_CONFIG, type StationConfig } from './sim/stationConfig';
 import { TRACKS, trackById } from './sim/tracks';
 import { TUNING } from './tuning';
 import { createDebugPanel } from './ui/debug';
@@ -44,6 +44,8 @@ let firstTrack = isUnlocked(save, lastTrack) || params.has('track') ? lastTrack 
 const firstStation = stationOfTrack(firstTrack); // the last run was an open mountain: behind the menu again (its data first)
 if (firstStation) await loadStation(firstStation).catch(() => { firstTrack = TRACKS[0].id; });
 const game = new Game(renderer, trackById(firstTrack), hud);
+game.stationConfig = (s) => configFromUrl(params, s.config); // a sales demo can set ?buildings= &crowd= &slopes=
+if (game.mountain && game.mountain.config.slopes !== game.stationConfig(game.mountain.station).slopes) game.load(game.track.def); // built before the URL was read
 
 // ── touch buttons (pause, jump), mirrored for left-handed players
 const touch = document.createElement('div');

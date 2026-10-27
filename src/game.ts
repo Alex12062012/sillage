@@ -13,7 +13,7 @@ import { FLAG, OnlineRide } from './net/online';
 import { MountainView } from './render/mountainView';
 import { botInput } from './sim/bot';
 import { boardReach, makeMountain, stationScale, type Mountain, type Spot } from './sim/mountain';
-import { loadedStation, stationOfTrack } from './sim/stations';
+import { loadedStation, stationOfTrack, type Station } from './sim/stations';
 import type { StationConfig } from './sim/stationConfig';
 import { createFlow, stepFlow, type FlowEvent, type FlowState } from './sim/flow';
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
@@ -135,7 +135,8 @@ export class Game {
       // free ride: one open mountain, built once (no streaming), with its lifts and its crowd (its data loaded beforehand)
       const data = loadedStation(station);
       if (!data) throw new Error(`${station.name} is not loaded`);
-      this.track = this.mountain = makeMountain(station, data);
+      const cfg = this.stationConfig?.(station) ?? station.config;
+      this.track = this.mountain = makeMountain(station, data, cfg);
       this.view = new MountainView(this.mountain);
       const view = this.view, m = this.mountain;
       this.snow = { height: (x, z) => view.drawnHeight(x, z), normal: m.normal, surface: m.surface };
@@ -143,7 +144,7 @@ export class Game {
       this.sparkle = addSnowSparkle(this.view.material);
       this.landmarks = null;
       this.world.add(this.view.group, this.crowd.group);
-      this.setConfig(station.config);
+      this.setConfig(cfg);
     } else {
       this.track = this.snow = makeTrack(def);
       this.terrain = new Terrain(this.track, buildChunkProps);
@@ -458,6 +459,9 @@ export class Game {
     this.phase = 'running';
     this.unload(this.mountain.summit);
   }
+
+  /** Free ride: the settings to build a station with (its own, or a sales demo's from the URL). */
+  stationConfig: ((s: Station) => StationConfig) | null = null;
 
   /** Free ride: the station's settings that apply live (buildings, crowd); the slopes need the mountain rebuilt (load). */
   setConfig(cfg: StationConfig): void {

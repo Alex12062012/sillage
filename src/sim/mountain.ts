@@ -1,5 +1,6 @@
 import { fbm, mulberry32 } from '../core/rng';
 import { freeDef, type Station, type StationData } from './stations';
+import type { SlopesMode, StationConfig } from './stationConfig';
 import { toLocal, type Resto } from './restos';
 import { clamp, indexObstacles, normalOf, smoothstep, Surface, type Obstacle, type Track } from './track';
 
@@ -33,6 +34,8 @@ export interface Spot { x: number; z: number; heading: number }
 
 export interface Mountain extends Track {
   station: Station;
+  /** The settings it was built with (the slopes are baked into its relief). */
+  config: StationConfig;
   /** How many times its large-scale relief is steepened (1: as it is). */
   steep: number;
   pistes: Piste[];
@@ -148,10 +151,22 @@ const WIDTH: Record<PisteColor, number> = { green: 15, blue: 15, red: 14, black:
 /** Where clearSpot looks, in order: [metres ahead (never > 0), metres to the side]. */
 const SLOTS = [[0, 0], [0, 4], [0, -4], [-6, 0], [-6, 4], [-6, -4], [-12, 0], [0, 8], [0, -8], [-12, 5], [-12, -5], [-18, 0], [-18, 6], [-18, -6], [-26, 0]];
 
-export function makeMountain(st: Station, R: StationData): Mountain {
+/**
+ * The station's "slopes" setting. steep multiplies the station's own steepening of the large-scale relief;
+ * accent steepens the land above the mean height of the pistes of a colour (1.6: 60 % more drop up there),
+ * "as remembered": the blacks, high on La Dôle, felt steeper than they are.
+ */
+export const SLOPES: Record<SlopesMode, { steep: number; accent: Record<PisteColor, number> }> = {
+  real: { steep: 1, accent: { green: 1, blue: 1, red: 1, black: 1 } },
+  fun: { steep: 1.25, accent: { green: 1, blue: 1, red: 1, black: 1 } },
+  memory: { steep: 1, accent: { green: 1, blue: 1, red: 1, black: 1.6 } },
+};
+
+export function makeMountain(st: Station, R: StationData, cfg: StationConfig = st.config): Mountain {
+  const slopes = SLOPES[cfg.slopes];
   const seed = st.seed;
   const rnd = mulberry32(seed);
-  const steep = steepen(st.steep, st.h0);
+  const steep = steepen(st.steep * slopes.steep, st.h0);
 
   // ── raw relief: the massif (20 m) faded into the land around (300 m) over its last 300 m; the land around
   // (the large scale) steepened, the massif's own detail (fine − around) added back as it is
@@ -163,11 +178,31 @@ export function makeMountain(st: Station, R: StationData): Mountain {
   const aroundOf = (a: Float32Array, x: number, z: number) => bicubic(a, A.nx, A.nz, (x - A.x0) / A.step, (z - A.z0) / A.step);
   const aroundH = (x: number, z: number) => aroundOf(ah, x, z);
   const inner = (x: number, z: number) => smoothstep(0, 300, Math.min(x - F.x0, fx1 - x, z - F.z0, fz1 - z));
-  const raw = (x: number, z: number) => {
+  const raw0 = (x: number, z: number) => {
     const w = inner(x, z);
     const big = aroundH(x, z);
     return w > 0 ? big + (bicubic(fh, F.nx, F.nz, (x - F.x0) / F.step, (z - F.z0) / F.step) - aroundOf(ah0, x, z)) * w : big;
   };
+  // "as remembered": above the mean height of an accented colour's pistes (the blacks: high on La Dôle), the land
+  // rises `accent` times as fast. A function of the height alone, like the steepening: it keeps the order of heights,
+  // so a piste that never climbed still never climbs, and nothing is raised in steps.
+  const knees: [number, number][] = [];
+  for (const c of ['green', 'blue', 'red', 'black'] as PisteColor[]) {
+    const k = slopes.accent[c] - 1;
+    if (k <= 0) continue;
+    let sum = 0, n = 0; // every 25 m of every piste of that colour: their mean height, length-weighted
+    for (const src of R.pistes) {
+      if (src.diff !== c || ('area' in src && src.area)) continue;
+      const pts = resample(src.pts, 25);
+      for (let q = 0; q < pts.length; q += 2, n++) sum += raw0(pts[q], pts[q + 1]);
+    }
+    if (n) knees.push([sum / n, k]);
+  }
+  const accent = (h: number) => {
+    for (const [knee, k] of knees) h += k * 25 * Math.log1p(Math.exp((h - knee) / 25)); // softplus: no crease at the knee
+    return h;
+  };
+  const raw = knees.length ? (x: number, z: number) => accent(raw0(x, z)) : raw0;
   const fbits = Uint8Array.from(atob(F.forest), (c) => c.charCodeAt(0));
   const forest = (x: number, z: number) => {
     const i = Math.round((x - F.x0) / F.step), j = Math.round((z - F.z0) / F.step);
@@ -264,7 +299,7 @@ export function makeMountain(st: Station, R: StationData): Mountain {
     }
   }
   const height = (x: number, z: number) =>
-    x < bounds.x0 || x > bounds.x1 || z < bounds.z0 || z > bounds.z1 ? aroundH(x, z) : bicubic(gh, nx, nz, (x - bounds.x0) / STEP, (z - bounds.z0) / STEP);
+    x < bounds.x0 || x > bounds.x1 || z < bounds.z0 || z > bounds.z1 ? accent(aroundH(x, z)) : bicubic(gh, nx, nz, (x - bounds.x0) / STEP, (z - bounds.z0) / STEP);
   const groomedAt = (x: number, z: number) => {
     const fx = clamp((x - bounds.x0) / STEP, 0, nx - 1.001), fz = clamp((z - bounds.z0) / STEP, 0, nz - 1.001);
     const i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j, k = j * nx + i;
@@ -453,6 +488,7 @@ export function makeMountain(st: Station, R: StationData): Mountain {
   const m: Mountain = {
     def: freeDef(st),
     station: st,
+    config: cfg,
     steep: st.steep,
     kickers: [],
     features: [],
@@ -461,7 +497,7 @@ export function makeMountain(st: Station, R: StationData): Mountain {
     dynamic,
     grid: { x0: bounds.x0, z0: bounds.z0, step: STEP, nx, nz, h: gh, groomed: gg },
     forest,
-    around: { x0: A.x0, z0: A.z0, step: A.step, nx: A.nx, nz: A.nz, h: ah, h0: ah0 },
+    around: { x0: A.x0, z0: A.z0, step: A.step, nx: A.nx, nz: A.nz, h: knees.length ? ah.map(accent) : ah, h0: ah0 },
     bounds,
     scenery: { roads: R.roads, buildings, radar: R.radar },
     restos,
