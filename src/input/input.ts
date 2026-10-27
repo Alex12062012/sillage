@@ -35,7 +35,8 @@ export class Input {
   /** Rumble on gamepads, vibrate on phones (setting). */
   haptics = true;
   private lastTouch = -Infinity;
-  onKey: ((code: string) => void) | null = null;
+  /** `code` is the physical key, `key` the letter it types (M is `Semicolon` on an AZERTY keyboard). */
+  onKey: ((code: string, key: string) => void) | null = null;
   onPad: ((button: 'a' | 'b' | 'start' | 'y' | 'select' | 'up' | 'down') => void) | null = null;
 
   constructor(target: Window = window) {
@@ -46,7 +47,7 @@ export class Input {
       this.keys.add(e.code);
       if (e.code === 'Space' && !inUi) this.jumpQueued = true;
       if (!inUi && (e.code.startsWith('Arrow') || e.code === 'Space')) e.preventDefault();
-      this.onKey?.(e.code);
+      this.onKey?.(e.code, e.key);
     });
     target.addEventListener('keyup', (e) => this.keys.delete(e.code));
     target.addEventListener('blur', () => { this.keys.clear(); this.fingers.clear(); });

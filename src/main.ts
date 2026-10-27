@@ -236,17 +236,18 @@ ${(s.vel.length() * 3.6).toFixed(0)} km/h  z ${s.pos.z.toFixed(0)}  edge ${s.edg
 score ${game.run.score}  chain ${game.run.chain}  near-misses ${game.run.nearMisses}  crashes ${game.run.crashes}`;
 });
 
-game.input.onKey = (code) => {
+game.input.onKey = (code, key = '') => {
+  const isMap = key.toLowerCase() === 'm'; // by letter: on AZERTY the M key is not KeyM
   game.audio.unlock();
   if (code === 'Backquote' || code === 'F2' || code === 'IntlBackslash') debug.toggle();
   if (mode === 'run') {
     if (code === 'KeyR') restart();
     if (code === 'KeyT') game.toSummit();
-    if (code === 'KeyM') openMap();
+    if (isMap) openMap();
     if (code === 'Escape' || code === 'KeyP') pause();
     if (code === 'KeyC') { save.settings.camera = save.settings.camera === 'chase' ? 'helmet' : 'chase'; persist(); applySettings(); }
   } else if (trailMap.open) {
-    if (code === 'KeyM' || code === 'Escape') closeMap();
+    if (isMap || code === 'Escape') closeMap();
   } else if (mode === 'paused' && (code === 'Escape' || code === 'KeyP')) {
     menus.hide();
     setMode('run');
@@ -274,7 +275,7 @@ game.input.onPad = (b) => {
   }
   if (b === 'start') pause();
   if (b === 'y') restart();
-  if (b === 'select') game.input.onKey?.('KeyC');
+  if (b === 'select') game.input.onKey?.('KeyC', 'c');
 };
 // touch activation happens on release (iOS): unlock on both ends of the gesture
 for (const ev of ['pointerdown', 'pointerup', 'touchend'] as const) window.addEventListener(ev, () => game.audio.unlock());
