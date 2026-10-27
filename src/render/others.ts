@@ -87,6 +87,13 @@ export class OtherSkiers {
     }
   }
 
+  /** Where the other players are, for the trail map. */
+  markers(): { name: string; x: number; z: number }[] {
+    const out: { name: string; x: number; z: number }[] = [];
+    for (const [id, v] of this.shown) out.push({ name: this.ride.remotes.get(id)?.name ?? '', x: v.s.pos.x, z: v.s.pos.z });
+    return out;
+  }
+
   private drop(id: string, v: Shown): void {
     this.group.remove(v.model.root, v.model.shadow, v.tag);
     v.tag.material.map?.dispose();

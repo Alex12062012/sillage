@@ -21,6 +21,7 @@ import { createSkier, startCrash, stepSkier, type SkierEvent, type SkierInput, t
 import { makeTrack, Surface, type Ground, type Track, type TrackDef } from './sim/track';
 import { TUNING as T } from './tuning';
 import { FLOW_NAMES, type ChallengeRow, type Hud } from './ui/hud';
+import type { MapMarkers } from './ui/trailMap';
 
 export const DT = 1 / 60;
 const MAX_STEPS = 5;
@@ -426,6 +427,22 @@ export class Game {
     if (!this.mountain || this.paused) return;
     this.phase = 'running';
     this.unload(this.mountain.summit);
+  }
+
+  /** From the trail map: into lift i's queue, a few metres before its bottom station (you board on arrival). */
+  toLift(i: number): void {
+    const m = this.mountain;
+    if (!m) return;
+    const p = m.lifts[i].pts, dx = p[2] - p[0], dz = p[3] - p[1], d = Math.hypot(dx, dz) || 1;
+    const heading = Math.atan2(dx / d, dz / d);
+    this.phase = 'running';
+    this.unload({ x: p[0] - (dx / d) * 8, z: p[1] - (dz / d) * 8, heading });
+  }
+
+  /** You and the other players, for the trail map. */
+  mapMarkers(): MapMarkers {
+    const s = this.skier;
+    return { me: { x: s.pos.x, z: s.pos.z, heading: s.heading, lift: this.ride?.lift ?? null }, others: this.others?.markers() ?? [] };
   }
 
   /** Speed / air / chain / spin medals pop the moment they are earned (Traffic Rider's instant objective). */

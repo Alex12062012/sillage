@@ -10,6 +10,7 @@ import { createDebugPanel } from './ui/debug';
 import { Hud } from './ui/hud';
 import { isTouch, Menus } from './ui/menus';
 import { showResults } from './ui/results';
+import { TrailMap } from './ui/trailMap';
 
 // ── persistence
 const storage = (() => {
@@ -45,7 +46,7 @@ const game = new Game(renderer, trackById(firstTrack), hud);
 // ── touch buttons (pause, jump), mirrored for left-handed players
 const touch = document.createElement('div');
 touch.className = 'touch';
-touch.innerHTML = `<button class="touch-btn pause" aria-label="Pause">II</button><button class="touch-btn jump" aria-label="Jump">↑</button>`;
+touch.innerHTML = `<button class="touch-btn pause" aria-label="Pause">II</button><button class="touch-btn map" aria-label="Trail map">Map</button><button class="touch-btn jump" aria-label="Jump">↑</button>`;
 ui.insertBefore(touch, hud.el); // before the HUD so `.touch.show ~ .hud` can shift the score clear of the button
 const fpsEl = document.createElement('div');
 fpsEl.className = 'fps';
@@ -56,6 +57,9 @@ onlineEl.hidden = true;
 ui.appendChild(onlineEl);
 game.input.attachTouch(document.body);
 touch.querySelector('.jump')!.addEventListener('pointerdown', () => game.input.pressJump());
+// free ride: the station's trail map (M, the map button); the game waits while it is open
+const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { closeMap(); game.toLift(i); }, () => closeMap());
+touch.querySelector('.map')!.addEventListener('click', () => openMap());
 
 // ── screens: attract (menus over a bot run) · run · paused · results
 type Mode = 'attract' | 'run' | 'paused' | 'results';
@@ -101,6 +105,7 @@ function setMode(m: Mode): void {
   game.paused = m === 'paused';
   hud.show(m === 'run' || m === 'paused');
   touch.classList.toggle('show', m === 'run' && isTouch());
+  touch.classList.toggle('free', !!game.mountain);
 }
 
 /** Your name for the online free ride (kept in the browser; a random one until you choose). */
@@ -150,7 +155,7 @@ async function startRun(id: string): Promise<void> {
   else game.goOffline();
   if (station) {
     hud.showHint(`<b>${station.name}</b> · ${station.area} — ski into a lift's bottom station to ride up · ${isTouch()
-      ? 'hold <b>both</b> to skate on the flats' : `<b>↑</b> skates on the flats · <b>T</b> top of ${station.summitName}`} · <small>map © OpenStreetMap${station.id === 'rousses' ? '' : ' · IGN'}</small>`, 8);
+      ? 'hold <b>both</b> to skate on the flats · <b>Map</b> to find a lift' : `<b>↑</b> skates on the flats · <b>T</b> top of ${station.summitName} · <b>M</b> trail map`} · <small>map © OpenStreetMap${station.id === 'rousses' ? '' : ' · IGN'}</small>`, 8);
   } else if (!save.seenHint) {
     hud.showHint(isTouch()
       ? '<b>Hold</b> left / right to carve · <b>both</b> to tuck (grab in the air) · swipe <b>↑</b> jump · swipe <b>↓</b> brake'
@@ -174,6 +179,18 @@ function bankPartial(): void {
 function restart(): void {
   bankPartial();
   startRun(game.track.def.id);
+}
+
+function openMap(): void {
+  if (mode !== 'run' || !game.mountain) return;
+  setMode('paused');
+  trailMap.show(game.mountain);
+}
+
+function closeMap(): void {
+  if (!trailMap.open) return;
+  trailMap.hide();
+  setMode('run');
 }
 
 function pause(): void {
@@ -225,8 +242,11 @@ game.input.onKey = (code) => {
   if (mode === 'run') {
     if (code === 'KeyR') restart();
     if (code === 'KeyT') game.toSummit();
+    if (code === 'KeyM') openMap();
     if (code === 'Escape' || code === 'KeyP') pause();
     if (code === 'KeyC') { save.settings.camera = save.settings.camera === 'chase' ? 'helmet' : 'chase'; persist(); applySettings(); }
+  } else if (trailMap.open) {
+    if (code === 'KeyM' || code === 'Escape') closeMap();
   } else if (mode === 'paused' && (code === 'Escape' || code === 'KeyP')) {
     menus.hide();
     setMode('run');
@@ -246,6 +266,10 @@ game.input.onPad = (b) => {
     if (b === 'down' || b === 'up') menus.move(b === 'down' ? 1 : -1, mode === 'results' && results ? results : undefined);
     if (b === 'a') (document.activeElement as HTMLElement | null)?.click();
     if (b === 'b' && menus.current === 'pause') { menus.hide(); setMode('run'); }
+    return;
+  }
+  if (trailMap.open) {
+    if (b === 'b' || b === 'start') closeMap();
     return;
   }
   if (b === 'start') pause();
