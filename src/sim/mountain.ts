@@ -1,5 +1,6 @@
 import { fbm, mulberry32 } from '../core/rng';
 import { freeDef, type Station, type StationData } from './stations';
+import { toLocal, type Resto } from './restos';
 import { clamp, indexObstacles, normalOf, smoothstep, Surface, type Obstacle, type Track } from './track';
 
 /**
@@ -46,6 +47,10 @@ export interface Mountain extends Track {
   bounds: { x0: number; x1: number; z0: number; z1: number };
   /** Roads, building boxes (x, z, width, depth, yaw, levels), a landmark dome: what the view draws as they are. */
   scenery: { roads: number[][]; buildings: number[][]; radar: number[] | null };
+  /** The places to eat, as the real buildings (their generic boxes are left out of scenery.buildings). */
+  restos: Resto[];
+  /** On the snow in front of resto i's sign, facing it. */
+  restoSpot(i: number): Spot;
   /** In the start lift's queue, facing it. */
   spawn: Spot;
   /** Off the summit lift, at the head of the piste that drops the most. */
@@ -352,6 +357,26 @@ export function makeMountain(st: Station, R: StationData): Mountain {
   // beside the line, looking up it (the station, the chairs climbing): 12 m from the bottom, the first push boards it
   const spawn = { x: pt.x - pt.dx * 9 + pt.dz * 8, z: pt.z - pt.dz * 9 - pt.dx * 8, heading: Math.atan2(pt.dx, pt.dz) };
 
+  // ── the restaurants: real footprints, the plinth down to the lowest ground, the sign towards the nearest piste
+  const restos: Resto[] = st.restos.map((r) => {
+    const [x, z] = toLocal(R.origin, r.lat, r.lon);
+    const u = [Math.cos(r.yaw), -Math.sin(r.yaw)], v = [Math.sin(r.yaw), Math.cos(r.yaw)]; // the footprint's axes (w along u, d along v)
+    let y = Infinity;
+    for (const a of [-1, 1]) for (const b of [-1, 1]) y = Math.min(y, height(x + (u[0] * a * r.w + v[0] * b * r.d) / 2, z + (u[1] * a * r.w + v[1] * b * r.d) / 2));
+    let signYaw = r.signYaw;
+    if (signYaw === undefined) {
+      const h = pisteAt(x, z, 400);
+      if (h) along(h.p, h.s, pt);
+      signYaw = h ? Math.atan2(pt.x - x, pt.z - z) : 0;
+    }
+    return { ...r, x, z, y, signYaw };
+  });
+  const inResto = (r: Resto, x: number, z: number, pad = 0) => {
+    const c = Math.cos(r.yaw), s = Math.sin(r.yaw), dx = x - r.x, dz = z - r.z;
+    return Math.abs(dx * c - dz * s) < r.w / 2 + pad && Math.abs(dx * s + dz * c) < r.d / 2 + pad;
+  };
+  const buildings = R.buildings.filter(([x, z]) => !restos.some((r) => inResto(r, x, z)));
+
   // ── obstacles: a cleared corridor under every lift, around roads and buildings
   const clear = new Uint8Array(nx * nz);
   const stamp = (x: number, z: number, r: number) => {
@@ -370,6 +395,7 @@ export function makeMountain(st: Station, R: StationData): Mountain {
   for (const l of lifts) stampLine(l.pts, 8);
   for (const r of R.roads) stampLine(r, 6);
   for (const b of R.buildings) stamp(b[0], b[1], Math.max(b[2], b[3]) / 2 + 4);
+  for (const r of restos) stamp(r.x, r.z, Math.max(r.w, r.d) / 2 + 6);
   if (R.radar) stamp(R.radar[0], R.radar[1], 16);
   const cleared = (x: number, z: number) => clear[Math.round((z - bounds.z0) / STEP) * nx + Math.round((x - bounds.x0) / STEP)] === 1;
 
@@ -402,6 +428,16 @@ export function makeMountain(st: Station, R: StationData): Mountain {
       }
     }
   }
+  // the restaurants: solid, circles along the footprint's long side
+  for (const r of restos) {
+    const long = Math.max(r.w, r.d), short = Math.min(r.w, r.d);
+    const ax = r.w >= r.d ? [Math.cos(r.yaw), -Math.sin(r.yaw)] : [Math.sin(r.yaw), Math.cos(r.yaw)];
+    const n = Math.max(1, Math.ceil(long / short));
+    for (let k = 0; k < n; k++) {
+      const t = n === 1 ? 0 : -long / 2 + short / 2 + ((long - short) * k) / (n - 1);
+      list.push({ id: list.length, x: r.x + ax[0] * t, z: r.z + ax[1] * t, r: short / 2, h: r.ridge + 1, kind: 'building' });
+    }
+  }
   const idx = indexObstacles(list);
   const dynamic: Obstacle[] = [];
 
@@ -418,7 +454,14 @@ export function makeMountain(st: Station, R: StationData): Mountain {
     forest,
     around: { x0: A.x0, z0: A.z0, step: A.step, nx: A.nx, nz: A.nz, h: ah, h0: ah0 },
     bounds,
-    scenery: { roads: R.roads, buildings: R.buildings, radar: R.radar },
+    scenery: { roads: R.roads, buildings, radar: R.radar },
+    restos,
+    restoSpot(i) {
+      const r = restos[i], fx = Math.sin(r.signYaw), fz = Math.cos(r.signYaw);
+      const c = Math.cos(r.yaw), s = Math.sin(r.yaw);
+      const reach = (Math.abs(fx * c - fz * s) * r.w + Math.abs(fx * s + fz * c) * r.d) / 2; // the footprint's half extent that way
+      return m.clearSpot({ x: r.x + fx * (reach + 6), z: r.z + fz * (reach + 6), heading: r.signYaw + Math.PI });
+    },
     spawn,
     summit,
     height,
