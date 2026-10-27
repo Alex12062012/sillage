@@ -369,9 +369,14 @@ export function makeMountain(st: Station, R: StationData): Mountain {
     }
     let signYaw = r.signYaw;
     if (signYaw === undefined) {
-      const h = pisteAt(x, z, 400);
-      if (h) along(h.p, h.s, pt);
-      signYaw = h ? Math.atan2(pt.x - x, pt.z - z) : 0;
+      let best = Infinity, bx = x, bz = z + 1; // the nearest point of any piste line (pisteAt only sees a piste's own band)
+      for (const p of lines) {
+        for (let k = 0; k < p.pts.length; k += 2) {
+          const d = Math.hypot(p.pts[k] - x, p.pts[k + 1] - z);
+          if (d < best) { best = d; bx = p.pts[k]; bz = p.pts[k + 1]; }
+        }
+      }
+      signYaw = Math.atan2(bx - x, bz - z);
     }
     return { ...r, x, z, y, floor, signYaw };
   });

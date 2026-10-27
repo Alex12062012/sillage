@@ -40,6 +40,22 @@ describe('free ride: the restaurants of Les Rousses', () => {
     }
   });
 
+  it('turns each sign towards the nearest piste', () => {
+    for (const r of m.restos) {
+      let best = Infinity, bx = 0, bz = 0;
+      for (const p of m.pistes) {
+        if (p.area) continue;
+        for (let k = 0; k < p.pts.length; k += 2) {
+          const d = Math.hypot(p.pts[k] - r.x, p.pts[k + 1] - r.z);
+          if (d < best) { best = d; bx = p.pts[k]; bz = p.pts[k + 1]; }
+        }
+      }
+      const want = Math.atan2(bx - r.x, bz - r.z);
+      const off = Math.abs(Math.atan2(Math.sin(r.signYaw - want), Math.cos(r.signYaw - want)));
+      expect(off, r.name).toBeLessThan(0.2);
+    }
+  });
+
   it('has a free spot in front of each sign', () => {
     m.restos.forEach((r, i) => {
       const at = m.restoSpot(i);
