@@ -3,7 +3,7 @@ import { WebGLRenderer } from 'three';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
 import { applyRun, COSMETICS, emptySave, isUnlocked, loadSave, saveSave, totalStars, type Save, type Settings } from './sim/progress';
-import { loadedStation, loadStation, stationOfTrack } from './sim/stations';
+import { loadedStation, loadStation, stationOfTrack, STATIONS } from './sim/stations';
 import { configFromUrl, DEFAULT_CONFIG, type StationConfig } from './sim/stationConfig';
 import { TRACKS, trackById } from './sim/tracks';
 import { TUNING } from './tuning';
@@ -40,8 +40,11 @@ const renderer = new WebGLRenderer({ canvas, antialias: save.settings.quality ==
 const ui = document.getElementById('ui')!;
 const hud = new Hud(ui);
 const params = new URLSearchParams(location.search);
-const lastTrack = params.get('track') ?? storage.getItem('sillage.last') ?? TRACKS[0].id;
-let firstTrack = isUnlocked(save, lastTrack) || params.has('track') ? lastTrack : TRACKS[0].id;
+// ?station=rousses: straight into that station's free ride; &embed=1: on a resort's website (no way out to the game's menu)
+const urlStation = STATIONS.find((s) => s.id === params.get('station'));
+const embedded = params.get('embed') === '1';
+const lastTrack = urlStation?.trackId ?? params.get('track') ?? storage.getItem('sillage.last') ?? TRACKS[0].id;
+let firstTrack = isUnlocked(save, lastTrack) || params.has('track') || urlStation ? lastTrack : TRACKS[0].id;
 const firstStation = stationOfTrack(firstTrack); // the last run was an open mountain: behind the menu again (its data first)
 if (firstStation) await loadStation(firstStation).catch(() => { firstTrack = TRACKS[0].id; });
 const game = new Game(renderer, trackById(firstTrack), hud);
@@ -226,7 +229,7 @@ function pause(): void {
   menus.pause({
     resume: () => { menus.hide(); setMode('run'); },
     restart: () => restart(),
-    quit: () => { bankPartial(); attract(); },
+    quit: embedded ? undefined : () => { bankPartial(); attract(); },
   });
 }
 
@@ -339,7 +342,8 @@ function loop(now: number): void {
 // ── boot: apply settings, prewarm the world behind the loading screen, then the menu
 applySettings();
 applyOutfit();
-attract();
+if (urlStation) void startRun(urlStation.trackId);
+else attract();
 const loading = document.getElementById('loading');
 requestAnimationFrame((t) => {
   last = t;

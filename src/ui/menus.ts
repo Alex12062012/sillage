@@ -183,7 +183,8 @@ export class Menus {
     });
   }
 
-  pause(on: { resume(): void; restart(): void; quit(): void }): void {
+  /** `quit` left out (a station's website): no way back to the game's own menu. */
+  pause(on: { resume(): void; restart(): void; quit?: () => void }): void {
     this.open('pause', `
       <div class="menu">
         <h2>Paused</h2>
@@ -191,13 +192,13 @@ export class Menus {
           <button class="primary big" data-go="resume">Resume</button>
           <button data-go="restart">Restart <kbd>R</kbd></button>
           <button data-go="settings">Settings</button>
-          <button data-go="quit">Quit to menu</button>
+          ${on.quit ? '<button data-go="quit">Quit to menu</button>' : ''}
         </div>
       </div>`);
     this.on('[data-go="resume"]', on.resume);
     this.on('[data-go="restart"]', on.restart);
     this.on('[data-go="settings"]', () => this.settings(() => this.pause(on)));
-    this.on('[data-go="quit"]', on.quit);
+    if (on.quit) this.on('[data-go="quit"]', on.quit);
   }
 
   /** Gamepad / arrow navigation between focusable buttons. */

@@ -27,7 +27,7 @@ export interface Lift { name: string; kind: 'chair' | 'gondola' | 'drag' | 'carp
 export const stationScale = (l: Lift): number =>
   l.kind === 'gondola' ? (l.seats > 12 ? 2.2 : 1.6) : l.kind === 'chair' ? 1 : l.kind === 'drag' ? 0.5 : 0;
 /** How far from a bottom station's centre you can board (Space): its half-width and a few metres. */
-export const boardReach = (l: Lift): number => 4.5 * stationScale(l) + 9;
+export const boardReach = (l: Lift): number => 4.5 * stationScale(l) + 11;
 
 export interface PisteHit { p: Piste; d: number; s: number }
 export interface Spot { x: number; z: number; heading: number }
@@ -389,8 +389,9 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
   // the start: in the start lift's queue (the Jouvenceaux at the foot of Les Jouvencelles, Super-Morzine in the village), facing it
   const base = lifts.find((l) => l.name === st.start) ?? lifts[0];
   liftPoint(base, 0, pt);
-  // beside the line, looking up it (the station, the chairs climbing): 12 m from the bottom, the first push boards it
-  const spawn = { x: pt.x - pt.dx * 9 + pt.dz * 8, z: pt.z - pt.dz * 9 - pt.dx * 8, heading: Math.atan2(pt.dx, pt.dz) };
+  // beside the line, looking up it (the station, the chairs climbing), within reach of Space; far enough aside that
+  // every place of the queue (clearSpot: 4 and 8 m further in) skates past the solid station, not into it
+  const spawn = { x: pt.x - pt.dx * 6 + pt.dz * 13.5, z: pt.z - pt.dz * 6 - pt.dx * 13.5, heading: Math.atan2(pt.dx, pt.dz) };
 
   // ── the restaurants: real footprints, the plinth down to the lowest ground, the sign towards the nearest piste
   const restos: Resto[] = st.restos.map((r) => {

@@ -85,6 +85,18 @@ describe('free ride: Les Rousses, Dôle-Tuffes', () => {
     expect(crashes).toBeLessThan(3);
   });
 
+  it('the start queue: every place has a clear way ahead, past the lift station (players online fill it)', () => {
+    const at = m.spawn, fx = Math.sin(at.heading), fz = Math.cos(at.heading);
+    for (const side of [0, 4, -4, 8, -8]) {
+      const x0 = at.x + fz * side, z0 = at.z - fx * side;
+      for (let a = 0; a <= 20; a += 1) {
+        const x = x0 + fx * a, z = z0 + fz * a;
+        const hit = m.obstaclesNear(x, z, 1, []).filter((o) => o.kind === 'station' && Math.hypot(o.x - x, o.z - z) < o.r + 0.5);
+        expect(hit.length, `side ${side}, ${a} m ahead`).toBe(0);
+      }
+    }
+  });
+
   it('a spawn where someone stands moves beside or behind them, never ahead (no hit again and again)', () => {
     const at = m.summit;
     expect(m.clearSpot(at)).toEqual(at); // nobody there: right there

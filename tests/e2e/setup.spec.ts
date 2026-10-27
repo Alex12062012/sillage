@@ -10,12 +10,13 @@ const boot = async (page: Page, url: string) => {
 };
 
 test('?setup: the station settings, live and exported', async ({ page }) => {
+  test.setTimeout(240_000); // the station is built twice
   await boot(page, '/?setup');
   const panel = page.locator('.setup');
   await expect(panel).toBeVisible();
   expect(await api<number>(page, 'a.skiers()')).toBeGreaterThan(20);
   await panel.getByRole('radio', { name: 'Nobody' }).check();
-  await expect.poll(() => api<number>(page, 'a.skiers()')).toBe(0);
+  await expect.poll(() => api<number>(page, 'a.skiers()'), { timeout: 20_000 }).toBe(0);
   const download = page.waitForEvent('download');
   await panel.getByRole('button', { name: 'Export settings' }).click();
   expect((await download).suggestedFilename()).toBe('rousses.config.json');
