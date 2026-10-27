@@ -384,7 +384,7 @@ window.__sillage = {
   spot: (x: number, z: number, heading = 0) => { game.unload({ x, z, heading }); game.phase = 'running'; }, // free ride
   lift: (i: number) => game.toLift(i), // free ride: into lift i's queue
   resto: (i: number) => game.toResto(i), // free ride: in front of resto i's sign
-  skiers: () => game.mountain?.dynamic.filter((o) => o.kind === 'skier' && o.x < 1e8).length ?? 0, // the crowd out on the pistes
+  skiers: () => game.mountain?.dynamic.filter((o) => o.kind === 'skier' && o.id >= 900000 && o.x < 1e8).length ?? 0, // the simulated crowd out on the pistes (not the players online)
   restos: () => game.mountain?.restos.map((r) => ({ name: r.name, x: r.x, z: r.z })) ?? [],
   config: (c: Partial<StationConfig>) => game.setConfig({ ...(game.mountain?.station.config ?? DEFAULT_CONFIG), ...c }),
   debug: () => debug.toggle(),
