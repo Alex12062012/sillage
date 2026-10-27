@@ -12,6 +12,7 @@ import { Hud } from './ui/hud';
 import { isTouch, Menus } from './ui/menus';
 import { showResults } from './ui/results';
 import { MiniMap } from './ui/miniMap';
+import { SetupPanel } from './ui/setup';
 import { TrailMap } from './ui/trailMap';
 
 // ── persistence
@@ -64,6 +65,26 @@ touch.querySelector('.jump')!.addEventListener('pointerdown', () => game.input.p
 // free ride: the station's trail map (M, the map button); the game waits while it is open
 const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { closeMap(); game.toLift(i); }, () => closeMap(), (i) => { closeMap(); game.toResto(i); });
 const miniMap = new MiniMap(ui, () => game.mapMarkers(), () => openMap()); // top right; a tap opens the full map
+// ?setup: the station settings screen of a sales demo (visitors never see it); the URL keeps the choices
+const setupHost = document.createElement('div');
+setupHost.className = 'setup-host';
+setupHost.hidden = true;
+ui.appendChild(setupHost);
+let setup: SetupPanel | null = null;
+function showSetup(on: boolean): void {
+  const m = game.mountain;
+  setupHost.hidden = !(on && m && params.has('setup'));
+  if (setupHost.hidden || setup || !m) return;
+  setup = new SetupPanel(setupHost, m.config, m.station.id, (cfg) => {
+    const url = new URL(location.href);
+    for (const k of ['buildings', 'crowd', 'slopes'] as const) url.searchParams.set(k, cfg[k]);
+    if (cfg.slopes !== game.mountain?.config.slopes) location.assign(url); // a new relief: the station is rebuilt
+    else {
+      history.replaceState(null, '', url);
+      game.setConfig(cfg);
+    }
+  });
+}
 
 // ── screens: attract (menus over a bot run) · run · paused · results
 type Mode = 'attract' | 'run' | 'paused' | 'results';
@@ -111,6 +132,7 @@ function setMode(m: Mode): void {
   touch.classList.toggle('show', m === 'run' && isTouch());
   touch.classList.toggle('free', !!game.mountain);
   miniMap.show(m === 'run' || m === 'paused' ? game.mountain : null);
+  showSetup(m === 'run' || m === 'paused');
 }
 
 /** Your name for the online free ride (kept in the browser; a random one until you choose). */
@@ -362,6 +384,7 @@ window.__sillage = {
   spot: (x: number, z: number, heading = 0) => { game.unload({ x, z, heading }); game.phase = 'running'; }, // free ride
   lift: (i: number) => game.toLift(i), // free ride: into lift i's queue
   resto: (i: number) => game.toResto(i), // free ride: in front of resto i's sign
+  skiers: () => game.mountain?.dynamic.filter((o) => o.kind === 'skier' && o.x < 1e8).length ?? 0, // the crowd out on the pistes
   restos: () => game.mountain?.restos.map((r) => ({ name: r.name, x: r.x, z: r.z })) ?? [],
   config: (c: Partial<StationConfig>) => game.setConfig({ ...(game.mountain?.station.config ?? DEFAULT_CONFIG), ...c }),
   debug: () => debug.toggle(),
