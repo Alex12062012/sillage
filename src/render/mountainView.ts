@@ -4,7 +4,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { fbm } from '../core/rng';
-import { DEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
+import { DEEP, towerGap, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { smoothstep } from '../sim/track';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
 import { building, RestoView } from './restos';
@@ -300,7 +300,7 @@ export class MountainView {
     for (const lift of m.lifts) {
       const spec = specOf(lift);
       const v: LiftView = { lift, spec, anchors: [], cum: [], towerH: spec.towerH, side: spec.side, clear: spec.clear };
-      const gap = spec.gap;
+      const gap = towerGap(lift); // where the towers stand: the same posts the skier hits (liftTowers)
       for (let k = 0; k < lift.pts.length; k += 2) {
         const sub = k ? Math.max(1, Math.round((lift.cum[k / 2] - lift.cum[k / 2 - 1]) / gap)) : 1;
         for (let n = k ? 1 : 0; n <= (k ? sub : 0); n++) {

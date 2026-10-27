@@ -29,6 +29,20 @@ export const stationScale = (l: Lift): number =>
 /** How far from a bottom station's centre you can board (Space): its half-width and a few metres. */
 export const boardReach = (l: Lift): number => 4.5 * stationScale(l) + 11;
 
+/** The spacing of a lift's towers between its OSM pylons (m), as the view draws them. */
+export const towerGap = (l: Lift): number => (l.kind === 'gondola' ? (l.seats > 12 ? 420 : 220) : l.kind === 'chair' ? 120 : 80);
+
+/** Where a lift's towers stand, as fractions of its length: every OSM pylon, and every towerGap m between. */
+export function liftTowers(l: Lift): number[] {
+  const out: number[] = [];
+  for (let k = 1; k < l.pts.length / 2; k++) {
+    const seg = l.cum[k] - l.cum[k - 1], sub = Math.max(1, Math.round(seg / towerGap(l)));
+    for (let n = 1; n <= sub; n++) out.push((l.cum[k - 1] + (seg * n) / sub) / l.len);
+  }
+  out.pop(); // the top station
+  return out;
+}
+
 export interface PisteHit { p: Piste; d: number; s: number }
 export interface Spot { x: number; z: number; heading: number }
 
@@ -473,14 +487,24 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
       }
     }
   }
-  // the restaurants: solid, circles along the footprint's long side
-  for (const r of restos) {
-    const long = Math.max(r.w, r.d), short = Math.min(r.w, r.d);
-    const ax = r.w >= r.d ? [Math.cos(r.yaw), -Math.sin(r.yaw)] : [Math.sin(r.yaw), Math.cos(r.yaw)];
+  // the buildings (the restaurants, the others): solid, circles along the footprint's long side
+  const footprint = (x: number, z: number, w: number, d: number, yaw: number, h: number) => {
+    const long = Math.max(w, d), short = Math.min(w, d);
+    const ax = w >= d ? [Math.cos(yaw), -Math.sin(yaw)] : [Math.sin(yaw), Math.cos(yaw)];
     const n = Math.max(1, Math.ceil(long / short));
     for (let k = 0; k < n; k++) {
       const t = n === 1 ? 0 : -long / 2 + short / 2 + ((long - short) * k) / (n - 1);
-      list.push({ id: list.length, x: r.x + ax[0] * t, z: r.z + ax[1] * t, r: short / 2, h: r.ridge + 1, kind: 'building' });
+      list.push({ id: list.length, x: x + ax[0] * t, z: z + ax[1] * t, r: short / 2, h, kind: 'building' });
+    }
+  };
+  for (const r of restos) footprint(r.x, r.z, r.w, r.d, r.yaw, r.ridge + 1);
+  for (const [x, z, w, d, yaw, levels] of buildings) footprint(x, z, w, d, yaw, levels * 2.9 + 0.4 + Math.min(w, d) * 0.42 + 1);
+  // the lift towers: a post each
+  for (const l of lifts) {
+    if (l.kind === 'carpet') continue;
+    for (const f of liftTowers(l)) {
+      liftPoint(l, f, pt);
+      list.push({ id: list.length, x: pt.x, z: pt.z, r: 0.6, h: 40, kind: 'tower' });
     }
   }
   const idx = indexObstacles(list);

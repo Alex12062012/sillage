@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { botInput } from '../../src/sim/bot';
-import { makeMountain } from '../../src/sim/mountain';
+import { liftTowers, makeMountain } from '../../src/sim/mountain';
 import { ROUSSES } from '../../src/sim/rousses-data';
 import { STATIONS } from '../../src/sim/stations';
 import { createSkier, stepSkier, type SkierEvent } from '../../src/sim/skier';
@@ -83,6 +83,19 @@ describe('free ride: Les Rousses, Dôle-Tuffes', () => {
     expect(h0 - s.pos.y).toBeGreaterThan(150); // La Dôle's pistes are long and gentle: ~190 m down in 2 min
     expect(Math.hypot(s.pos.x - x0, s.pos.z - z0)).toBeGreaterThan(800);
     expect(crashes).toBeLessThan(3);
+  });
+
+  it('the buildings and the lift towers are solid', () => {
+    const solid = (x: number, z: number, kind: string, r: number) =>
+      m.obstaclesNear(x, z, r + 30, []).some((o) => o.kind === kind && Math.hypot(o.x - x, o.z - z) < o.r + r);
+    for (const [x, z, w, d] of m.scenery.buildings) expect(solid(x, z, 'building', 0), `building at ${x | 0}, ${z | 0}`).toBe(Math.max(w, d) > 0);
+    const o = { x: 0, z: 0, dx: 0, dz: 0 };
+    for (const l of m.lifts.filter((q) => q.kind !== 'carpet')) {
+      for (const f of liftTowers(l)) {
+        m.liftPoint(l, f, o);
+        expect(solid(o.x, o.z, 'tower', 0.3), `${l.name} tower at ${f.toFixed(2)}`).toBe(true);
+      }
+    }
   });
 
   it('the start queue: every place has a clear way ahead, past the lift station (players online fill it)', () => {
