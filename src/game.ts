@@ -462,6 +462,7 @@ export class Game {
   /** Free ride: the station's settings that apply live (buildings, crowd); the slopes need the mountain rebuilt (load). */
   setConfig(cfg: StationConfig): void {
     this.view?.restos.setReal(cfg.buildings === 'real');
+    this.crowd?.setDensity(cfg.crowd);
   }
 
   /** From the trail map: into lift i's queue, just behind its bottom station (Space boards). */

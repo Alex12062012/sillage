@@ -2,6 +2,7 @@ import { Group, Vector3 } from 'three';
 import { mulberry32 } from '../core/rng';
 import { COSMETICS } from '../sim/progress';
 import type { Mountain, Piste, PisteColor } from '../sim/mountain';
+import type { CrowdLevel } from '../sim/stationConfig';
 import { createSkier, type SkierState } from '../sim/skier';
 import type { Ground, Obstacle } from '../sim/track';
 import { SkierModel } from './skierModel';
@@ -16,6 +17,8 @@ const BUSY: Record<PisteColor, number> = { green: 1.3, blue: 1.5, red: 1, black:
 const PER_KM = 1.2;
 const POOL = 24;
 const VIEW = 380;
+/** The share of the station's skiers out on the pistes, per the station's setting. */
+const DENSITY: Record<CrowdLevel, number> = { busy: 1, some: 0.4, none: 0 };
 
 /**
  * Other skiers on the station: kinematic, each carving its own rhythm down a real piste, into the next one at its
@@ -30,6 +33,8 @@ export class Crowd {
   private pool: SkierModel[] = [];
   private rnd: () => number;
   private ground: Ground;
+  /** How many riders are out (the first ones: the same faces whatever the setting). */
+  private active = Infinity;
 
   /** `drawn`: the snow's height as the view draws it (far from the player, a little off the physics' smooth surface). */
   constructor(private m: Mountain, private drawn: (x: number, z: number) => number = m.height, count = Math.round(m.station.km * PER_KM)) {
@@ -54,6 +59,11 @@ export class Crowd {
     }
   }
 
+  /** The station's setting: busy, some, none (the players online are another matter: see OtherSkiers). */
+  setDensity(level: CrowdLevel): void {
+    this.active = Math.round(this.riders.length * DENSITY[level]);
+  }
+
   /** A piste, the busier ones more often. */
   private pick(): Piste {
     let t = this.rnd() * this.weights.reduce((x, y) => x + y, 0);
@@ -71,7 +81,9 @@ export class Crowd {
 
   update(dt: number, sunDir: Vector3, cam: Vector3): void {
     const p0 = { x: 0, z: 0 }, p1 = { x: 0, z: 0 }, p2 = { x: 0, z: 0 };
-    for (const r of this.riders) {
+    for (let i = 0; i < this.riders.length; i++) {
+      const r = this.riders[i];
+      if (i >= this.active) { r.obstacle.x = r.obstacle.z = 1e9; r.dist = Infinity; continue; } // gone home: out of reach, not drawn
       r.d += r.speed * dt * 0.92;
       if (r.d > r.piste.len - 5) {
         const n = r.piste.next;
