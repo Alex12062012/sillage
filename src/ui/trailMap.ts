@@ -98,7 +98,27 @@ export function drawMe(g: CanvasRenderingContext2D, px: number, py: number, head
   g.stroke();
 }
 
-type Pick = { lift: number } | { piste: Piste };
+type Pick = { lift: number } | { piste: Piste } | { resto: number };
+
+const RESTO_KIND = { restaurant: 'restaurant', cafe: 'café', bar: 'bar', snack: 'snack bar', hut: 'mountain hut' } as const;
+
+/** A place to eat: a round badge with a fork and a knife. */
+function restoIcon(g: CanvasRenderingContext2D, x: number, y: number, r: number, on: boolean): void {
+  g.fillStyle = on ? '#ff7a3d' : '#b5562a';
+  g.strokeStyle = '#fff';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  g.fill();
+  g.stroke();
+  g.lineWidth = Math.max(1.2, r / 6);
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(x - r * 0.3, y - r * 0.5); g.lineTo(x - r * 0.3, y + r * 0.5); // the fork
+  g.moveTo(x - r * 0.5, y - r * 0.5); g.lineTo(x - r * 0.5, y - r * 0.1); g.lineTo(x - r * 0.1, y - r * 0.1); g.lineTo(x - r * 0.1, y - r * 0.5);
+  g.moveTo(x + r * 0.35, y - r * 0.5); g.lineTo(x + r * 0.35, y + r * 0.5); // the knife
+  g.stroke();
+}
 
 /**
  * The station's trail map (free ride, M or the map button), browsed like an online map: drag (or the arrows,
@@ -135,7 +155,10 @@ export class TrailMap {
   private picked: Pick | null = null;
   private textW = new Map<string, number>();
 
-  constructor(parent: HTMLElement, private markers: () => MapMarkers, private onLift: (i: number) => void, private onClose: () => void) {
+  constructor(
+    parent: HTMLElement, private markers: () => MapMarkers, private onLift: (i: number) => void, private onClose: () => void,
+    private onResto: (i: number) => void,
+  ) {
     this.el = document.createElement('div');
     this.el.className = 'trailmap';
     this.el.hidden = true;
@@ -157,8 +180,9 @@ export class TrailMap {
     }
     this.el.querySelector('.me')!.addEventListener('click', () => { this.follow = true; this.vx = this.vz = 0; });
     this.card.addEventListener('click', (e) => {
-      const go = (e.target as HTMLElement).closest('[data-lift]') as HTMLElement | null;
-      if (go) this.onLift(Number(go.dataset.lift));
+      const go = (e.target as HTMLElement).closest('[data-lift], [data-resto]') as HTMLElement | null;
+      if (go?.dataset.lift) this.onLift(Number(go.dataset.lift));
+      if (go?.dataset.resto) this.onResto(Number(go.dataset.resto));
     });
     this.listen();
   }
@@ -360,8 +384,15 @@ export class TrailMap {
     return best * this.k;
   }
 
-  /** The lift under a screen point, or else the named piste. */
+  /** The place to eat, else the lift, else the named piste under a screen point. */
   private pickAt(px: number, py: number): Pick | null {
+    const [wx, wz] = this.toWorld(px, py);
+    let rd = 14, resto = -1;
+    this.m!.restos.forEach((r, i) => {
+      const d = Math.hypot(r.x - wx, r.z - wz) * this.k;
+      if (d < rd) { rd = d; resto = i; }
+    });
+    if (resto >= 0) return { resto };
     let bd = PX_HIT, lift = -1;
     this.m!.lifts.forEach((l, i) => {
       const d = this.distTo(l.pts, px, py);
@@ -383,7 +414,11 @@ export class TrailMap {
     this.picked = p;
     this.card.hidden = !p;
     if (!p) return;
-    if ('lift' in p) {
+    if ('resto' in p) {
+      const r = this.m!.restos[p.resto];
+      const site = r.website ? `<a href="${esc(r.website)}" target="_blank" rel="noopener">website</a>` : '';
+      this.card.innerHTML = `<div><b>${esc(r.name)}</b><small>${RESTO_KIND[r.kind]}${site ? ` · ${site}` : ''}</small></div><button class="go" data-resto="${p.resto}">Go there</button>`;
+    } else if ('lift' in p) {
       const l = this.m!.lifts[p.lift];
       this.card.innerHTML = `<div><b>${esc(l.name || 'Lift')}</b><small>${liftKind(l)} · ${Math.round(lengthOf(l.pts))} m</small></div><button class="go" data-lift="${p.lift}">Go to its queue</button>`;
     } else {
@@ -419,7 +454,8 @@ export class TrailMap {
       for (let i = 2; i < pts.length; i += 2) g.lineTo(sx(pts[i]), sy(pts[i + 1]));
     };
     const hot = this.hover ? this.pickAt(this.hover.x, this.hover.y) : null;
-    const isHot = (p: Pick | null, o: number | Piste) => !!p && ('lift' in p ? p.lift === o : p.piste === o);
+    const isHot = (p: Pick | null, o: number | Piste) => !!p && ('lift' in p ? p.lift === o : 'piste' in p && p.piste === o);
+    const restoOn = (p: Pick | null, i: number) => !!p && 'resto' in p && p.resto === i;
     g.lineCap = g.lineJoin = 'round';
     const pw = Math.max(2, Math.min(9, 18 * k));
     for (const p of m.pistes) {
@@ -448,6 +484,8 @@ export class TrailMap {
         g.fill();
       }
     });
+
+    m.restos.forEach((r, i) => restoIcon(g, sx(r.x), sy(r.z), restoOn(hot, i) || restoOn(this.picked, i) ? 10 : 8, restoOn(hot, i) || restoOn(this.picked, i)));
 
     const mk = this.markers();
     this.labels(mk, sx, sy, w, h);
@@ -479,6 +517,7 @@ export class TrailMap {
   private labels(mk: MapMarkers, sx: (x: number) => number, sy: (z: number) => number, w: number, h: number): void {
     const g = this.g, k = this.k, m = this.m!;
     const placed: number[][] = [[sx(mk.me.x) - 16, sy(mk.me.z) - 16, sx(mk.me.x) + 16, sy(mk.me.z) + 16]];
+    for (const r of m.restos) placed.push([sx(r.x) - 10, sy(r.z) - 10, sx(r.x) + 10, sy(r.z) + 10]);
     const items: { name: string; pts: number[]; len: number; color: string; font: string }[] = [];
     for (const l of m.lifts) if (l.name) items.push({ name: l.name, pts: l.pts, len: lengthOf(l.pts), color: '#1c2433', font: 'italic 600 12px system-ui, sans-serif' });
     const pistes = m.pistes.filter((p) => !p.area && p.name).sort((a, b) => b.len - a.len);
@@ -486,7 +525,28 @@ export class TrailMap {
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.lineJoin = 'round';
+    // the restaurants' names beside their badges, before the pistes' (after the lifts')
+    const restoFont = '700 12px system-ui, sans-serif';
+    const restoLabels = () => {
+      for (const r of m.restos) {
+        const tw = this.widthOf(r.name, restoFont), X = sx(r.x) + 12, Y = sy(r.z);
+        if (X > w || X + tw < 0 || Y < -10 || Y > h + 10) continue;
+        const box = [X - 2, Y - 8, X + tw + 4, Y + 8];
+        if (placed.some((p) => box[0] < p[2] && box[2] > p[0] && box[1] < p[3] && box[3] > p[1])) continue;
+        placed.push(box);
+        g.font = restoFont;
+        g.textAlign = 'left';
+        g.strokeStyle = 'rgba(255,255,255,0.92)';
+        g.lineWidth = 4;
+        g.strokeText(r.name, X, Y);
+        g.fillStyle = '#8a3a14';
+        g.fillText(r.name, X, Y);
+        g.textAlign = 'center';
+      }
+    };
+    let restosDone = false;
     for (const it of items) {
+      if (!restosDone && !it.font.startsWith('italic')) { restoLabels(); restosDone = true; }
       const tw = this.widthOf(it.name, it.font);
       if (it.len * k < tw + 30) continue; // no room along the line at this zoom
       const half = tw / 2 / k;
@@ -514,6 +574,7 @@ export class TrailMap {
       g.fillText(it.name, 0, 0);
       g.restore();
     }
+    if (!restosDone) restoLabels();
   }
 
   /** Names the lift or piste under the mouse. */
@@ -521,7 +582,10 @@ export class TrailMap {
     const hv = this.hover;
     let text = '';
     if (hv && hot) {
-      if ('lift' in hot) {
+      if ('resto' in hot) {
+        const r = this.m!.restos[hot.resto];
+        text = `<b>${esc(r.name)}</b> · ${RESTO_KIND[r.kind]}<small>click for its card</small>`;
+      } else if ('lift' in hot) {
         const l = this.m!.lifts[hot.lift];
         text = `<b>${esc(l.name || 'Lift')}</b> · ${liftKind(l)}<small>click for its card</small>`;
       } else text = `<i class="${hot.piste.difficulty}"></i><b>${esc(hot.piste.name)}</b> · ${(hot.piste.len / 1000).toFixed(1)} km`;

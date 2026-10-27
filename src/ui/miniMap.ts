@@ -95,6 +95,16 @@ export class MiniMap {
       g.arc(sx(l.pts[0]), sy(l.pts[1]), 3, 0, Math.PI * 2);
       g.fill();
     }
+    for (const r of m.restos) {
+      if (Math.abs(r.x - cx) > half || Math.abs(r.z - cz) > half) continue;
+      g.fillStyle = '#b5562a';
+      g.strokeStyle = '#fff';
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.arc(sx(r.x), sy(r.z), 4.5, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+    }
     for (const o of mk.others) {
       g.fillStyle = '#8a2be2';
       g.strokeStyle = '#fff';

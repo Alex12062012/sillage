@@ -42,7 +42,7 @@ function onFace(f: ReturnType<typeof signFace>, along: number, y: number, out: n
 }
 
 const signWidth = (name: string, face: number) => Math.min(face * 0.8, Math.max(4, name.length * 0.42));
-const signHeight = (r: Resto) => Math.min(r.eave - 0.7, 3.4);
+const signHeight = (r: Resto) => Math.max(2.6, Math.min(r.eave - 0.8, 4.4)); // under the eaves, above the parasols
 
 /** A triangle and its back (the gable ends: both sides drawn). */
 function gableEnd(x: number, eave: number, ridge: number, half: number): BufferGeometry {
@@ -126,8 +126,8 @@ export function restoGeometry(r: Resto, real: boolean): BufferGeometry {
     const n = Math.max(1, Math.floor(len / 5));
     for (let k = 0; k < n; k++) {
       const a = -((n - 1) * 5) / 2 + k * 5;
-      const pole = onFace(f, a, 1.7, f.off + 3, 0.12, 2.4, 0.12);
-      const top = f.axis === 'z' ? [a, 2.9, f.side * (f.off + 3)] : [f.side * (f.off + 3), 2.9, a];
+      const pole = onFace(f, a, 1.4, f.off + 3.6, 0.12, 2.0, 0.12);
+      const top = f.axis === 'z' ? [a, 2.5, f.side * (f.off + 3.6)] : [f.side * (f.off + 3.6), 2.5, a];
       const col = new Color(PARASOLS[k % 2]);
       parts.push(paint(pole, () => trim), paint(new ConeGeometry(1.7, 0.6, 8).translate(top[0], top[1], top[2]).toNonIndexed(), () => col));
     }

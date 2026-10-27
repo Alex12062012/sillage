@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { makeMountain } from '../../src/sim/mountain';
 import { ROUSSES } from '../../src/sim/rousses-data';
 import { STATIONS } from '../../src/sim/stations';
+import { createSkier, stepSkier, type SkierEvent } from '../../src/sim/skier';
+import { DT, input } from './helpers';
 
 describe('free ride: the restaurants of Les Rousses', () => {
   const m = makeMountain(STATIONS[0], ROUSSES);
@@ -43,6 +45,17 @@ describe('free ride: the restaurants of Les Rousses', () => {
       const at = m.restoSpot(i);
       expect(m.clearSpot(at), r.name).toEqual(at);
       expect(Math.hypot(at.x - r.x, at.z - r.z), r.name).toBeLessThan(Math.max(r.w, r.d) / 2 + 15);
+    });
+  });
+
+  it('Go there: you stand on the snow in front of the sign, no fall, no slide away', () => {
+    m.restos.forEach((r, i) => {
+      const at = m.restoSpot(i);
+      const s = createSkier(m, at.x, at.z, at.heading);
+      const ev: SkierEvent[] = [];
+      for (let k = 0; k < 120; k++) stepSkier(s, input(), m, DT, ev);
+      expect(s.crashTimer, r.name).toBe(0);
+      expect(Math.hypot(s.pos.x - r.x, s.pos.z - r.z), r.name).toBeLessThan(Math.max(r.w, r.d) / 2 + 25);
     });
   });
 });

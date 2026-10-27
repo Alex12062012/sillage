@@ -60,7 +60,7 @@ ui.appendChild(onlineEl);
 game.input.attachTouch(document.body);
 touch.querySelector('.jump')!.addEventListener('pointerdown', () => game.input.pressJump());
 // free ride: the station's trail map (M, the map button); the game waits while it is open
-const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { closeMap(); game.toLift(i); }, () => closeMap());
+const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { closeMap(); game.toLift(i); }, () => closeMap(), (i) => { closeMap(); game.toResto(i); });
 const miniMap = new MiniMap(ui, () => game.mapMarkers(), () => openMap()); // top right; a tap opens the full map
 
 // ── screens: attract (menus over a bot run) · run · paused · results
@@ -359,6 +359,7 @@ window.__sillage = {
   teleport: (z: number, kmh = 40) => { game.reset(); game.startAt(z, kmh / 3.6); },
   spot: (x: number, z: number, heading = 0) => { game.unload({ x, z, heading }); game.phase = 'running'; }, // free ride
   lift: (i: number) => game.toLift(i), // free ride: into lift i's queue
+  resto: (i: number) => game.toResto(i), // free ride: in front of resto i's sign
   restos: () => game.mountain?.restos.map((r) => ({ name: r.name, x: r.x, z: r.z })) ?? [],
   config: (c: Partial<StationConfig>) => game.setConfig({ ...(game.mountain?.station.config ?? DEFAULT_CONFIG), ...c }),
   debug: () => debug.toggle(),

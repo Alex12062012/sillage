@@ -475,6 +475,13 @@ export class Game {
     this.unload({ x: p[0] - (dx / d) * back, z: p[1] - (dz / d) * back, heading });
   }
 
+  /** From the trail map: on the snow in front of resto i's sign. */
+  toResto(i: number): void {
+    if (!this.mountain) return;
+    this.phase = 'running';
+    this.unload(this.mountain.restoSpot(i));
+  }
+
   /** You and the other players, for the trail map. */
   mapMarkers(): MapMarkers {
     const s = this.skier;
