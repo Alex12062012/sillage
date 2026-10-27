@@ -21,6 +21,12 @@ export interface Piste {
 }
 /** Chairs seat you, gondolas (and cable cars) carry you in a cabin, drag lifts and carpets pull you along the snow. */
 export interface Lift { name: string; kind: 'chair' | 'gondola' | 'drag' | 'carpet'; seats: number; pts: number[]; cum: number[]; len: number; speed: number }
+/** A lift station's size (the view draws it 9 m across, 7 m along the line, 4 m high under its roof, at this scale); carpets have none. */
+export const stationScale = (l: Lift): number =>
+  l.kind === 'gondola' ? (l.seats > 12 ? 2.2 : 1.6) : l.kind === 'chair' ? 1 : l.kind === 'drag' ? 0.5 : 0;
+/** How far from a bottom station's centre you can board (Space): its half-width and a few metres. */
+export const boardReach = (l: Lift): number => 4.5 * stationScale(l) + 9;
+
 export interface PisteHit { p: Piste; d: number; s: number }
 export interface Spot { x: number; z: number; heading: number }
 
@@ -383,6 +389,17 @@ export function makeMountain(st: Station, R: StationData): Mountain {
       if (woods ? !edge && roll > 0.11 : roll > (edge ? 0.012 : 0.004)) continue;
       const th = edge || !woods ? 11 + rnd() * 13 : DEEP + rnd() * 7;
       list.push({ id: list.length, x: tx, z: tz, r: 0.7 + th * 0.03, h: th, kind: 'tree' });
+    }
+  }
+  // lift stations, top and bottom: solid, two circles across the line cover the 9 × 7 m base
+  for (const l of lifts) {
+    const s = stationScale(l);
+    if (!s) continue;
+    for (const f of [0, 1]) {
+      liftPoint(l, f, pt);
+      for (const side of [-1, 1]) {
+        list.push({ id: list.length, x: pt.x + pt.dz * side * s, z: pt.z - pt.dx * side * s, r: 3.5 * s, h: 7.6 * s, kind: 'station' });
+      }
     }
   }
   const idx = indexObstacles(list);

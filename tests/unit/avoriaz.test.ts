@@ -69,7 +69,7 @@ describe('free ride: Avoriaz, from Morzine to the Swiss Wall', () => {
   });
 
   it('has its forests, and no tree on a piste', () => {
-    const trees = m.obstaclesBetween(-1e5, 1e5);
+    const trees = m.obstaclesBetween(-1e5, 1e5).filter((o) => o.kind === 'tree'); // lift stations stand where pistes end
     expect(trees.length).toBeGreaterThan(20000);
     for (const t of trees) expect(m.pisteAt(t.x, t.z), `tree at ${t.x | 0}, ${t.z | 0}`).toBeNull();
   });

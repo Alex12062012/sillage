@@ -46,6 +46,11 @@ export class Hud {
   private gainT = 0;
   private lastTrick = '';
   private lastFlow = '';
+  private boardEl: HTMLDivElement;
+  private liftEl: HTMLDivElement;
+  private liftFill: HTMLElement;
+  private lastBoard = '';
+  private lastLift = '';
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
@@ -64,6 +69,8 @@ export class Hud {
         <div class="hud-flow l0"><span class="hud-streak"></span><span class="segs"><i></i><i></i><i></i><i></i></span><b class="name"></b></div>
         <div class="hud-speed"></div>
       </div>
+      <div class="hud-board"></div>
+      <div class="hud-lift"><i></i><span></span></div>
       <div class="hud-hint"></div>`;
     parent.appendChild(this.el);
     const q = <T extends HTMLElement>(s: string) => this.el.querySelector(s) as T;
@@ -83,6 +90,30 @@ export class Hud {
     this.flowSegs = [...this.flowEl.querySelectorAll<HTMLElement>('.segs i')];
     this.flowName = q('.hud-flow .name');
     this.streakEl = q('.hud-streak');
+    this.boardEl = q('.hud-board');
+    this.liftEl = q('.hud-lift');
+    this.liftFill = q('.hud-lift i');
+  }
+
+  /** Free ride, at a lift's bottom station: "Space · ride <lift>" (html), or null. */
+  board(html: string | null): void {
+    if ((html ?? '') === this.lastBoard) return;
+    this.lastBoard = html ?? '';
+    this.boardEl.innerHTML = this.lastBoard;
+    this.boardEl.classList.toggle('show', !!html);
+  }
+
+  /** Riding a lift: a bar filling up to the top (f 0..1), the key that speeds it up in the middle; null hides it. */
+  lift(f: number | null, label = '', fast = false): void {
+    const key = f === null ? '' : `${Math.round(f * 400)}|${label}|${fast}`;
+    if (key === this.lastLift) return;
+    this.lastLift = key;
+    this.liftEl.classList.toggle('show', f !== null);
+    if (f === null) return;
+    this.liftFill.style.width = `${(Math.min(1, Math.max(0, f)) * 100).toFixed(2)}%`;
+    this.liftEl.classList.toggle('fast', fast);
+    const span = this.liftEl.querySelector('span')!;
+    if (span.textContent !== label) span.textContent = label;
   }
 
   show(on: boolean): void {

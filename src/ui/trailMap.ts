@@ -5,7 +5,7 @@ export interface MapMarkers {
   others: { name: string; x: number; z: number }[];
 }
 
-const PISTE: Record<PisteColor, string> = { green: '#2e9e4f', blue: '#2a6bd4', red: '#d8342c', black: '#15181d' };
+export const PISTE: Record<PisteColor, string> = { green: '#2e9e4f', blue: '#2a6bd4', red: '#d8342c', black: '#15181d' };
 const PX_HIT = 16; // how close (screen px) a tap must land to pick a lift or a piste
 const K_MAX = 2; // deepest zoom, px per metre
 const PAN_KEYS: Record<string, [number, number]> = {
@@ -37,6 +37,67 @@ function pointAt(pts: number[], s: number): [number, number] {
   return [pts[pts.length - 2], pts[pts.length - 1]];
 }
 
+/** Shaded relief and forests, once per station, one pixel per 10 m cell (cached: the map and the mini-map share it). */
+const bases = new WeakMap<Mountain, HTMLCanvasElement>();
+export function mapBase(m: Mountain): HTMLCanvasElement {
+let c = bases.get(m);
+if (!c) bases.set(m, (c = buildBase(m)));
+return c;
+}
+
+function buildBase(m: Mountain): HTMLCanvasElement {
+  const { nx, nz, h, step, x0, z0 } = m.grid;
+  const c = document.createElement('canvas');
+  c.width = nx;
+  c.height = nz;
+  const g = c.getContext('2d')!;
+  const img = g.createImageData(nx, nz);
+  const lx = -0.55, ly = 0.62, lz = -0.55; // the sun from the north-west, as on printed maps
+  const at = (a: ArrayLike<number>, i: number, j: number) => a[Math.min(nz - 1, Math.max(0, j)) * nx + Math.min(nx - 1, Math.max(0, i))];
+  const mask = new Uint8Array(nx * nz);
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) mask[j * nx + i] = m.forest(x0 + i * step, z0 + j * step) ? 1 : 0;
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) {
+      const dx = (at(h, i + 1, j) - at(h, i - 1, j)) / (2 * step), dz = (at(h, i, j + 1) - at(h, i, j - 1)) / (2 * step);
+      const n = 1 / Math.hypot(dx, 1, dz);
+      const shade = Math.max(0, (-dx * lx + ly - dz * lz) * n);
+      let f = 0; // the woods' share of the 5 × 5 cells around: soft edges, not 10 m stairs
+      for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) f += at(mask, i + a, j + b);
+      f = Math.min(1, Math.max(0, (f / 25 - 0.2) / 0.6));
+      const r = 238 - 88 * f, gg = 244 - 62 * f, bb = 250 - 92 * f;
+      const s = 0.62 + 0.42 * shade;
+      const k = (j * nx + i) * 4;
+      img.data[k] = Math.min(255, r * s);
+      img.data[k + 1] = Math.min(255, gg * s);
+      img.data[k + 2] = Math.min(255, bb * s + 6);
+      img.data[k + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+/** You: an arrow pointing where you face (heading 0 = +z, south, down the map), in a pulsing halo. */
+export function drawMe(g: CanvasRenderingContext2D, px: number, py: number, heading: number): void {
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  const pulse = 13 + 3 * Math.sin(performance.now() / 260);
+  g.fillStyle = 'rgba(255,122,61,0.25)';
+  g.beginPath();
+  g.arc(px, py, pulse, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#ff7a3d';
+  g.strokeStyle = '#fff';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(px + fx * 11, py + fz * 11);
+  g.lineTo(px - fx * 7 + fz * 7, py - fz * 7 - fx * 7);
+  g.lineTo(px - fx * 3, py - fz * 3);
+  g.lineTo(px - fx * 7 - fz * 7, py - fz * 7 + fx * 7);
+  g.closePath();
+  g.fill();
+  g.stroke();
+}
+
 type Pick = { lift: number } | { piste: Piste };
 
 /**
@@ -51,7 +112,6 @@ export class TrailMap {
   private g: CanvasRenderingContext2D;
   private tip: HTMLDivElement;
   private card: HTMLDivElement;
-  private base: HTMLCanvasElement | null = null;
   private m: Mountain | null = null;
   /** World metres → screen px: sx = (x - cx) * k + w / 2. */
   private cx = 0;
@@ -108,7 +168,7 @@ export class TrailMap {
   }
 
   show(m: Mountain): void {
-    if (this.m !== m) { this.m = m; this.base = null; }
+    this.m = m;
     this.el.querySelector('.trailmap-head b')!.textContent = `${m.station.name} · ${m.station.area}`;
     this.el.hidden = false;
     this.resize();
@@ -342,50 +402,16 @@ export class TrailMap {
     return w;
   }
 
-  /** Shaded relief and forests, once per station, one pixel per 10 m cell. */
-  private buildBase(): HTMLCanvasElement {
-    const m = this.m!, { nx, nz, h, step, x0, z0 } = m.grid;
-    const c = document.createElement('canvas');
-    c.width = nx;
-    c.height = nz;
-    const g = c.getContext('2d')!;
-    const img = g.createImageData(nx, nz);
-    const lx = -0.55, ly = 0.62, lz = -0.55; // the sun from the north-west, as on printed maps
-    const at = (a: ArrayLike<number>, i: number, j: number) => a[Math.min(nz - 1, Math.max(0, j)) * nx + Math.min(nx - 1, Math.max(0, i))];
-    const mask = new Uint8Array(nx * nz);
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) mask[j * nx + i] = m.forest(x0 + i * step, z0 + j * step) ? 1 : 0;
-    for (let j = 0; j < nz; j++) {
-      for (let i = 0; i < nx; i++) {
-        const dx = (at(h, i + 1, j) - at(h, i - 1, j)) / (2 * step), dz = (at(h, i, j + 1) - at(h, i, j - 1)) / (2 * step);
-        const n = 1 / Math.hypot(dx, 1, dz);
-        const shade = Math.max(0, (-dx * lx + ly - dz * lz) * n);
-        let f = 0; // the woods' share of the 5 × 5 cells around: soft edges, not 10 m stairs
-        for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) f += at(mask, i + a, j + b);
-        f = Math.min(1, Math.max(0, (f / 25 - 0.2) / 0.6));
-        const r = 238 - 88 * f, gg = 244 - 62 * f, bb = 250 - 92 * f;
-        const s = 0.62 + 0.42 * shade;
-        const k = (j * nx + i) * 4;
-        img.data[k] = Math.min(255, r * s);
-        img.data[k + 1] = Math.min(255, gg * s);
-        img.data[k + 2] = Math.min(255, bb * s + 6);
-        img.data[k + 3] = 255;
-      }
-    }
-    g.putImageData(img, 0, 0);
-    return c;
-  }
-
   private draw(): void {
     const m = this.m!, g = this.g, dpr = this.cv.width / this.el.clientWidth;
     const w = this.el.clientWidth, h = this.el.clientHeight, k = this.k;
     const sx = (x: number) => (x - this.cx) * k + w / 2, sy = (z: number) => (z - this.cz) * k + h / 2;
-    this.base ??= this.buildBase();
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#c9d3df';
     g.fillRect(0, 0, w, h);
     const gr = m.grid;
     g.imageSmoothingEnabled = true;
-    g.drawImage(this.base, sx(gr.x0), sy(gr.z0), gr.nx * gr.step * k, gr.nz * gr.step * k);
+    g.drawImage(mapBase(m), sx(gr.x0), sy(gr.z0), gr.nx * gr.step * k, gr.nz * gr.step * k);
 
     const line = (pts: number[]) => {
       g.beginPath();
@@ -441,25 +467,7 @@ export class TrailMap {
       g.fillStyle = '#12233d';
       g.fillText(o.name, sx(o.x), sy(o.z) - 9);
     }
-    // you: an arrow pointing where you face (heading: 0 = +z, south, down the screen)
-    const px = sx(mk.me.x), py = sy(mk.me.z), a = mk.me.heading;
-    const fx = Math.sin(a), fz = Math.cos(a);
-    const pulse = 13 + 3 * Math.sin(performance.now() / 260);
-    g.fillStyle = 'rgba(255,122,61,0.25)';
-    g.beginPath();
-    g.arc(px, py, pulse, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = '#ff7a3d';
-    g.strokeStyle = '#fff';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(px + fx * 11, py + fz * 11);
-    g.lineTo(px - fx * 7 + fz * 7, py - fz * 7 - fx * 7);
-    g.lineTo(px - fx * 3, py - fz * 3);
-    g.lineTo(px - fx * 7 - fz * 7, py - fz * 7 + fx * 7);
-    g.closePath();
-    g.fill();
-    g.stroke();
+    drawMe(g, sx(mk.me.x), sy(mk.me.z), mk.me.heading);
 
     this.tipAt(hot);
   }

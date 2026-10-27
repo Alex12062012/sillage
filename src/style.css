@@ -297,9 +297,6 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 .online { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: rgba(16, 22, 34, 0.55); color: #8ff0b0; font: 600 13px system-ui, sans-serif; pointer-events: none; }
 
 /* free ride trail map (M, the map button) */
-.touch-btn.map { display: none; width: 46px; height: 46px; font-size: 12px; top: calc(10px + env(safe-area-inset-top)); right: calc(66px + env(safe-area-inset-right)); }
-.touch.free .touch-btn.map { display: block; }
-.touch.show.free ~ .hud .hud-right { margin-right: 106px; }
 .trailmap { position: fixed; inset: 0; z-index: 25; background: #c9d3df; color: var(--ink); font: 500 13px system-ui, sans-serif; touch-action: none; pointer-events: auto; user-select: none; }
 .trailmap [hidden] { display: none !important; }
 .trailmap canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
@@ -353,3 +350,45 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 .trailmap-card .go { border: 0; border-radius: 12px; padding: 10px 14px; font: 700 14px system-ui; color: #fff; background: var(--accent); cursor: pointer; white-space: nowrap; }
 .trailmap-card .go:hover { background: #ff8f5a; }
 @media (max-width: 640px) { .trailmap-legend { display: none; } .trailmap-card { left: 12px; right: 68px; transform: none; max-width: none; } }
+
+/* free ride mini-map (top right) */
+.minimap {
+  position: absolute; top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right));
+  width: 172px; height: 172px; border-radius: 16px; overflow: hidden; pointer-events: auto; cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.85); box-shadow: 0 4px 16px rgba(12, 28, 52, 0.35); background: #c9d3df;
+}
+.minimap canvas { display: block; width: 100%; height: 100%; }
+.minimap-key {
+  position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 8px; font: 700 12px system-ui, sans-serif;
+  color: #fff; background: rgba(18, 35, 61, 0.78);
+}
+.minimap-key kbd { font: 800 11px system-ui; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 4px; padding: 0 4px; margin-right: 2px; }
+.touch.show ~ .minimap { right: calc(66px + env(safe-area-inset-right)); width: 128px; height: 128px; }
+.touch.show ~ .minimap .minimap-key kbd { display: none; }
+.hud.free .hud-right { margin-right: 190px; }
+.touch.show ~ .hud.free .hud-right { margin-right: 200px; }
+@media (max-width: 520px) { .minimap { width: 112px; height: 112px; } }
+
+/* free ride: Space at a bottom station boards; on a lift, a bar fills up to the top */
+.hud-board {
+  position: absolute; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%) scale(0.92);
+  padding: 8px 16px; border-radius: 14px; background: rgba(16, 32, 58, 0.62); backdrop-filter: blur(6px);
+  font-size: 17px; white-space: nowrap; opacity: 0; transition: opacity 0.18s, transform 0.18s;
+}
+.hud-board.show { opacity: 1; transform: translateX(-50%) scale(1); }
+.hud-board kbd {
+  font: 800 13px system-ui; padding: 2px 8px; margin-right: 8px; border-radius: 6px; color: var(--ink); background: #fff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+.hud-lift {
+  position: absolute; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  width: min(360px, calc(100vw - 40px)); height: 30px; border-radius: 15px; overflow: hidden; display: none;
+  background: rgba(255, 255, 255, 0.12); border: 1.5px solid rgba(255, 255, 255, 0.55); backdrop-filter: blur(3px);
+}
+.hud-lift.show { display: block; }
+.hud-lift i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(255, 255, 255, 0.38); }
+.hud-lift.fast i { background: rgba(255, 179, 92, 0.6); }
+.hud-lift span {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font: 800 13px system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; text-shadow: 0 1px 4px rgba(15, 30, 55, 0.6);
+}

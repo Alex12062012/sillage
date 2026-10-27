@@ -10,6 +10,7 @@ import { createDebugPanel } from './ui/debug';
 import { Hud } from './ui/hud';
 import { isTouch, Menus } from './ui/menus';
 import { showResults } from './ui/results';
+import { MiniMap } from './ui/miniMap';
 import { TrailMap } from './ui/trailMap';
 
 // ── persistence
@@ -46,7 +47,7 @@ const game = new Game(renderer, trackById(firstTrack), hud);
 // ── touch buttons (pause, jump), mirrored for left-handed players
 const touch = document.createElement('div');
 touch.className = 'touch';
-touch.innerHTML = `<button class="touch-btn pause" aria-label="Pause">II</button><button class="touch-btn map" aria-label="Trail map">Map</button><button class="touch-btn jump" aria-label="Jump">↑</button>`;
+touch.innerHTML = `<button class="touch-btn pause" aria-label="Pause">II</button><button class="touch-btn jump" aria-label="Jump">↑</button>`;
 ui.insertBefore(touch, hud.el); // before the HUD so `.touch.show ~ .hud` can shift the score clear of the button
 const fpsEl = document.createElement('div');
 fpsEl.className = 'fps';
@@ -59,7 +60,7 @@ game.input.attachTouch(document.body);
 touch.querySelector('.jump')!.addEventListener('pointerdown', () => game.input.pressJump());
 // free ride: the station's trail map (M, the map button); the game waits while it is open
 const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { closeMap(); game.toLift(i); }, () => closeMap());
-touch.querySelector('.map')!.addEventListener('click', () => openMap());
+const miniMap = new MiniMap(ui, () => game.mapMarkers(), () => openMap()); // top right; a tap opens the full map
 
 // ── screens: attract (menus over a bot run) · run · paused · results
 type Mode = 'attract' | 'run' | 'paused' | 'results';
@@ -106,6 +107,7 @@ function setMode(m: Mode): void {
   hud.show(m === 'run' || m === 'paused');
   touch.classList.toggle('show', m === 'run' && isTouch());
   touch.classList.toggle('free', !!game.mountain);
+  miniMap.show(m === 'run' || m === 'paused' ? game.mountain : null);
 }
 
 /** Your name for the online free ride (kept in the browser; a random one until you choose). */
@@ -154,8 +156,8 @@ async function startRun(id: string): Promise<void> {
   if (station) game.goOnline(playerName(), params.get('portal') ?? undefined); // the other players on the station, through the portal (?portal=<url> for a local one)
   else game.goOffline();
   if (station) {
-    hud.showHint(`<b>${station.name}</b> · ${station.area} — ski into a lift's bottom station to ride up · ${isTouch()
-      ? 'hold <b>both</b> to skate on the flats · <b>Map</b> to find a lift' : `<b>↑</b> skates on the flats · <b>T</b> top of ${station.summitName} · <b>M</b> trail map`} · <small>map © OpenStreetMap${station.id === 'rousses' ? '' : ' · IGN'}</small>`, 8);
+    hud.showHint(`<b>${station.name}</b> · ${station.area} — <b>Space</b> at a lift's bottom station to ride up · ${isTouch()
+      ? 'hold <b>both</b> to skate on the flats · tap the <b>map</b> to find a lift' : `<b>↑</b> skates on the flats · <b>T</b> top of ${station.summitName} · <b>M</b> trail map`} · <small>map © OpenStreetMap${station.id === 'rousses' ? '' : ' · IGN'}</small>`, 8);
   } else if (!save.seenHint) {
     hud.showHint(isTouch()
       ? '<b>Hold</b> left / right to carve · <b>both</b> to tuck (grab in the air) · swipe <b>↑</b> jump · swipe <b>↓</b> brake'
@@ -295,6 +297,7 @@ function loop(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
   game.frame(dt);
+  miniMap.update(dt);
   if (mode === 'run' || mode === 'attract') {
     if (dt > 0.022) { slow += dt > 0.033 ? 2 : 1; fast = 0; } else if (dt < 0.0145) { fast++; slow = Math.max(0, slow - 1); }
     if (slow > 60 && qualityScale > 0.5) { qualityScale = Math.max(0.5, qualityScale - (dt > 0.033 ? 0.15 : 0.1)); slow = 0; applySettings(); }
@@ -354,5 +357,6 @@ window.__sillage = {
   features: () => game.track.features.map((f) => ({ ...f })),
   teleport: (z: number, kmh = 40) => { game.reset(); game.startAt(z, kmh / 3.6); },
   spot: (x: number, z: number, heading = 0) => { game.unload({ x, z, heading }); game.phase = 'running'; }, // free ride
+  lift: (i: number) => game.toLift(i), // free ride: into lift i's queue
   debug: () => debug.toggle(),
 };

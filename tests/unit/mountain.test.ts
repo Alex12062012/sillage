@@ -36,7 +36,7 @@ describe('free ride: Les Rousses, Dôle-Tuffes', () => {
   });
 
   it('has its forests, and no tree on a piste', () => {
-    const trees = m.obstaclesBetween(-1e4, 1e4);
+    const trees = m.obstaclesBetween(-1e4, 1e4).filter((o) => o.kind === 'tree'); // lift stations stand where pistes end
     expect(trees.length).toBeGreaterThan(8000);
     expect(trees.length).toBeLessThan(60000);
     for (const t of trees) {

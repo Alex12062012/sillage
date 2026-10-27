@@ -12,7 +12,7 @@ import { OtherSkiers } from './render/others';
 import { FLAG, OnlineRide } from './net/online';
 import { MountainView } from './render/mountainView';
 import { botInput } from './sim/bot';
-import { makeMountain, type Mountain, type Spot } from './sim/mountain';
+import { boardReach, makeMountain, stationScale, type Mountain, type Spot } from './sim/mountain';
 import { loadedStation, stationOfTrack } from './sim/stations';
 import { createFlow, stepFlow, type FlowEvent, type FlowState } from './sim/flow';
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
@@ -168,6 +168,8 @@ export class Game {
     this.ride = null;
     this.view?.leaveSeat();
     this.model.setSeated(false);
+    this.hud.board(null);
+    this.hud.lift(null);
     this.run = createRun(this.track.def.length, this.track.def.par);
     this.flow = createFlow();
     this.phase = 'ready';
@@ -256,6 +258,16 @@ export class Game {
       this.rideStep(s);
       return;
     }
+    if (this.mountain && this.live) {
+      // at a bottom station: Space (a swipe up, A) boards; the jump is spent on it
+      const near = this.liftNear(s);
+      this.hud.board(near >= 0 ? `<kbd>${this.touchUi ? 'Swipe ↑' : 'Space'}</kbd> ride <b>${this.mountain.lifts[near].name || 'the lift'}</b>` : null);
+      if (near >= 0 && this.inp.jump) {
+        this.phase = 'running';
+        this.board(near);
+        return;
+      }
+    }
     if (this.phase === 'ready') {
       // standing in the gate: the first real input starts the run (with a pole push)
       if (!this.inp.tuck && !this.inp.jump && Math.abs(this.inp.steer) < 0.05 && !this.inp.brake) return;
@@ -298,18 +310,11 @@ export class Game {
     const m = this.mountain!;
     const speed = s.vel.length();
     if (!s.airborne && s.crashTimer <= 0) {
-      if (speed < 15) {
-        let best = -1, bd = 14;
-        m.lifts.forEach((l, i) => {
-          const d = Math.hypot(s.pos.x - l.pts[0], s.pos.z - l.pts[1]);
-          if (d < bd) { bd = d; best = i; }
-        });
-        if (best >= 0) {
-          this.ride = { lift: best, f: 0, t: 0, boost: 1 };
-          this.hud.pop(m.lifts[best].name, 'info', this.bot ? undefined : matchMedia('(pointer: coarse)').matches ? 'hold both thumbs to go faster' : 'hold Space to go faster');
-          if (this.bot) this.ride.f = 1; // attract mode: straight back to the top
-          return;
-        }
+      const near = this.bot ? this.liftNear(s) : -1; // attract mode boards by itself, straight back to the top
+      if (near >= 0) {
+        this.board(near);
+        this.ride!.f = 1;
+        return;
       }
       // skating: forward on the flats (and the liaisons' little climbs) pushes you along
       if (this.inp.tuck && speed < 6) {
@@ -333,6 +338,27 @@ export class Game {
   }
   private stuck = 0;
 
+  /** The lift whose bottom station you stand at (slow enough, on the snow), or -1. */
+  private liftNear(s: SkierState): number {
+    if (s.airborne || s.crashTimer > 0 || s.vel.length() > 15) return -1;
+    let best = -1, bd = Infinity;
+    this.mountain!.lifts.forEach((l, i) => {
+      const d = Math.hypot(s.pos.x - l.pts[0], s.pos.z - l.pts[1]);
+      if (d < boardReach(l) && d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+
+  private board(i: number): void {
+    this.ride = { lift: i, f: 0, t: 0, boost: 1 };
+    this.hud.board(null);
+    this.hud.pop(this.mountain!.lifts[i].name, 'info');
+  }
+
+  private get touchUi(): boolean {
+    return matchMedia('(pointer: coarse)').matches;
+  }
+
   /**
    * Riding a lift: a chair or a cabin carries the skier up, a drag lift tows them along the snow. No skipping:
    * holding Space (both thumbs, A) speeds it up, smoothly, until any lift takes LIFT_BOOST_S seconds end to end.
@@ -349,6 +375,7 @@ export class Game {
       this.unload(this.mountain!.unload(r.lift));
       return;
     }
+    if (this.live) this.hud.lift(r.f, this.touchUi ? 'Hold both thumbs' : 'Space', r.boost > 1.5);
     const seated = l.kind === 'chair' || l.kind === 'gondola';
     if (seated) view.seat(r.lift, r.f, s.pos);
     else view.tow(r.lift, r.f, s.pos);
@@ -370,6 +397,7 @@ export class Game {
     this.ride = null;
     this.view?.leaveSeat();
     this.model.setSeated(false);
+    this.hud.lift(null);
     s.pos.set(at.x, m.height(at.x, at.z), at.z);
     s.heading = at.heading;
     s.vel.set(Math.sin(s.heading), 0, Math.cos(s.heading)).multiplyScalar(4);
@@ -429,14 +457,15 @@ export class Game {
     this.unload(this.mountain.summit);
   }
 
-  /** From the trail map: into lift i's queue, a few metres before its bottom station (you board on arrival). */
+  /** From the trail map: into lift i's queue, just behind its bottom station (Space boards). */
   toLift(i: number): void {
     const m = this.mountain;
     if (!m) return;
     const p = m.lifts[i].pts, dx = p[2] - p[0], dz = p[3] - p[1], d = Math.hypot(dx, dz) || 1;
     const heading = Math.atan2(dx / d, dz / d);
     this.phase = 'running';
-    this.unload({ x: p[0] - (dx / d) * 8, z: p[1] - (dz / d) * 8, heading });
+    const back = 3.5 * stationScale(m.lifts[i]) + 4.5; // clear of the station's wall
+    this.unload({ x: p[0] - (dx / d) * back, z: p[1] - (dz / d) * back, heading });
   }
 
   /** You and the other players, for the trail map. */

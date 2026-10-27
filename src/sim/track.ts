@@ -17,7 +17,7 @@ export interface Ground {
   launch?: number;
 }
 
-export interface Obstacle { id: number; x: number; z: number; r: number; h: number; kind: 'tree' | 'rock' | 'skier' }
+export interface Obstacle { id: number; x: number; z: number; r: number; h: number; kind: 'tree' | 'rock' | 'skier' | 'station' }
 
 export const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 export const smoothstep = (a: number, b: number, v: number) => {
