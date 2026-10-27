@@ -13,35 +13,46 @@ const tmp = new Vector3();
 const a = { x: 0, z: 0, dx: 0, dz: 0 };
 /** How busy a piste is, per metre, by colour: the blues and greens of the resort's heart fill up, the blacks less. */
 const BUSY: Record<PisteColor, number> = { green: 1.3, blue: 1.5, red: 1, black: 0.45 };
-/** Skiers on the station per km of pistes, and how many of them are drawn (the nearest, within VIEW m). */
-const PER_KM = 1.2;
+/**
+ * Skiers out on the named pistes at once, per km, on an average day (Les Rousses: ~315 on its 36 km, an estimate: no
+ * resort publishes it), and the traffic range the player picks from: an off-season weekday to a peak holiday Saturday.
+ * Then how many of them are drawn (the nearest, within VIEW m).
+ */
+const PER_KM = 8.75;
+export const TRAFFIC = { min: 0.4, max: 2.5 };
 const POOL = 24;
 const VIEW = 380;
 /** The share of the station's skiers out on the pistes, per the station's setting. */
 const DENSITY: Record<CrowdLevel, number> = { busy: 1, some: 0.4, none: 0 };
 
 /**
- * Other skiers on the station: kinematic, each carving its own rhythm down a real piste, into the next one at its
- * end, or back on top of another (they "took the lift"); more of them on the busy pistes. Moving obstacles for the
+ * Other skiers on the station: kinematic, each carving its own rhythm down a real piste, then back on top of
+ * another (they "took the lift"); more of them on the busy pistes. Moving obstacles for the
  * near-miss and crash code, all of them; only the nearest POOL get a body (skinned skiers cost a phone dearly).
  */
 export class Crowd {
   readonly group = new Group();
   private riders: Rider[] = [];
   private runs: Piste[];
+  /** Where the riders start (length × colour: how many are on a piste at once), and where they go back up to
+   * (colour only: a long piste keeps them longer by itself). */
   private weights: number[];
+  private lifts: number[];
   private pool: SkierModel[] = [];
   private rnd: () => number;
   private ground: Ground;
   /** How many riders are out (the first ones: the same faces whatever the setting). */
-  private active = Infinity;
+  private active = 0;
+  private level: CrowdLevel = 'busy';
+  private traffic = 1;
 
   /** `drawn`: the snow's height as the view draws it (far from the player, a little off the physics' smooth surface). */
-  constructor(private m: Mountain, private drawn: (x: number, z: number) => number = m.height, count = Math.round(m.station.km * PER_KM)) {
+  constructor(private m: Mountain, private drawn: (x: number, z: number) => number = m.height, count = Math.round(m.station.km * PER_KM * TRAFFIC.max)) {
     this.ground = { height: drawn, normal: m.normal, surface: m.surface };
     this.rnd = mulberry32(m.def.seed + 91);
     this.runs = m.pistes.filter((p) => !p.area && p.len > 300 && p.name);
     this.weights = this.runs.map((p) => p.len * BUSY[p.difficulty]);
+    this.lifts = this.runs.map((p) => BUSY[p.difficulty]);
     for (let i = 0; i < POOL; i++) {
       const model = new SkierModel(COSMETICS[(i * 3 + 1) % COSMETICS.length]);
       model.root.visible = model.shadow.visible = false;
@@ -49,7 +60,7 @@ export class Crowd {
       this.group.add(model.root, model.shadow);
     }
     for (let i = 0; i < count; i++) {
-      const piste = this.pick();
+      const piste = this.pick(this.weights);
       const obstacle: Obstacle = { id: 900000 + i, x: 0, z: 0, r: 0.45, h: 1.8, kind: 'skier' };
       m.dynamic.push(obstacle);
       this.riders.push({
@@ -57,17 +68,29 @@ export class Crowd {
         phase: i * 1.7, amp: 0.25 + this.rnd() * 0.45, wave: 22 + this.rnd() * 30, obstacle, dist: Infinity, model: null,
       });
     }
+    this.count();
   }
 
   /** The station's setting: busy, some, none (the players online are another matter: see OtherSkiers). */
   setDensity(level: CrowdLevel): void {
-    this.active = Math.round(this.riders.length * DENSITY[level]);
+    this.level = level;
+    this.count();
+  }
+
+  /** The player's traffic, times an average day: TRAFFIC.min (off-season) to TRAFFIC.max (peak day). */
+  setTraffic(t: number): void {
+    this.traffic = Math.max(TRAFFIC.min, Math.min(TRAFFIC.max, t));
+    this.count();
+  }
+
+  private count(): void {
+    this.active = Math.round(this.riders.length * DENSITY[this.level] * this.traffic / TRAFFIC.max);
   }
 
   /** A piste, the busier ones more often. */
-  private pick(): Piste {
-    let t = this.rnd() * this.weights.reduce((x, y) => x + y, 0);
-    for (let k = 0; k < this.runs.length; k++) if ((t -= this.weights[k]) <= 0) return this.runs[k];
+  private pick(weights: number[]): Piste {
+    let t = this.rnd() * weights.reduce((x, y) => x + y, 0);
+    for (let k = 0; k < this.runs.length; k++) if ((t -= weights[k]) <= 0) return this.runs[k];
     return this.runs[this.runs.length - 1];
   }
 
@@ -86,14 +109,9 @@ export class Crowd {
       if (i >= this.active) { r.obstacle.x = r.obstacle.z = 1e9; r.dist = Infinity; continue; } // gone home: out of reach, not drawn
       r.d += r.speed * dt * 0.92;
       if (r.d > r.piste.len - 5) {
-        const n = r.piste.next;
-        if (n && n.p.len - n.s > 60) {
-          r.piste = n.p;
-          r.d = n.s;
-        } else {
-          r.piste = this.pick();
-          r.d = 0;
-        }
+        // back up a lift, onto a piste picked by its colour: each piste keeps its share of the station's skiers
+        r.piste = this.pick(this.lifts);
+        r.d = 0;
       }
       this.line(r, r.d, p1);
       r.obstacle.x = p1.x;

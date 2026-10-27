@@ -119,6 +119,7 @@ function applySettings(): void {
   game.audio.setVolume(st.volume);
   game.audio.setMusic(st.music);
   game.setComfort(st.comfort);
+  game.setTraffic(st.traffic);
   game.setFirstPerson(st.camera === 'helmet');
   ui.classList.toggle('left-handed', st.leftHanded);
   ui.classList.toggle('comfort', st.comfort); // gentler HUD overlays

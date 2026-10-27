@@ -144,6 +144,7 @@ export class Menus {
         <div class="rows">
           <label>Graphics ${seg('quality', [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']])}</label>
           <label>Steering sensitivity <input type="range" min="0.6" max="1.4" step="0.05" value="${st.sensitivity}" data-range="sensitivity"></label>
+          <label>Traffic <small>off-season to peak day</small> <input type="range" min="0.4" max="2.5" step="0.05" value="${st.traffic}" data-range="traffic"></label>
           <label>Volume <input type="range" min="0" max="1" step="0.05" value="${st.volume}" data-range="volume"></label>
           <label>Music ${tog('music')}</label>
           <label>Camera ${seg('camera', [['chase', 'Chase'], ['helmet', 'Helmet']])}</label>

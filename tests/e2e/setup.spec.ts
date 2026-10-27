@@ -33,3 +33,21 @@ test('no ?setup: no station settings for visitors', async ({ page }) => {
   await expect(page.locator('.setup')).toHaveCount(0);
   await expect(page.locator('.setup-toggle')).toHaveCount(0);
 });
+
+test('Settings: the traffic, from an off-season weekday to a peak day', async ({ page }) => {
+  await boot(page, '/');
+  expect(await api<number>(page, 'a.skiers()')).toBe(315); // an average day at Les Rousses
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const traffic = page.getByRole('slider', { name: /Traffic/ });
+  const ski = async (t: string, n: number) => { // the game waits while its menu is open: they set off on Resume
+    await traffic.fill(t);
+    await page.getByRole('button', { name: 'Done' }).click();
+    await page.getByRole('button', { name: 'Resume' }).click();
+    await expect.poll(() => api<number>(page, 'a.skiers()'), { timeout: 10_000 }).toBe(n);
+  };
+  await ski('2.5', 788);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await ski('0.4', 126);
+});

@@ -31,6 +31,8 @@ export interface Settings {
   tilt: boolean;
   showFps: boolean;
   vibration: boolean;
+  /** Free ride: people on the pistes, times an average day (0.4 off-season to 2.5 peak day). */
+  traffic: number;
 }
 
 export interface Save {
@@ -45,7 +47,7 @@ export interface Save {
 
 export const DEFAULT_SETTINGS: Settings = {
   quality: 'high', volume: 0.8, music: true, sensitivity: 1, leftHanded: false, comfort: false, camera: 'chase', tilt: false, showFps: false,
-  vibration: true,
+  vibration: true, traffic: 1,
 };
 
 const KEY = 'sillage.save.v1';

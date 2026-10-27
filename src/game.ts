@@ -141,6 +141,7 @@ export class Game {
       const view = this.view, m = this.mountain;
       this.snow = { height: (x, z) => view.drawnHeight(x, z), normal: m.normal, surface: m.surface };
       this.crowd = new Crowd(m, this.snow.height);
+      this.crowd.setTraffic(this.traffic);
       this.sparkle = addSnowSparkle(this.view.material);
       this.landmarks = null;
       this.world.add(this.view.group, this.crowd.group);
@@ -467,6 +468,13 @@ export class Game {
   setConfig(cfg: StationConfig): void {
     this.view?.restos.setReal(cfg.buildings === 'real');
     this.crowd?.setDensity(cfg.crowd);
+  }
+
+  /** Free ride: the player's traffic on the pistes, times an average day (kept across stations). */
+  private traffic = 1;
+  setTraffic(t: number): void {
+    this.traffic = t;
+    this.crowd?.setTraffic(t);
   }
 
   /** From the trail map: into lift i's queue, just behind its bottom station (Space boards). */
