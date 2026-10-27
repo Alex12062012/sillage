@@ -1,3 +1,5 @@
+import roussesConfig from '../stations/rousses.config.json';
+import { DEFAULT_CONFIG, parseConfig, type StationConfig } from './stationConfig';
 import type { TrackDef } from './track';
 
 /** A ski area baked by scripts/bake-station.mjs (metres, x east, z south; see that script for the encodings). */
@@ -36,6 +38,8 @@ export interface Station {
   far: number;
   haze: number;
   load(): Promise<StationData>;
+  /** Its settings (src/stations/<id>.config.json). */
+  config: StationConfig;
 }
 
 export const STATIONS: Station[] = [
@@ -43,11 +47,13 @@ export const STATIONS: Station[] = [
     id: 'rousses', trackId: 'free', name: 'Les Rousses', area: 'Jura · Dôle-Tuffes', steep: 2.3, h0: 1160,
     start: 'Jouvenceaux', summit: 'Dappes', summitName: 'La Dôle', seed: 4242, km: 36, lifts: 22, alt: [1120, 1677], far: 40000, haze: 50,
     load: () => import('./rousses-data').then((d) => d.ROUSSES),
+    config: parseConfig(roussesConfig, DEFAULT_CONFIG),
   },
   {
     id: 'avoriaz', trackId: 'free-avoriaz', name: 'Avoriaz', area: 'Portes du Soleil · from Morzine to the Swiss Wall', steep: 1, h0: 0,
     start: 'Super-Morzine', summit: 'Mossettes', summitName: 'Les Mossettes', seed: 7474, km: 87, lifts: 37, alt: [960, 2466], far: 70000, haze: 120,
     load: () => import('./avoriaz-data').then((d) => d.AVORIAZ),
+    config: DEFAULT_CONFIG,
   },
 ];
 
