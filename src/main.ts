@@ -4,6 +4,7 @@ import { Game } from './game';
 import type { SkierInput } from './sim/skier';
 import { applyRun, COSMETICS, emptySave, isUnlocked, loadSave, saveSave, totalStars, type Save, type Settings } from './sim/progress';
 import { loadedStation, loadStation, stationOfTrack } from './sim/stations';
+import { DEFAULT_CONFIG, type StationConfig } from './sim/stationConfig';
 import { TRACKS, trackById } from './sim/tracks';
 import { TUNING } from './tuning';
 import { createDebugPanel } from './ui/debug';
@@ -358,5 +359,7 @@ window.__sillage = {
   teleport: (z: number, kmh = 40) => { game.reset(); game.startAt(z, kmh / 3.6); },
   spot: (x: number, z: number, heading = 0) => { game.unload({ x, z, heading }); game.phase = 'running'; }, // free ride
   lift: (i: number) => game.toLift(i), // free ride: into lift i's queue
+  restos: () => game.mountain?.restos.map((r) => ({ name: r.name, x: r.x, z: r.z })) ?? [],
+  config: (c: Partial<StationConfig>) => game.setConfig({ ...(game.mountain?.station.config ?? DEFAULT_CONFIG), ...c }),
   debug: () => debug.toggle(),
 };

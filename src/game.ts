@@ -14,6 +14,7 @@ import { MountainView } from './render/mountainView';
 import { botInput } from './sim/bot';
 import { boardReach, makeMountain, stationScale, type Mountain, type Spot } from './sim/mountain';
 import { loadedStation, stationOfTrack } from './sim/stations';
+import type { StationConfig } from './sim/stationConfig';
 import { createFlow, stepFlow, type FlowEvent, type FlowState } from './sim/flow';
 import { CHALLENGE_TITLE, CHALLENGES, describeChallenge, liveTier, progressText, type RunStats } from './sim/missions';
 import { createRun, runStats, SlowMo, spinDegrees, stepRun, type RunEvent, type RunState } from './sim/run';
@@ -142,6 +143,7 @@ export class Game {
       this.sparkle = addSnowSparkle(this.view.material);
       this.landmarks = null;
       this.world.add(this.view.group, this.crowd.group);
+      this.setConfig(station.config);
     } else {
       this.track = this.snow = makeTrack(def);
       this.terrain = new Terrain(this.track, buildChunkProps);
@@ -455,6 +457,11 @@ export class Game {
     if (!this.mountain || this.paused) return;
     this.phase = 'running';
     this.unload(this.mountain.summit);
+  }
+
+  /** Free ride: the station's settings that apply live (buildings, crowd); the slopes need the mountain rebuilt (load). */
+  setConfig(cfg: StationConfig): void {
+    this.view?.restos.setReal(cfg.buildings === 'real');
   }
 
   /** From the trail map: into lift i's queue, just behind its bottom station (Space boards). */

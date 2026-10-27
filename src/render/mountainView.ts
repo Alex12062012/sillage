@@ -1,5 +1,5 @@
 import {
-  BoxGeometry, BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, Group,
+  BoxGeometry, BufferAttribute, BufferGeometry, Color, CylinderGeometry, Float32BufferAttribute, Group,
   IcosahedronGeometry, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial, Quaternion, Vector3, Vector4,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -7,6 +7,7 @@ import { fbm } from '../core/rng';
 import { DEEP, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { smoothstep } from '../sim/track';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
+import { building, RestoView } from './restos';
 
 const C_GROOMED = new Color(0xe9eff7);
 const C_POWDER = new Color(0xf8fafd);
@@ -164,18 +165,6 @@ function aroundMesh(m: Mountain, mat: MeshLambertMaterial): Mesh {
   return gridMesh(A.nx, A.nz, pos, col, mat);
 }
 
-/** Building: walls (timber, or render for the big ones), a snowy hipped roof, warm windows per floor. */
-function building(x: number, y: number, z: number, w: number, d: number, yaw: number, levels: number): BufferGeometry {
-  const wall = levels * 2.9 + 0.4;
-  const parts = [
-    paint(new BoxGeometry(w, wall, d).translate(0, wall / 2, 0).toNonIndexed(), () => new Color(levels > 2 ? 0xd8ccb4 : 0x7d5538)),
-    paint(new ConeGeometry(Math.hypot(w, d) * 0.62, Math.min(w, d) * 0.42 + 1, 4).rotateY(Math.PI / 4)
-      .scale((w / Math.hypot(w, d)) * 1.45, 1, (d / Math.hypot(w, d)) * 1.45).translate(0, wall + Math.min(w, d) * 0.21 + 0.5, 0).toNonIndexed(), () => new Color(0xf4f7fb)),
-  ];
-  for (let l = 0; l < levels; l++) parts.push(paint(new BoxGeometry(w * 0.7, 0.8, d + 0.06).translate(0, 1.7 + l * 2.9, 0).toNonIndexed(), () => new Color(0xffc56b)));
-  return mergeGeometries(parts.map(noUv)).rotateY(yaw).translate(x, y, z);
-}
-
 /** Lift station: concrete base, a red roof over the bullwheel (smaller for drag lifts). */
 function station(x: number, y: number, z: number, yaw: number, s: number, towerH: number): BufferGeometry {
   return mergeGeometries([
@@ -237,6 +226,8 @@ export class MountainView {
   private riderPerch: Mesh;
   private lifts: LiftView[] = [];
   private t = 0;
+  /** The restaurants, real or generic (the station's setting). */
+  readonly restos: RestoView;
 
   constructor(private m: Mountain) {
     this.massif.onBeforeCompile = (sh) => {
@@ -370,6 +361,8 @@ export class MountainView {
       );
     }
     this.group.add(new Mesh(mergeGeometries(built), flat));
+    this.restos = new RestoView(m, true);
+    this.group.add(this.restos.group);
 
     // chairs (seat, back, hanger; wide as their seats) and drag perches (a rod and its disc)
     const chairGeo = mergeGeometries([

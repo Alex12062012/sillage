@@ -361,15 +361,19 @@ export function makeMountain(st: Station, R: StationData): Mountain {
   const restos: Resto[] = st.restos.map((r) => {
     const [x, z] = toLocal(R.origin, r.lat, r.lon);
     const u = [Math.cos(r.yaw), -Math.sin(r.yaw)], v = [Math.sin(r.yaw), Math.cos(r.yaw)]; // the footprint's axes (w along u, d along v)
-    let y = Infinity;
-    for (const a of [-1, 1]) for (const b of [-1, 1]) y = Math.min(y, height(x + (u[0] * a * r.w + v[0] * b * r.d) / 2, z + (u[1] * a * r.w + v[1] * b * r.d) / 2));
+    let y = Infinity, floor = -Infinity;
+    for (const a of [-1, 1]) for (const b of [-1, 1]) {
+      const h = height(x + (u[0] * a * r.w + v[0] * b * r.d) / 2, z + (u[1] * a * r.w + v[1] * b * r.d) / 2);
+      y = Math.min(y, h);
+      floor = Math.max(floor, h);
+    }
     let signYaw = r.signYaw;
     if (signYaw === undefined) {
       const h = pisteAt(x, z, 400);
       if (h) along(h.p, h.s, pt);
       signYaw = h ? Math.atan2(pt.x - x, pt.z - z) : 0;
     }
-    return { ...r, x, z, y, signYaw };
+    return { ...r, x, z, y, floor, signYaw };
   });
   const inResto = (r: Resto, x: number, z: number, pad = 0) => {
     const c = Math.cos(r.yaw), s = Math.sin(r.yaw), dx = x - r.x, dz = z - r.z;

@@ -36,6 +36,8 @@ export interface Resto extends RestoDef {
   z: number;
   /** The lowest ground under the footprint: the building's plinth goes down to it. */
   y: number;
+  /** The highest: the ground floor stands there (nothing buried on the uphill side). */
+  floor: number;
   signYaw: number;
 }
 
