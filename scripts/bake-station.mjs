@@ -85,7 +85,7 @@ const STATIONS = {
   // land.json    Overpass: forest/wood ways+relations, buildings, highways, parkings in 46.412,6.030,46.468,6.118
   // t_14_X_Y.png z14 x 8466–8470, y 5798–5803 — the ski area · b_11_X_Y.png z11 x 1056–1061, y 723–726 — the Léman, the Jura ridges
   rousses: {
-    name: 'ROUSSES', origin: [46.44, 6.075], box: [46.4185, 6.0385, 46.4605, 6.1135],
+    name: 'ROUSSES', origin: [46.44, 6.075], box: [46.4185, 6.0385, 46.468, 6.1135], // north to La Cure (L'Arbezie, Chez Mamac)
     fine: ['t', 14, range(8466, 8470), range(5798, 5803)], wide: ['b', 11, range(1056, 1061), range(723, 726)],
     around: { step: 300, x0: -24000, z0: -20000, nx: 161, nz: 134 },
     read() {

@@ -22,6 +22,10 @@ describe('free ride: Les Rousses, Dôle-Tuffes', () => {
     for (const l of m.lifts.filter((q) => q.len > 300)) expect(end(l.name, 1), l.name).toBeGreaterThan(end(l.name, 0) + 20);
   });
 
+  it('reaches La Cure: the detailed grid covers ~46.468 N', () => {
+    expect(m.bounds.z0).toBeLessThan(-3100); // (46.44 − 46.468) × 111195 ≈ −3113 m: L'Arbezie, Chez Mamac
+  });
+
   it('graded pistes never climb more than a skate', () => {
     const o = { x: 0, z: 0, dx: 0, dz: 0 };
     for (const p of m.pistes.filter((q) => !q.area)) {
