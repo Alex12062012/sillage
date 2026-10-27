@@ -300,7 +300,8 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 .touch-btn.map { display: none; width: 46px; height: 46px; font-size: 12px; top: calc(10px + env(safe-area-inset-top)); right: calc(66px + env(safe-area-inset-right)); }
 .touch.free .touch-btn.map { display: block; }
 .touch.show.free ~ .hud .hud-right { margin-right: 106px; }
-.trailmap { position: fixed; inset: 0; z-index: 25; background: #c9d3df; color: var(--ink); font: 500 13px system-ui, sans-serif; touch-action: none; }
+.trailmap { position: fixed; inset: 0; z-index: 25; background: #c9d3df; color: var(--ink); font: 500 13px system-ui, sans-serif; touch-action: none; pointer-events: auto; user-select: none; }
+.trailmap [hidden] { display: none !important; }
 .trailmap canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
 .trailmap canvas:active { cursor: grabbing; }
 .trailmap-head {
@@ -310,7 +311,7 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 .trailmap-head b { font-size: 17px; padding: 6px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.85); }
 .trailmap-head span { opacity: 0.8; padding: 4px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.7); }
 .trailmap-head kbd { font: 700 11px system-ui; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
-.trailmap-head button {
+.trailmap-head .close {
   margin-left: auto; pointer-events: auto; width: 44px; height: 44px; border: 0; border-radius: 50%; font: 700 18px system-ui;
   color: #fff; background: rgba(18, 35, 61, 0.8); cursor: pointer;
 }
@@ -330,3 +331,25 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 .trailmap-tip small { display: block; opacity: 0.75; }
 .trailmap-head em { font-style: normal; }
 @media (pointer: coarse) { .trailmap-head em { display: none; } }
+
+.trailmap-ctrl {
+  position: absolute; right: calc(12px + env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 6px;
+}
+.trailmap-ctrl button {
+  width: 44px; height: 44px; border: 0; border-radius: 12px; cursor: pointer; font: 700 22px system-ui; color: var(--ink);
+  background: rgba(255, 255, 255, 0.92); box-shadow: 0 2px 8px rgba(18, 35, 61, 0.25);
+}
+.trailmap-ctrl button:hover { background: #fff; }
+.trailmap-ctrl .me { margin-top: 6px; font-size: 20px; color: var(--accent); }
+.trailmap-card {
+  position: absolute; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 16px; border-radius: 16px; max-width: calc(100vw - 140px);
+  background: rgba(255, 255, 255, 0.96); box-shadow: 0 6px 22px rgba(18, 35, 61, 0.3);
+}
+.trailmap-card b { display: block; font-size: 16px; }
+.trailmap-card b i { margin-right: 8px; width: 16px; height: 6px; border-radius: 3px; }
+.trailmap-card small { opacity: 0.7; }
+.trailmap-card .go { border: 0; border-radius: 12px; padding: 10px 14px; font: 700 14px system-ui; color: #fff; background: var(--accent); cursor: pointer; white-space: nowrap; }
+.trailmap-card .go:hover { background: #ff8f5a; }
+@media (max-width: 640px) { .trailmap-legend { display: none; } .trailmap-card { left: 12px; right: 68px; transform: none; max-width: none; } }
