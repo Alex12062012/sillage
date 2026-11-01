@@ -39,9 +39,9 @@ function ride(g: Ground, speedKmh: number, seconds: number, steer = 0) {
 }
 
 describe('obstacles', () => {
-  it('riding into a tree is a crash, and never counts as a near-miss', () => {
+  it('riding into a tree at 50 km/h never crashes (you slide around it), and never counts as a near-miss', () => {
     const { all } = ride(forest([{ x: 0, z: 25, r: 0.6 }]), 50, 3);
-    expect(all.some((e) => e.type === 'crash' && e.reason === 'obstacle')).toBe(true);
+    expect(all.some((e) => e.type === 'crash')).toBe(false);
     expect(all.some((e) => e.type === 'nearMiss')).toBe(false);
   });
 
@@ -105,10 +105,10 @@ describe('SlowMo', () => {
 });
 
 describe('run stats', () => {
-  it('tracks top speed and counts crashes', () => {
+  it('tracks top speed, and a tree is no crash', () => {
     const { run } = ride(forest([{ x: 0, z: 25, r: 0.6 }]), 50, 3);
     expect(run.topSpeed).toBeGreaterThan(ms(45));
-    expect(run.crashes).toBe(1);
+    expect(run.crashes).toBe(0);
     expect(new Vector3().length()).toBe(0);
   });
 });

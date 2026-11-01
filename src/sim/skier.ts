@@ -170,7 +170,7 @@ function groundStep(s: SkierState, inp: SkierInput, g: Ground, dt: number, ev: S
 
   // 6. Move, then decide: stick to the ground or take off.
   s.pos.addScaledVector(s.vel, dt);
-  if (collide(s, g, ev)) return;
+  collide(s, g);
   const h = g.height(s.pos.x, s.pos.z);
   const n2 = g.normal(s.pos.x, s.pos.z, tmpN);
   const vn = s.vel.dot(n2);
@@ -256,14 +256,14 @@ function airStep(s: SkierState, inp: SkierInput, g: Ground, dt: number, ev: Skie
   s.edge *= 0.9;
 
   s.pos.addScaledVector(s.vel, dt);
-  if (collide(s, g, ev)) return;
+  collide(s, g);
   const h = g.height(s.pos.x, s.pos.z);
   if (s.pos.y <= h) land(s, g, h, ev);
 }
 
-/** Trees, rocks, other skiers: circles in the ground plane. Fast hit = crash, slow touch = blocked. */
-function collide(s: SkierState, g: Ground, ev: SkierEvent[]): boolean {
-  if (!g.obstaclesNear) return false;
+/** Trees, rocks, other skiers: circles in the ground plane. Any touch, any speed = blocked and slide along, never a crash. */
+function collide(s: SkierState, g: Ground): void {
+  if (!g.obstaclesNear) return;
   for (const o of g.obstaclesNear(s.pos.x, s.pos.z, T.skierRadius + 0.5, near)) {
     const dx = s.pos.x - o.x;
     const dz = s.pos.z - o.z;
@@ -273,15 +273,9 @@ function collide(s: SkierState, g: Ground, ev: SkierEvent[]): boolean {
     s.pos.x = o.x + (dx / d) * minD;
     s.pos.z = o.z + (dz / d) * minD;
     if (!s.airborne) s.pos.y = g.height(s.pos.x, s.pos.z);
-    if (s.vel.length() > 5) {
-      s.vel.multiplyScalar(0.25); // the tree wins
-      startCrash(s, ev, 'obstacle', o.id);
-      return true;
-    }
     const into = (s.vel.x * dx + s.vel.z * dz) / d;
     if (into < 0) { s.vel.x -= (into * dx) / d; s.vel.z -= (into * dz) / d; }
   }
-  return false;
 }
 
 function land(s: SkierState, g: Ground, h: number, ev: SkierEvent[]): void {
