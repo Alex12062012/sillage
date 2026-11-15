@@ -9,7 +9,7 @@
 - [x] 3. Lumière de base : soleil réel en free ride (46,4° N, mi-février, départ 15 h 30), ciel plus riche autour du soleil bas, brume de hauteur (patch des chunks de brouillard), tone mapping Neutral (exposition 1,15), étalonnage en medium/high, palier bas fermé par la brume à 5 km. Palier bas : Rousses 246 k / 49 draw calls, Avoriaz 240 k / 30, village 233 k / 46.
 - [x] 4. Ombres : carte d'ombre du soleil en medium (1024 px, ±55 m) et high (2048 px, ±110 m), recentrée devant la caméra et calée sur les texels ; ombres du relief calculées sur le CPU (grille de 20 m) pour tous les paliers. Bug de la sous-étape A corrigé : les sapins « profonds » étaient coupés au-delà de 200 m au palier bas. Palier bas après correctif : Rousses 276 k / 50, Avoriaz 278 k / 31, village 260 k / 47.
 - [x] 5. Neige : velours de dameuse dans le sens de la piste (texture damé + direction sur la grille de 10 m, 14 ms aux Rousses et 56 ms à Avoriaz au chargement en desktop), grain de 12 cm près de la caméra, part de ciel bleutée dans l'ombre. Aucun triangle ajouté.
-- [ ] 6. Remesure
+- [x] 6. Remesure (PERF.md, « Couche lumière ») : palier bas Rousses 271 k / 49, Avoriaz 278 k / 31, village 255 k / 45. Budget de 250 k non tenu, proposition dans DECISIONS.md point 91. e2e : 18 réussis, aucun échec.
 - [ ] 7. Critique indépendante
 
 ## Session 1 : sous-étape A

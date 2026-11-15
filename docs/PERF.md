@@ -1,5 +1,27 @@
 # PERF — mesures
 
+## Couche lumière : mesures finales (15/11/2026, session autonome)
+
+Même protocole que ci-dessous (build de test, scénarios fixes, M1, ANGLE Metal). Le FPS reste plafonné à 60 et le GPU n'est pas bridé : ces chiffres ne remplacent pas un vrai téléphone.
+
+| Scénario | Palier | Avant la session : triangles / draw calls | Après : triangles / draw calls | FPS moyen / p99 (Pixel 7, CPU ×4) |
+|---|---|---|---|---|
+| Free ride Rousses | bas | 275 k / 78 | **271 k / 49** | 60 / 59,5 |
+| Free ride Avoriaz | bas | 408 k / 98 | **278 k / 31** | 60 / 59,5 |
+| Vue village | bas | 245 k / 70 | **255 k / 45** | 60 / 59,5 |
+| Free ride Rousses | moyen | — | 543 k / 89 | 60 / 59,5 |
+| Free ride Avoriaz | moyen | — | 1 476 k / 42 | 60 / 59,5 |
+| Vue village | moyen | — | 402 k / 57 | 60 / 59,5 |
+| Free ride Rousses | élevé | — | 889 k / 102 | 60 / 59,5 |
+| Free ride Avoriaz | élevé | — | 2 647 k / 55 | 57 / **29,9** |
+| Vue village | élevé | — | 671 k / 70 | 60 / 59,5 |
+
+- Les chiffres « avant » du palier bas sous-estimaient le coût : les sapins profonds lointains n'étaient plus dessinés (bug de la sous-étape A, corrigé ; DECISIONS.md, point 89). À forêt égale, la session baisse donc les triangles plus que ce tableau ne le montre.
+- En moyen et élevé, les triangles et draw calls comptent toute l'image, passe d'ombre et post-traitement compris.
+- Palier bas en desktop 1280×720 : 258 k, 274 k, 246 k. Avec le CPU ×6 : FPS 60 partout, p99 30 à Avoriaz.
+- Démarrage : ombres du relief 18 ms (Rousses) et 29 ms (Avoriaz) en desktop, 61 et 116 ms avec le CPU ×4 ; sens des pistes pour le velours, 14 et 56 ms en desktop.
+- Budget de 250 k au palier bas : non tenu (Rousses 271 k, Avoriaz 278 k, village 255 k). Avoriaz descend sous 300 k grâce à la brume à 5 km (408 → 278 k), mais pas sous 250 k. Voir DECISIONS.md, point 91.
+
 ## Free ride, palier bas : budget de 250 k triangles (15/11/2026, sous-étape A de la refonte visuelle)
 
 Build de test (`npm run build:test && npm run preview`, identique à la production plus l'API de debug), `node scripts/perf.mjs --tiers=low --profiles=mobile,desktop --scenes=rousses,avoriaz,village`. Scénarios fixes : même point de départ, skieur freiné sur place, heure par défaut de la station. MacBook M1, ANGLE Metal. La foule bouge, donc le total varie d'environ 10 k d'une mesure à l'autre.

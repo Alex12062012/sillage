@@ -187,4 +187,8 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
     - Grain de 12 cm (±3,5 % de luminosité), près de la caméra seulement.
     - Ombres bleutées : la lumière qui ne vient pas du soleil (ciel, sol) est un peu plus bleue sur la neige.
     - Les stries régulières qui traversent la piste dans la capture « vue-piste » viennent des ombres de la lisière au soleil de 14 h 30 (mesuré : elles disparaissent avec la carte d'ombre, pas sans velours ni sans relief). Le velours lui-même n'a pas été vérifié à l'œil, faute de captures disponibles.
+91. **Budget de triangles du palier bas : proposition, non imposée.** Mesuré en fin de session (Pixel 7 émulé) : Rousses 271 k, Avoriaz 278 k, village 255 k. La brume à 5 km a fait passer Avoriaz de 408 à 278 k, sans descendre sous 250 k. Une fois les forêts lointaines rétablies, le jeu normal dépasse lui aussi de 2 à 10 %. Deux voies, au choix :
+    - garder 250 k partout et payer en image au palier bas : brume à 3,5 km, 8 corps dans la foule au lieu de 12, forêt lointaine éclaircie au-delà de 1,5 km, ou un maillage par restaurant (il faudrait alors assouplir `restos-view.test.ts`) ;
+    - fixer un budget en deux parties : environ 280 k pour le jeu normal au palier bas (piste, village) et environ 450 k pour le panorama du sommet (Avoriaz, vue jusqu'à Morzine). Le budget « panorama » tolère 450 k parce que ce point de vue est rare et immobile.
+    Rien n'est changé en attendant la décision.
 
