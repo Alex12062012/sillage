@@ -1,5 +1,30 @@
 # PERF — mesures
 
+## Refonte visuelle 2 : mesures (15/11/2026, session autonome)
+
+Même protocole que ci-dessous : build de test, `node scripts/perf.mjs --scenes=rousses,avoriaz,village`, scénarios fixes, MacBook M1, ANGLE Metal. Le GPU n'est pas bridé et le FPS reste plafonné à 60 : ces chiffres ne remplacent pas un vrai téléphone. La foule bouge, le total varie de 5 à 10 k d'une mesure à l'autre.
+
+Budgets décidés (DECISIONS.md, point 95) : palier bas 280 k en jeu normal et 450 k pour le panorama d'Avoriaz ; draw calls 60 / 90 / 110 en bas / moyen / élevé.
+
+Profil mobile (Pixel 7 en paysage, CPU ×4) pour tous les paliers, comme dans la session 2.
+
+| Scénario | Palier | Début de session : triangles / draw calls | Fin : triangles / draw calls | FPS moyen / p99 (fin) |
+|---|---|---|---|---|
+| Free ride Rousses | bas | 271 k / 49 | **267 k / 52** | 60 / 59,5 |
+| Free ride Avoriaz (panorama) | bas | 278 k / 31 | **322 k / 32** | 60 / 59,5 |
+| Vue village | bas | 255 k / 45 | **242 k / 51** | 60 / 59,5 |
+| Free ride Rousses | moyen | 543 k / 89 | 516 k / 90 | 60 / 59,5 |
+| Free ride Avoriaz | moyen | 1 476 k / 42 | 1 422 k / 44 | 60 / 59,5 |
+| Vue village | moyen | 402 k / 57 | 354 k / 61 | 60 / 59,5 |
+| Free ride Rousses | élevé | 889 k / 102 | 829 k / 103 | 60 / 59,5 |
+| Free ride Avoriaz | élevé | 2 647 k / 55 | 2 442 k / 57 | 57 / **29,9** |
+| Vue village | élevé | 671 k / 70 | 597 k / 74 | 60 / 59,5 |
+
+- Tous les budgets sont tenus. Le plus juste : 90 draw calls en moyen aux Rousses, pile au plafond.
+- Avoriaz en élevé tombe toujours à 30 FPS au p99, comme en session 2, malgré 205 k triangles de moins. High reste un réglage pour ordinateur puissant.
+- Les chiffres moyen et élevé donnés en cours de session (DECISIONS.md, points 97 à 99, et messages de commit) sont mesurés en desktop 1280×720, et leurs valeurs « avant » de l'étape 2 venaient du profil mobile. Ce tableau compare à profil égal.
+- Détail par étape : DECISIONS.md, points 96 à 99.
+
 ## Couche lumière : mesures finales (15/11/2026, session autonome)
 
 Même protocole que ci-dessous (build de test, scénarios fixes, M1, ANGLE Metal). Le FPS reste plafonné à 60 et le GPU n'est pas bridé : ces chiffres ne remplacent pas un vrai téléphone.

@@ -134,7 +134,7 @@ export function snowGun(g: Geo, x: number, y: number, z: number, yaw: number): v
   bar(s, [0, 0.6, 0], [0, 1.5, 0.1], 0.08, STEEL);
   // the barrel: a tube along its own axis, built upright then tilted 25° and lifted
   const b = new Geo();
-  tube(b, 0, 0, -0.75, 0.75, 0.6, 0.55, 8, WHITE);
+  tube(b, 0, 0, -0.75, 0.75, 0.6, 0.55, 8, C(0xe8b62c)); // a bright barrel: read from the chairlift
   disc(b, 0, 0, -0.75, 0.6, 8, DARK, true);
   disc(b, 0, 0, 0.75, 0.55, 8, C(0x1d2128));
   const bg = b.build().rotateX(Math.PI / 2 - 0.44).translate(0, 1.9, 0.25);

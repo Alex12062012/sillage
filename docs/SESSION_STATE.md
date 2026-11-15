@@ -10,7 +10,15 @@ Départ, palier bas, Pixel 7 émulé (triangles / draw calls) : Rousses 271 k / 
 - [x] 2. Végétation : conifère (épicéa, sapin) et arbre nu (feuillus, mélèzes), neige au pixel, vent, cônes lointains à 6 triangles, forêt plus dense au palier bas. Après : Rousses 269 k / 49, Avoriaz 280 k / 32, village 252 k / 48 ; moyen 514 k / 88 et élevé 790 k / 101 aux Rousses. DECISIONS.md, point 97.
 - [x] 3. Bâtiments : Illico refait (ferme crépie, arche), cinq archétypes à variantes, vitres sombres le jour et allumées en fin de journée, restaurants regroupés par carré de 2 km (test mis à jour). Après : Rousses 241 k / 52, Avoriaz 282 k / 32, village 227 k / 51 ; moyen Rousses 456 k / 90 ; élevé Avoriaz 2 202 k / 57. DECISIONS.md, point 98.
 - [x] 4. Modèles : sièges, pylônes, gares, piquets refaits ; panneaux, filets, canons à neige, dameuses garées et protections de pylônes ajoutés, dans une seule couche à tuiles. Après : Rousses 259 k / 52, Avoriaz 300 k / 32, village 237 k / 51 ; moyen Rousses 471 k / 90 ; élevé Avoriaz 2 377 k / 57. DECISIONS.md, point 99. `docs/CREDITS.md` créé (aucun asset externe).
-- [ ] 5. Critique
+- [x] 5. Critique (un sous-agent) : avant 5/10, après 5,5/10. Corrigés : ambiance plus chaude, forêt plus dense, canon lisible, bande d'horizon adoucie. Non corrigés : neige plate (pas d'ombres portées au palier bas), Illico jugé trop sobre (gardé fidèle à la fiche). DECISIONS.md, point 100.
+
+### Fin de session 3
+
+- Chiffres finaux, profil mobile, triangles / draw calls : bas Rousses 267 k / 52, Avoriaz 322 k / 32, village 242 k / 51 ; moyen 516 k / 90, 1 422 k / 44, 354 k / 61 ; élevé 829 k / 103, 2 442 k / 57, 597 k / 74. Tableau complet : PERF.md.
+- Captures : `docs/captures/v2-avant/` et `docs/captures/v2-apres/` (palier bas, profil mobile, mêmes points de vue).
+- Reste : ombres portées au palier bas, cabines de télécabine, canons en marche, panneaux aux intersections, archétype de restaurant d'altitude distinct, High à Avoriaz (p99 à 30 FPS).
+- Pièges : les captures « nuit » de `shots.mjs` ne montrent pas la nuit en free ride (l'heure plafonne à t = 0,83, point 93). Les tests e2e réécrivent `docs/captures/e2e-*.jpg` : les restaurer avant un commit. Le marqueur de vitre est la couleur magenta pure : ne pas l'utiliser ailleurs. Medium aux Rousses est à 90 draw calls, le plafond : tout objet ajouté doit passer par une couche à tuiles existante.
+- Pas vérifié : un vrai téléphone, le vent des arbres à l'œil (aucune capture animée), l'éclairage des fenêtres en jeu (seule la fin d'après-midi l'atteint, à environ 28 %).
 
 Usage : aucun outil de la session n'en donne le pourcentage (vérifié au début : rien dans `~/.claude`).
 

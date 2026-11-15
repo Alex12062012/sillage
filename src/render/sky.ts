@@ -17,8 +17,8 @@ const MOODS: Mood[] = [
   { t: 0.3, top: 0x5f93d3, horizon: 0xf3d8c6, sun: 0xffdcb4, sunI: 1.55, sky: 0xcfe2fb, ground: 0x9298a6, hemiI: 1.25, elev: 16 },
   { t: 0.52, top: 0x3d7ed0, horizon: 0xcfe4f6, sun: 0xfff3e2, sunI: 1.85, sky: 0xdcebfb, ground: 0x9aa2ae, hemiI: 1.35, elev: 52 },
   // mid-afternoon (free ride starts at 15 h 30, t 0.708): still a blue winter sky, the horizon barely warm towards the sun
-  { t: 0.68, top: 0x3f74c4, horizon: 0xe6e4dc, sun: 0xffe4c0, sunI: 1.8, sky: 0xcfe0f4, ground: 0x9aa0aa, hemiI: 1.3, elev: 24 },
-  { t: 0.8, top: 0x3d66b4, horizon: 0xf6b98a, sun: 0xffb070, sunI: 1.6, sky: 0xb4cbe8, ground: 0x8e8784, hemiI: 1.1, elev: 9 },
+  { t: 0.68, top: 0x4f86d0, horizon: 0xeee6d8, sun: 0xffdcae, sunI: 1.95, sky: 0xd3e2f4, ground: 0xa8a49c, hemiI: 1.35, elev: 24 },
+  { t: 0.8, top: 0x4a76c0, horizon: 0xf6b98a, sun: 0xffb478, sunI: 1.75, sky: 0xbccfe8, ground: 0x9a8f86, hemiI: 1.15, elev: 9 },
   { t: 0.95, top: 0x2e3566, horizon: 0xd98c88, sun: 0xff8f6b, sunI: 0.9, sky: 0x8ea3c8, ground: 0x666270, hemiI: 0.9, elev: 2 },
 ];
 
@@ -64,12 +64,12 @@ export class Sky {
           // horizon: uHorizon towards the sun, uAway (cooler, paler) on the far side: the same law as the haze (heightFog)
           float toward = clamp(dot(normalize(vDir.xz + 1e-4), normalize(uSunDir.xz + 1e-4)) * 0.5 + 0.5, 0.0, 1.0);
           vec3 horizon = mix(uAway, uHorizon, toward * sqrt(toward));
-          vec3 top = uTop * mix(1.0, 0.88, low); // zenith deeper when the sun is low (less light scattered)
+          vec3 top = uTop * mix(1.0, 0.94, low); // zenith deeper when the sun is low (less light scattered)
           float up = max(h, 0.0);
           // horizon → pale blue in a thin band (thicker towards a low sun), then the blue deepens up to the zenith:
           // mixing the warm horizon straight into the blue gave a mauve sky
           vec3 pale = mix(top, vec3(1.0), 0.42);
-          vec3 col = mix(horizon, pale, 1.0 - exp(-up * mix(32.0, 9.0, toward * toward * low)));
+          vec3 col = mix(horizon, pale, 1.0 - exp(-up * mix(24.0, 6.0, toward * toward * low))); // a soft band, wide towards a low sun
           col = mix(col, top, 1.0 - exp(-up * 4.0));
           float s = max(dot(normalize(vDir), uSunDir), 0.0);
           col += uSun * (pow(s, 900.0) * 1.4 + pow(s, 24.0) * 0.22 + pow(s, 4.0) * 0.1 * low); // disc, halo, wide glow when low

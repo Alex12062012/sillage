@@ -789,8 +789,8 @@ export class MountainView {
     this.every = q === 'high' ? 1 : 2; // the detail patch, bent onto the other mesh, is rebuilt at the next focus()
     // sapins simplifiés au-delà de 200 m (bas), 300 m (moyen), 450 m (élevé) : l'arcade le fait dès 170 m. Seuls les proches
     // projettent une ombre. Piquets coupés au-delà de 700 m au palier bas (moins d'un pixel)
-    // density: the woods 40 / 60 / 100 %, the trees along the pistes twice that (keys halved, see the constructor)
-    const dens = { low: 0.4, medium: 0.6, high: 1.01 }[q];
+    // density: the woods 50 / 65 / 100 %, the trees along the pistes twice that (keys halved, see the constructor)
+    const dens = { low: 0.5, medium: 0.65, high: 1.01 }[q];
     this.trees.forEach((t, k) => {
       const keys = this.treeKeys[k];
       let lo = 0, hi = keys.length;
