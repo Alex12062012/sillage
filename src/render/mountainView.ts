@@ -73,12 +73,13 @@ function gridMesh(nx: number, nz: number, pos: Float32Array, col: Float32Array, 
   return new Mesh(g, mat);
 }
 
+type Tile = { sphere: Sphere; lods: Uint32Array[] };
+
 /**
- * The same grid as several meshes sharing its vertices, `cells` × `cells` cells each, so that the camera
- * culls the tiles behind it (the whole massif in one mesh was always drawn, even behind the skier).
- * Each tile also has a far version on every other vertex (a quarter of the triangles): userData.lod = [near, far].
+ * A grid cut into `cells` × `cells` tiles, each with its triangles (indices into the grid's vertices) near and far
+ * (every other vertex, a quarter of the triangles). The camera culls the tiles behind it (see Tiled).
  */
-function tileGrid(src: Mesh, nx: number, nz: number, cells: number): Group {
+function gridTiles(src: Mesh, nx: number, nz: number, cells: number): Tile[] {
   const quads = (i0: number, i1: number, j0: number, j1: number, step: number): Uint32Array => {
     const out: number[] = [];
     for (let j = j0; j < j1; j += step) {
@@ -90,26 +91,54 @@ function tileGrid(src: Mesh, nx: number, nz: number, cells: number): Group {
     }
     return new Uint32Array(out);
   };
-  const out = new Group(), attrs = src.geometry.attributes, p = attrs.position, box = new Box3(), v = new Vector3();
+  const tiles: Tile[] = [], p = src.geometry.attributes.position, box = new Box3(), v = new Vector3();
   for (let j0 = 0; j0 < nz - 1; j0 += cells) {
     for (let i0 = 0; i0 < nx - 1; i0 += cells) {
       const j1 = Math.min(j0 + cells, nz - 1), i1 = Math.min(i0 + cells, nx - 1);
       box.makeEmpty();
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) box.expandByPoint(v.fromBufferAttribute(p, j * nx + i));
-      const sphere = box.expandByScalar(60).getBoundingSphere(new Sphere()); // margin: the detail patch bends the heights a little
-      const lod = [1, 2].map((step) => {
-        const g = new BufferGeometry();
-        for (const name in attrs) g.setAttribute(name, attrs[name]);
-        g.setIndex(new BufferAttribute(quads(i0, i1, j0, j1, step), 1));
-        g.boundingSphere = sphere;
-        return g;
-      });
-      const tile = new Mesh(lod[0], src.material);
-      tile.userData.lod = lod;
-      out.add(tile);
+      // margin: the detail patch bends the heights a little
+      tiles.push({ sphere: box.expandByScalar(60).getBoundingSphere(new Sphere()), lods: [quads(i0, i1, j0, j1, 1), quads(i0, i1, j0, j1, 2)] });
     }
   }
-  return out;
+  return tiles;
+}
+
+/**
+ * Tiles drawn as ONE mesh: at each refresh, the triangles of the tiles in the (wide) frustum, near or far version,
+ * are copied into a single index buffer. One draw call however many tiles, so they can be small (finer culling).
+ */
+class Tiled {
+  readonly mesh: Mesh;
+  /** Tiles further than this (m, from the camera to the tile's edge) take their far version, if they have one. */
+  far = Infinity;
+  private index: BufferAttribute;
+
+  constructor(src: BufferGeometry, private tiles: Tile[], mat: MeshLambertMaterial) {
+    const g = new BufferGeometry();
+    for (const name in src.attributes) g.setAttribute(name, src.attributes[name]);
+    this.index = new BufferAttribute(new Uint32Array(tiles.reduce((a, t) => a + Math.max(...t.lods.map((l) => l.length)), 0)), 1);
+    this.index.setUsage(DynamicDrawUsage);
+    g.setIndex(this.index);
+    g.setDrawRange(0, 0);
+    this.mesh = new Mesh(g, mat);
+    this.mesh.frustumCulled = false;
+  }
+
+  update(cam: Vector3): void {
+    const a = this.index.array as Uint32Array;
+    let n = 0;
+    for (const t of this.tiles) {
+      if (!wide.intersectsSphere(t.sphere)) continue;
+      const l = t.lods[t.lods.length > 1 && t.sphere.center.distanceTo(cam) - t.sphere.radius > this.far ? 1 : 0];
+      a.set(l, n);
+      n += l.length;
+    }
+    this.mesh.geometry.setDrawRange(0, n);
+    this.index.clearUpdateRanges();
+    this.index.addUpdateRange(0, n);
+    this.index.needsUpdate = true;
+  }
 }
 
 const sph = new Sphere();
@@ -328,15 +357,13 @@ export class MountainView {
   private building: Detail | null = null;
   private trees: Culled[] = [];
   private poles: Culled;
-  private fineTiles: Group;
-  private coarseTiles: Group;
-  /** Palier bas : les tuiles du massif plus loin que ça prennent leur version lointaine. */
-  private terrainFar = Infinity;
-  /** Palier bas : bâtiments sans fenêtres au-delà de ça (moins d'un pixel), sièges et perches coupés au-delà, cabines au-delà. */
-  private buildingFar = Infinity;
+  private fineTiles: Tiled;
+  private coarseTiles: Tiled;
+  private aroundTiles: Tiled;
+  private buildingTiles: Tiled;
+  /** Palier bas : sièges et perches coupés au-delà de ça, cabines au-delà de ça. */
   private chairReach = Infinity;
   private cabinReach = Infinity;
-  private buildingTiles = new Group();
   private lastCam = new Vector3(Infinity, 0, 0);
   private lastDir = new Vector3();
   private riderChair: Mesh;
@@ -361,10 +388,13 @@ export class MountainView {
     this.coarse = terrainMesh(m, 2, this.massif); // phones: a quarter of the triangles
     // drawn as tiles sharing their vertices; the whole meshes stay for the heights and colours (massifAt)
     const G = m.grid, A = m.around;
-    this.fineTiles = tileGrid(this.fine, G.nx, G.nz, 128); // 1.3 km tiles: few draw calls
-    this.coarseTiles = tileGrid(this.coarse, Math.floor((G.nx - 1) / 2) + 1, Math.floor((G.nz - 1) / 2) + 1, 64);
-    this.coarseTiles.visible = false;
-    this.group.add(this.fineTiles, this.coarseTiles, tileGrid(aroundMesh(m, this.material), A.nx, A.nz, Math.ceil(Math.max(A.nx, A.nz) / 6)));
+    this.fineTiles = new Tiled(this.fine.geometry, gridTiles(this.fine, G.nx, G.nz, 64), this.massif); // 640 m tiles
+    this.coarseTiles = new Tiled(this.coarse.geometry, gridTiles(this.coarse, Math.floor((G.nx - 1) / 2) + 1, Math.floor((G.nz - 1) / 2) + 1, 32), this.massif);
+    this.coarseTiles.mesh.visible = false;
+    const around = aroundMesh(m, this.material);
+    this.aroundTiles = new Tiled(around.geometry, gridTiles(around, A.nx, A.nz, Math.ceil(Math.max(A.nx, A.nz) / 12)), this.material);
+    around.geometry.index = null;
+    this.group.add(this.fineTiles.mesh, this.coarseTiles.mesh, this.aroundTiles.mesh);
     const detail = (): Detail => {
       const pos = new Float32Array(DETAIL_N * DETAIL_N * 3), col = new Float32Array(DETAIL_N * DETAIL_N * 3);
       const mesh = gridMesh(DETAIL_N, DETAIL_N, pos, col, this.material);
@@ -481,15 +511,23 @@ export class MountainView {
       near.push(building(x, y, z, w, d, yaw, levels));
       far.push(building(x, y, z, w, d, yaw, levels, false));
     }
+    // all in one geometry (each tile's near version, then its far one), drawn through one index buffer (Tiled)
+    const parts: BufferGeometry[] = [], tiles: Tile[] = [];
+    let at = 0;
+    const range = (count: number) => Uint32Array.from({ length: count }, (_, k) => at + k);
     for (const [near, far] of blocks.values()) {
       const lod = [mergeGeometries(near), mergeGeometries(far)];
       lod[0].computeBoundingSphere();
-      lod[1].boundingSphere = lod[0].boundingSphere;
-      const tile = new Mesh(lod[0], flat);
-      tile.userData.lod = lod;
-      this.buildingTiles.add(tile);
+      const lods = lod.map((g) => {
+        const r = range(g.attributes.position.count);
+        at += g.attributes.position.count;
+        return r;
+      });
+      tiles.push({ sphere: lod[0].boundingSphere!, lods });
+      parts.push(...lod);
     }
-    this.group.add(this.buildingTiles);
+    this.buildingTiles = new Tiled(parts.length ? mergeGeometries(parts) : new BufferGeometry(), tiles, flat);
+    this.group.add(this.buildingTiles.mesh);
     built.push(roads(m));
     if (m.scenery.radar) {
       const [x, z] = m.scenery.radar, y = m.height(x, z);
@@ -601,10 +639,10 @@ export class MountainView {
 
   /** Phones: coarser terrain and a thinner forest. */
   setQuality(q: 'low' | 'medium' | 'high'): void {
-    this.fineTiles.visible = q === 'high';
-    this.coarseTiles.visible = q !== 'high';
-    this.terrainFar = q === 'low' ? 1000 : Infinity;
-    this.buildingFar = q === 'low' ? 800 : Infinity;
+    this.fineTiles.mesh.visible = q === 'high';
+    this.coarseTiles.mesh.visible = q !== 'high';
+    this.coarseTiles.far = q === 'low' ? 1000 : Infinity;
+    this.buildingTiles.far = q === 'low' ? 800 : Infinity;
     this.chairReach = q === 'low' ? 700 : Infinity;
     this.cabinReach = q === 'low' ? 1500 : Infinity;
     this.every = q === 'high' ? 1 : 2; // the detail patch, bent onto the other mesh, is rebuilt at the next focus()
@@ -742,12 +780,6 @@ export class MountainView {
     if (cam) {
       cam.updateMatrixWorld();
       frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
-      for (const [tiles, far] of [[this.coarseTiles, this.terrainFar], [this.buildingTiles, this.buildingFar]] as const) {
-        for (const t of tiles.children as Mesh[]) {
-          const s = t.geometry.boundingSphere!, lod = t.userData.lod as BufferGeometry[];
-          t.geometry = lod[s.center.distanceTo(cam.position) - s.radius > far ? 1 : 0];
-        }
-      }
       // trees and poles: refilled when the camera has moved 10 m or turned 8°, against a frustum 24° wider
       cam.getWorldDirection(tmp);
       const moved = cam.position.distanceToSquared(this.lastCam) > 100 || tmp.dot(this.lastDir) < 0.99;
@@ -759,6 +791,7 @@ export class MountainView {
         wideCam.updateProjectionMatrix();
         wide.setFromProjectionMatrix(viewProj.multiplyMatrices(wideCam.projectionMatrix, cam.matrixWorldInverse));
         for (const t of this.trees) t.update(cam.position);
+        for (const t of [this.fineTiles, this.coarseTiles, this.aroundTiles, this.buildingTiles]) if (t.mesh.visible) t.update(cam.position);
         this.poles.update(cam.position);
       }
     }

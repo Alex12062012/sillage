@@ -1,5 +1,19 @@
 # État de session : refonte visuelle
 
+## Session 2 (15/11/2026, autonomie) : couche lumière
+
+Étapes : 1 draw calls, 2 paliers, 3 lumière de base, 4 ombres, 5 neige, 6 remesure, 7 critique.
+
+- [x] 1. Draw calls (palier bas, mobile) : Rousses 78 → 49, Avoriaz 98 → 30, village 70 → 46. Triangles : 275 → 258 k, 408 → 389 k, 245 → 245 k. Commit « perf(free ride): tuiles en un seul maillage ».
+- [ ] 2. Paliers de qualité
+- [ ] 3. Lumière de base
+- [ ] 4. Ombres
+- [ ] 5. Neige
+- [ ] 6. Remesure
+- [ ] 7. Critique indépendante
+
+## Session 1 : sous-étape A
+
 Branche `refonte-visuelle`. Dernière session : 15/11/2026, sous-étape A (budget de triangles du palier bas).
 
 ## Fait

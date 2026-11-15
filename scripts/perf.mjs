@@ -78,13 +78,13 @@ for (const p of profiles) {
                 // triangles per top-level object: hide it, render, take the difference
                 const g = window.__sillage.raw(), r = g.renderer, out = [];
                 const tri = () => { r.render(g.scene, g.cam.camera); return r.info.render.triangles; };
-                const all = tri();
+                const all = tri(), allCalls = r.info.render.calls;
                 const walk = (o, depth) => {
                   for (const c of o.children) {
                     if (!c.visible) continue;
-                    c.visible = false; const d = all - tri(); c.visible = true;
-                    if (d < 2000) continue;
-                    out.push({ name: '  '.repeat(depth) + (c.name || c.type) + (c.isInstancedMesh ? `[${c.count}]` : '') + (c.children.length ? ` (${c.children.length})` : ''), tris: d });
+                    c.visible = false; const d = all - tri(), dc = allCalls - r.info.render.calls; c.visible = true;
+                    if (d < 2000 && dc < 3) continue;
+                    out.push({ name: '  '.repeat(depth) + (c.name || c.type) + (c.isInstancedMesh ? `[${c.count}]` : '') + (c.children.length ? ` (${c.children.length})` : ''), tris: d, calls: dc });
                     if (depth < 2 && c.children.length) walk(c, depth + 1);
                   }
                 };
@@ -96,7 +96,7 @@ for (const p of profiles) {
           rows.push({ profile: p.name, tier, scene: sc, loadMs, ...m, errors: errors.length });
           const { parts, ...shown } = rows[rows.length - 1];
           console.log(JSON.stringify(shown, (k, v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v)));
-          if (parts) for (const x of parts) console.log(`    ${x.name}: ${Math.round(x.tris / 1000)} k`);
+          if (parts) for (const x of parts) console.log(`    ${x.name}: ${Math.round(x.tris / 1000)} k, ${x.calls} calls`);
           if (errors.length) console.log('  PAGE ERRORS:', errors.slice(0, 3).join(' | '));
           attempt = 2;
         } catch (e) {
