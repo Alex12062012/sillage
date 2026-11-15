@@ -37,7 +37,7 @@ export const TRACKS: TrackDef[] = [
 export const TUTO_TRACK: TrackDef = {
   id: 'tuto', name: 'Tutorial', difficulty: 'easy', seed: 4711,
   length: 1000, slopeDeg: 10, slopeVar: 0, halfWidth: 22, curve: 0,
-  kickers: [{ size: 'wide', z: 300 }, { size: 'wideLarge', z: 390 }],
+  kickers: [{ size: 'wide', z: 150 }, { size: 'wideLarge', z: 250 }],
   moguls: 0, glades: 1, cliffs: 0, ice: 0, arches: 0, treeDensity: 0.7, rockDensity: 0,
   timeOfDay: 0.708, par: 0,
 };

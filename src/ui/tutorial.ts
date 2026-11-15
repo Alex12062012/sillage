@@ -142,12 +142,14 @@ export class Tutorial {
         if (g.riding === null && g.mountain) { void this.host.startRun(TUTO_TRACK.id); this.go('right'); }
         break;
       case 'right':
-        if (!onRun || this.t < 0.6) break;
+        if (!onRun || this.t < 0.3) break;
+        if (g.phase === 'ready') g.startAt(2, 6); // the run drops in by itself: the first lesson comes once gliding
+        if (s.pos.z < 45 && !this.frozen) break;
         if (!this.frozen) this.freeze(touch ? 'Hold the <b>right</b> side to turn right' : 'Hold <kbd>→</kbd> to turn right', touch ? [['hold', 80, 60]] : []);
         else if ((f.right && !f.left) || inp.held('ArrowRight', 'KeyD')) { this.thaw(); this.go('rightGo'); }
         break;
       case 'rightGo':
-        if (this.t > 1.4) { this.freeze(touch ? 'Now hold the <b>left</b> side to turn left' : 'Now hold <kbd>←</kbd> to turn left', touch ? [['hold', 20, 60]] : []); this.go('left'); }
+        if (this.t > 1.0) { this.freeze(touch ? 'Now hold the <b>left</b> side to turn left' : 'Now hold <kbd>←</kbd> to turn left', touch ? [['hold', 20, 60]] : []); this.go('left'); }
         break;
       case 'left':
         if ((f.left && !f.right) || inp.held('ArrowLeft', 'KeyA')) { this.thaw(); this.go('leftGo'); }
@@ -189,7 +191,7 @@ export class Tutorial {
         if (this.t > 1.3) {
           this.say(null);
           g.reset();
-          g.startAt(k[1].z - 45, 12.5); // just before the big bump, 45 km/h
+          g.startAt(k[1].z - 35, 12.5); // just before the big bump (past the first one's landing), 45 km/h
           this.go('approach2');
         }
         break;
