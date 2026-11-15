@@ -69,7 +69,7 @@ export const stationOfTrack = (trackId: string): Station | undefined => STATIONS
 export const freeDef = (s: Station): TrackDef => ({
   id: s.trackId, name: s.name, difficulty: 'easy', seed: s.seed, length: Infinity, slopeDeg: 18, slopeVar: 0,
   halfWidth: 14, curve: 0, kickers: [], moguls: 0, glades: 0, cliffs: 0, ice: 0, arches: 0, treeDensity: 1, rockDensity: 1,
-  timeOfDay: 0.5, par: 0,
+  timeOfDay: 0.708, par: 0, // 15 h 30 (Sky: t = 7 h + 12 h × t)
 });
 
 const cache = new Map<string, StationData>();

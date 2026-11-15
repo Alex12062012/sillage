@@ -8,6 +8,7 @@ import { fbm } from '../core/rng';
 import { DEEP, towerGap, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { smoothstep } from '../sim/track';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
+import { addHeightFog } from './heightFog';
 import { building, RestoView } from './restos';
 
 const C_GROOMED = new Color(0xe9eff7);
@@ -376,6 +377,7 @@ export class MountainView {
 
   constructor(private m: Mountain) {
     this.massif.onBeforeCompile = (sh) => {
+      addHeightFog(sh);
       sh.uniforms.uHole = this.hole;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vHoleW;')

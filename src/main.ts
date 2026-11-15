@@ -1,5 +1,5 @@
 import './style.css';
-import { WebGLRenderer } from 'three';
+import { NeutralToneMapping, WebGLRenderer } from 'three';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
 import { applyRun, COSMETICS, emptySave, isUnlocked, loadSave, saveSave, totalStars, type Save, type Settings } from './sim/progress';
@@ -54,6 +54,9 @@ const persist = () => saveSave(storage, save);
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 // no MSAA on the canvas: medium / high draw through a post-processing target (multisampled on high), low has none
 const renderer = new WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: true });
+// Neutral (Khronos PBR Neutral): colours under ~0.8 stay as authored, only the highlights (sunlit snow) roll off instead of clipping
+renderer.toneMapping = NeutralToneMapping;
+renderer.toneMappingExposure = 1.15; // the roll-off would leave sunlit snow a little grey at 1
 const ui = document.getElementById('ui')!;
 const hud = new Hud(ui);
 const params = new URLSearchParams(location.search);

@@ -6,7 +6,7 @@
 
 - [x] 1. Draw calls (palier bas, mobile) : Rousses 78 → 49, Avoriaz 98 → 30, village 70 → 46. Triangles : 275 → 258 k, 408 → 389 k, 245 → 245 k. Commit « perf(free ride): tuiles en un seul maillage ».
 - [x] 2. Paliers : Auto (par défaut) / Low / Medium / High, mémorisé dans la sauvegarde. Low = rendu direct ; Medium = EffectComposer (cible HDR, sortie) ; High = + MSAA ×4 et bloom léger. En Auto, si le jeu reste lent à la résolution minimale, il descend d'un palier.
-- [ ] 3. Lumière de base
+- [x] 3. Lumière de base : soleil réel en free ride (46,4° N, mi-février, départ 15 h 30), ciel plus riche autour du soleil bas, brume de hauteur (patch des chunks de brouillard), tone mapping Neutral (exposition 1,15), étalonnage en medium/high, palier bas fermé par la brume à 5 km. Palier bas : Rousses 246 k / 49 draw calls, Avoriaz 240 k / 30, village 233 k / 46.
 - [ ] 4. Ombres
 - [ ] 5. Neige
 - [ ] 6. Remesure

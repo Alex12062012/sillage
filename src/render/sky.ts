@@ -33,6 +33,8 @@ export class Sky {
   private peakMat: ShaderMaterial;
   private sunDir = new Vector3();
   time = 0.5;
+  /** Free ride: the sun where it really stands over the Jura and the Chablais mid-February (46.4° N), clock = 7 h + 12 h × time. */
+  realSun = false;
 
   constructor(scene: Scene) {
     this.fog = new Fog(0xcfe4f6, 120, 470);
@@ -52,9 +54,14 @@ export class Sky {
         varying vec3 vDir;
         void main() {
           float h = clamp(vDir.y, -0.2, 1.0);
-          vec3 col = mix(uHorizon, uTop, pow(max(h, 0.0), 0.55));
+          float low = 1.0 - smoothstep(0.0, 0.6, uSunDir.y); // the lower the sun, the more the sky changes around it
+          // horizon warmer towards the sun, cooler away from it; zenith deeper when the sun is low (less light scattered)
+          float toward = dot(normalize(vDir.xz + 1e-4), normalize(uSunDir.xz + 1e-4)) * 0.5 + 0.5;
+          vec3 horizon = uHorizon * mix(vec3(0.94, 0.97, 1.03), vec3(1.05, 1.0, 0.93), toward * low + 0.5 * (1.0 - low));
+          vec3 top = uTop * mix(1.0, 0.86, low);
+          vec3 col = mix(horizon, top, pow(max(h, 0.0), 0.55));
           float s = max(dot(normalize(vDir), uSunDir), 0.0);
-          col += uSun * (pow(s, 600.0) * 1.5 + pow(s, 12.0) * 0.25);
+          col += uSun * (pow(s, 600.0) * 1.5 + pow(s, 12.0) * 0.25 + pow(s, 3.0) * 0.12 * low); // disc, halo, wide glow when low
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
@@ -108,6 +115,13 @@ export class Sky {
     const elev = ((a.elev + (b.elev - a.elev) * k) * Math.PI) / 180;
     // sun from the front-left, so slopes facing the skier are lit and shadows read
     this.sunDir.set(-0.55 * Math.cos(elev), Math.sin(elev), 0.8 * Math.cos(elev)).normalize();
+    if (this.realSun) {
+      // +x east, +z south. Solar time = clock − 50 min (6.5° E in CET, equation of time −14 min); declination −12.6°
+      const r = Math.PI / 180, lat = 46.4 * r, dec = -12.6 * r, H = (7 + 12 * this.time - 0.83 - 12) * 15 * r;
+      const e = Math.max(2 * r, Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(H))); // never under the horizon
+      const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat) - Math.tan(dec) * Math.cos(lat)) + Math.PI; // from north, clockwise
+      this.sunDir.set(Math.sin(az) * Math.cos(e), Math.sin(e), -Math.cos(az) * Math.cos(e));
+    }
     u.uSunDir.value.copy(this.sunDir);
   }
 

@@ -2,6 +2,7 @@ import { Group, HalfFloatType, MathUtils, Mesh, Scene, Vector2, Vector3, WebGLRe
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { GameAudio } from './audio/audio';
 import { Input } from './input/input';
@@ -9,6 +10,7 @@ import { ChaseCamera } from './render/camera';
 import { Flakes, pointScale, SkiTrails, SnowFx, type SceneLight } from './render/fx';
 import { buildChunkProps, buildLandmarks } from './render/props';
 import { DEFAULT_COLORS, SkierModel, type SkierColors } from './render/skierModel';
+import { HEIGHT_FOG } from './render/heightFog';
 import { Sky } from './render/sky';
 import { addSnowSparkle, Terrain } from './render/terrain';
 import { Crowd } from './render/crowd';
@@ -42,6 +44,29 @@ type LandEvent = Extract<SkierEvent, { type: 'land' }>;
 export type Phase = 'ready' | 'running' | 'finished';
 
 /** Owns one run: fixed-step simulation, interpolated rendering and all the feel layers. */
+/**
+ * Grade (medium / high, after tone mapping, in display space): shadows a touch cooler, highlights a touch warmer,
+ * a little more saturation, a soft vignette. Winter light at the end of the day, kept subtle.
+ */
+const GRADE = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+      vec3 col = c.rgb + vec3(-0.014, -0.004, 0.022) * (1.0 - l) + vec3(0.018, 0.006, -0.014) * l;
+      col = mix(vec3(l), col, 1.06);
+      vec2 d = vUv - 0.5;
+      col *= 1.0 - dot(d, d) * 0.32;
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
+    }`,
+};
+
 export class Game {
   readonly scene = new Scene();
   readonly input = new Input();
@@ -163,9 +188,10 @@ export class Game {
     this.sparkle.setQuality(this.quality);
     this.setQuality(this.quality);
     this.hud.el.classList.toggle('free', !!this.mountain);
-    this.cam.camera.far = this.mountain ? this.mountain.station.far : 3000; // from La Dôle you see the Léman, Mont Blanc from Avoriaz
     this.cam.camera.updateProjectionMatrix();
     this.sky.showPeaks(!this.mountain);
+    this.sky.realSun = !!this.mountain;
+    HEIGHT_FOG.value.set(this.mountain ? this.mountain.station.alt[0] - 150 : 0, this.mountain ? 260 : 0);
     this.sky.setTime(def.timeOfDay);
     this.reset();
   }
@@ -648,8 +674,11 @@ export class Game {
     if (this.terrain) this.terrain.viewDistance = view;
     this.viewDistance = view;
     // the open mountain is seen whole, to the Léman and beyond: a long, thin haze
-    this.sky.fog.far = this.mountain ? view * this.mountain.station.haze : view;
+    // palier bas : la brume ferme la vue à 5 km et le plan lointain s'arrête là (rien de caché n'est dessiné)
+    this.sky.fog.far = this.mountain ? (q === 'low' ? Math.min(5000, view * this.mountain.station.haze) : view * this.mountain.station.haze) : view;
     this.sky.fog.near = this.mountain ? view * 2 : view * 0.26;
+    this.cam.camera.far = this.mountain ? (q === 'low' ? this.sky.fog.far * 1.02 : this.mountain.station.far) : 3000; // from La Dôle you see the Léman, Mont Blanc from Avoriaz
+    this.cam.camera.updateProjectionMatrix();
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
     if (q !== this.quality || !this.postSet) this.setPost(q);
     this.postSet = true;
@@ -809,6 +838,7 @@ export class Game {
     c.addPass(new RenderPass(this.scene, this.cam.camera));
     if (q === 'high') c.addPass(new UnrealBloomPass(new Vector2(256, 256), 0.18, 0.4, 0.92)); // only the sun's glints on the snow bloom
     c.addPass(new OutputPass());
+    c.addPass(new ShaderPass(GRADE));
     this.composer = c;
   }
 
