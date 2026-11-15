@@ -76,17 +76,22 @@ export function buildHeroGeometry(tier: Tier): { geometry: BufferGeometry; slots
   for (const x of [-1, 1]) add(sphere(0.085), B.chest, S.jacket, x * 0.168, 0.196, -0.008, 1, 0.92, 1);
   add(box(0.014, 0.27, 0.01), B.chest, S.jacketDark, 0, 0.12, 0.158, 1, 1, 1, -0.16);
   add(box(0.09, 0.008, 0.008), B.chest, S.buckle, 0.085, 0.17, 0.15, 1, 1, 1, -0.2, 0, -0.08);
-  add(lathe([[0.09, 0], [0.094, 0.05], [0.088, 0.1], [0.082, 0.11]], n), B.chest, S.jacketDark, 0, 0.255, -0.008);
+  add(lathe([[0.09, 0], [0.094, 0.03], [0.09, 0.05], [0.084, 0.055]], n), B.chest, S.jacketDark, 0, 0.255, -0.008); // the collar, open under the chin
   add(new TorusGeometry(0.085, 0.03, 6, n, Math.PI * 1.1), B.chest, S.jacketDark, 0, 0.31, -0.04, 1, 1, 0.9, Math.PI / 2 + 0.25, 0, Math.PI * -0.05);
-  // ── head: neck gaiter up to the nose, a hint of face, helmet with brim and vents, goggles with frame and strap
-  add(lathe([[0.054, -0.01], [0.058, 0.05], [0.07, 0.1], [0.082, 0.13], [0.07, 0.15], [0, 0.152]]), B.head, S.strap, 0, 0, 0.012, 1, 1, 1.05);
-  add(sphere(0.09), B.head, S.strap, 0, 0.13, 0.01, 0.96, 1.1, 1); // a balaclava under the helmet: no bare face to look odd
-  // (profiles run upwards: listed downwards, the faces turned inside and the shell showed its inside, dark and patchy)
+  // ── head: a modelled face under the goggles (jaw, chin, cheekbones, nose, the mouth's line), the neck gaiter rolled
+  // down round the neck, the helmet with ear pads, vents and the goggle clip, wide goggles with frame and strap
+  add(cyl(0.046, 0.05, 0.08, Math.max(8, n - 4), true), B.head, S.skin, 0, 0.03, 0.006); // the neck
+  add(lathe([[0.058, -0.012], [0.066, 0.012], [0.07, 0.04], [0.066, 0.062], [0.058, 0.07]]), B.head, S.jacketDark, 0, 0, 0.004);
+  add(face(Math.max(16, Math.round(n * 1.6)), Math.max(12, Math.round(n * 1.2))), B.head, S.skin, 0, 0.134, 0.012);
+  add(box(0.028, 0.0035, 0.004), B.head, S.strap, 0, 0.083, 0.1, 1, 1, 1, 0.15); // the mouth's line
   add(lathe([[0.122, 0.108], [0.134, 0.118], [0.138, 0.156], [0.13, 0.198], [0.106, 0.234], [0.065, 0.256], [0, 0.262]]), B.head, S.helmet, 0, 0, -0.014, 1, 1, 1.1);
   add(cyl(0.13, 0.134, 0.012, n, true, -0.42 * Math.PI, 0.84 * Math.PI), B.head, S.helmet, 0, 0.198, 0.012, 1, 1, 1.12); // brim over the goggles
-  add(cyl(0.124, 0.124, 0.062, n, true, -0.34 * Math.PI, 0.68 * Math.PI), B.head, S.strap, 0, 0.152, 0.006, 1, 1, 1.06); // goggle frame
-  add(cyl(0.134, 0.134, 0.034, n, true, 0.32 * Math.PI, 1.36 * Math.PI), B.head, S.strap, 0, 0.154, -0.012, 1, 1, 1.1); // strap round the helmet
-  put(lens, cyl(0.127, 0.127, 0.052, n, true, -0.3 * Math.PI, 0.6 * Math.PI), B.head, S.lensTop, 0, 0.152, 0.008, 1, 1, 1.06);
+  for (const x of [-1, 1]) add(sphere(0.05), B.head, S.helmet, x * 0.124, 0.112, -0.012, 0.45, 1, 1.05); // ear pads
+  for (const x of [-0.035, 0.035]) add(box(0.016, 0.006, 0.05), B.head, S.binding, x, 0.248, 0.05, 1, 1, 1, -0.5); // vents, grey not black
+  add(box(0.04, 0.026, 0.012), B.head, S.binding, 0, 0.156, -0.164); // the goggle clip at the back
+  add(cyl(0.125, 0.125, 0.07, n, true, -0.36 * Math.PI, 0.72 * Math.PI), B.head, S.strap, 0, 0.154, 0.006, 1, 1, 1.07); // goggle frame
+  add(cyl(0.142, 0.142, 0.036, n, true, 0.33 * Math.PI, 1.34 * Math.PI), B.head, S.strap, 0, 0.156, -0.014, 1, 1, 1.1); // strap round the helmet, on the shell
+  put(lens, cyl(0.128, 0.128, 0.06, n, true, -0.32 * Math.PI, 0.64 * Math.PI), B.head, S.lensTop, 0, 0.154, 0.008, 1, 1, 1.07);
   // ── arms: sleeves narrowing to the elbow and the cuff; gloves: gauntlet, palm, fingers curled round the grip, thumb
   for (const [up, fore, hand] of [[B.upperArmL, B.forearmL, B.handL], [B.upperArmR, B.forearmR, B.handR]]) {
     add(lathe(quilt([[0, -0.03], [0.06, -0.025], [0.068, 0.04], [0.064, 0.15], [0.058, UPPER_ARM - 0.02], [0, UPPER_ARM + 0.02]], 0.065)), up, S.jacket);
@@ -157,6 +162,30 @@ export function buildHeroGeometry(tier: Tier): { geometry: BufferGeometry; slots
   for (const part of list) part.g.dispose();
   for (const g of geos) g.dispose();
   return { geometry, slots };
+}
+
+/**
+ * The face, about the head's centre (the forehead and eyes go under the helmet and goggles): a sphere of 9.2 cm made
+ * longer and narrower, the jaw tapering to the chin, the chin a little forward, cheekbones, and the nose pulled out
+ * under the goggles' frame.
+ */
+function face(w: number, h: number): BufferGeometry {
+  const g = new SphereGeometry(0.092, w, h);
+  const p = g.getAttribute('position');
+  const bump = (x: number, y: number, cx: number, cy: number, sx: number, sy: number) => Math.exp(-(((x - cx) / sx) ** 2) - (((y - cy) / sy) ** 2));
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    y *= 1.16;
+    x *= 0.9;
+    const low = Math.max(0, Math.min(1, -y / 0.1)), front = Math.max(0, z / 0.092);
+    x *= 1 - 0.28 * low; // the jaw narrows to the chin
+    z *= 1 - 0.12 * low * (1 - front);
+    z += front * (0.012 * low * low + 0.006 * bump(Math.abs(x), y, 0.042, 0.0, 0.02, 0.018)); // chin, cheekbones
+    z += front * 0.024 * bump(x, y, 0, -0.026, 0.011, 0.02) * (1 + 0.4 * Math.max(0, (-0.026 - y) / 0.02)); // the nose
+    p.setXYZ(i, x, y, z);
+  }
+  g.computeVertexNormals();
+  return g;
 }
 
 /** 1.70 m ski (origin = base under the boot): sidecut, rocker over the last 30 cm of the tip, small tail rise. */

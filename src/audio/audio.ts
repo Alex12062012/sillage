@@ -15,6 +15,23 @@ export function carveLevel(speed: number, edge: number, skid: number, airborne: 
   return clamp01((speed / 20) * (0.12 + Math.abs(edge) * 0.55 + skid * 0.9)) * 0.5;
 }
 
+/**
+ * The corduroy purr on groomed snow (DECISIONS.md, point 111): the skis cross the groomer's ridges every 30 cm, so the
+ * hiss is shaken at speed / 0.3 Hz (33 Hz at 36 km/h), loudest running flat, fading as the edge digs in. Pure.
+ */
+export function corduroy(speed: number, edge: number): { hz: number; level: number } {
+  return { hz: Math.min(140, speed / 0.3), level: clamp01(speed / 18) * (1 - 0.65 * clamp01(Math.abs(edge))) * 0.16 };
+}
+
+/**
+ * Powder (off the pistes): a deep, soft whoosh that swells with each turn (`swell`: how fast the edge is changing,
+ * 0..1) and a bright spray when the edge bites. Pure.
+ */
+export function powderLayers(speed: number, edge: number, swell: number): { whoosh: number; spray: number } {
+  const v = clamp01(speed / 25), e = clamp01(Math.abs(edge));
+  return { whoosh: v * (0.1 + 0.32 * clamp01(swell)), spray: v * e * e * 0.22 };
+}
+
 const C4 = 261.63;
 /** Pentatonics as semitones above C: C D E G A, or C D F G A where E would clash with the chord. */
 const PENT_E = [0, 2, 4, 7, 9];
@@ -82,6 +99,15 @@ export class GameAudio {
   private skidFilter!: BiquadFilterNode;
   private iceGain!: GainNode;
   private dragGain!: GainNode;
+  private cordGain!: GainNode;
+  private cordAm!: GainNode;
+  private cordLfo!: OscillatorNode;
+  private whooshGain!: GainNode;
+  private sprayGain!: GainNode;
+  private squeakGain!: GainNode;
+  private surface: Surface = Surface.Groomed;
+  private lastEdge = 0;
+  private swell = 0;
   private gust = 0;
   private airT = 0;
   private skidPrev = 0;
@@ -203,6 +229,22 @@ export class GameAudio {
     // hand drag: a soft continuous hiss
     this.dragGain = this.gain(0, this.ground);
     hiss.connect(this.filter('bandpass', 2600, 1.2)).connect(this.dragGain);
+    // corduroy purr (groomed): a mid band shaken by an LFO at speed / 0.3 Hz
+    this.cordGain = this.gain(0, this.ground);
+    this.cordAm = this.gain(0.5, this.cordGain);
+    this.loop(this.noise, 0.4).connect(this.filter('bandpass', 1500, 1.1)).connect(this.cordAm);
+    this.cordLfo = ctx.createOscillator();
+    this.cordLfo.type = 'triangle';
+    this.cordLfo.frequency.value = 20;
+    this.cordLfo.connect(this.gain(0.5, this.cordAm.gain));
+    this.cordLfo.start();
+    // powder: a deep pillowy whoosh (through the muffled ground), the bright spray and a cold squeak beside it
+    this.whooshGain = this.gain(0, this.ground);
+    this.loop(this.noise, 1.7).connect(this.filter('lowpass', 520, 0.9)).connect(this.whooshGain);
+    this.sprayGain = this.gain(0, this.bed); // past the powder's low-pass: the spray is the bright part
+    this.loop(this.noise, 0.9).connect(this.filter('bandpass', 3400, 0.7)).connect(this.sprayGain);
+    this.squeakGain = this.gain(0, this.bed);
+    this.loop(this.crunchNoise(1.3), 0.5).connect(this.filter('bandpass', 1900, 2.2)).connect(this.squeakGain);
 
     // space: dry + a tempo-synced echo + a short generated reverb, for every musical element
     const space = this.gain(1, this.master);
@@ -436,8 +478,11 @@ export class GameAudio {
 
     const onSnow = !airborne && !crashed;
     this.ground.gain.setTargetAtTime(onSnow ? 1 : 0, t, onSnow ? 0.01 : 0.015);
+    this.surface = surface;
     if (!onSnow) {
       this.skidPrev = 0;
+      this.sprayGain.gain.setTargetAtTime(0, t, 0.015);
+      this.squeakGain.gain.setTargetAtTime(0, t, 0.015);
       return; // the targets below would only fight the cut
     }
     const e = Math.abs(edge);
@@ -456,6 +501,16 @@ export class GameAudio {
     this.skidFilter.frequency.setTargetAtTime(powder ? 700 : ice ? 3200 : 1300 + scrape * 1400, t, 0.05);
     this.iceGain.gain.setTargetAtTime(ice ? (0.12 + e * 0.5 + skid * 0.6) * slow * 0.3 : 0, t, 0.05);
     this.dragGain.gain.setTargetAtTime(this.drag * 0.12 * clamp01(speed / 10), t, 0.08);
+    // on the corduroy, the purr; in powder, the whoosh swelling with each turn, the spray and, slow, a cold squeak
+    const cord = corduroy(speed, edge);
+    this.cordGain.gain.setTargetAtTime(!powder && !ice ? cord.level * T.sfxCarve : 0, t, 0.08);
+    this.cordLfo.frequency.setTargetAtTime(Math.max(4, cord.hz), t, 0.05);
+    this.swell = Math.max(this.swell * Math.exp(-dt / 0.35), clamp01((Math.abs(edge - this.lastEdge) / Math.max(dt, 1e-3)) * 0.35));
+    this.lastEdge = edge;
+    const pw = powderLayers(speed, edge, this.swell);
+    this.whooshGain.gain.setTargetAtTime(powder ? pw.whoosh * T.sfxRumble : 0, t, 0.09);
+    this.sprayGain.gain.setTargetAtTime(powder ? pw.spray * T.sfxCarve : 0, t, 0.05);
+    this.squeakGain.gain.setTargetAtTime(powder && speed > 1 && speed < 7 ? 0.05 * (1 - speed / 7) : 0, t, 0.1);
     // the onset of a hockey stop gets its own big "kssshhh"
     this.scrapeT -= dt;
     if (scrape > 0.6 && this.skidPrev < 0.35 && speed > 9 && this.scrapeT <= 0) {
@@ -541,6 +596,9 @@ export class GameAudio {
       this.burst(t, 0.04, 0.06, 'lowpass', 450);
       return;
     }
+    // the snow's own "kshk" under the note: bright and short on the corduroy, a soft deep puff in powder
+    const powderNow = this.surface === Surface.Powder;
+    this.burst(t, powderNow ? 0.32 : 0.12, powderNow ? 0.07 : 0.055, powderNow ? 'lowpass' : 'bandpass', powderNow ? 700 : 3200, powderNow ? 0.7 : 1.4, 0, this.grit, powderNow ? 0.03 : 0.004);
     const lvl = T.sfxRhythm * (0.85 + Math.random() * 0.15);
     this.partials(t, rhythmNote(this.chord, streak), 0.16 * lvl, 1.1, MALLET, this.notes);
     if (streak % 4 === 0 && streak <= 12) {

@@ -1,6 +1,6 @@
 /** FEEL §2 mappings: speed → FOV, wind and carve audio. Pure functions, no WebGL / WebAudio needed. */
 import { describe, expect, it } from 'vitest';
-import { carveLevel, rhythmNote, windParams } from '../../src/audio/audio';
+import { carveLevel, corduroy, powderLayers, rhythmNote, windParams } from '../../src/audio/audio';
 import { targetFov } from '../../src/render/camera';
 import { TUNING } from '../../src/tuning';
 import { ms } from './helpers';
@@ -73,5 +73,19 @@ describe('rhythm notes', () => {
 
   it('never step down when the chord changes mid-climb', () => {
     for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) for (let n = 1; n < 11; n++) expect(rhythmNote(b, n + 1)).toBeGreaterThan(rhythmNote(a, n));
+  });
+});
+
+describe('snow sounds: the corduroy purr on the pistes, the powder off them', () => {
+  it('purrs at the rate the skis cross the 30 cm ridges, loudest running flat', () => {
+    expect(corduroy(10, 0).hz).toBeCloseTo(33.3, 1);
+    expect(corduroy(10, 0).level).toBeGreaterThan(corduroy(10, 0.9).level);
+    expect(corduroy(0, 0).level).toBe(0);
+    expect(corduroy(80, 0).hz).toBe(140); // capped: a buzz, not a tone
+  });
+  it('in powder: a whoosh that swells with each turn, a spray when the edge bites', () => {
+    expect(powderLayers(15, 0, 1).whoosh).toBeGreaterThan(powderLayers(15, 0, 0).whoosh * 2);
+    expect(powderLayers(15, 0.8, 0).spray).toBeGreaterThan(powderLayers(15, 0.2, 0).spray * 5);
+    expect(powderLayers(0, 1, 1)).toEqual({ whoosh: 0, spray: 0 });
   });
 });
