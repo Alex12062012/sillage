@@ -151,6 +151,7 @@ export class Game {
     this.light = { sun: this.sky.sun.color, sunIntensity: 1, sky: this.sky.hemi.color, ground: this.sky.hemi.groundColor, sunDir: this.sky.sunDirection };
     this.scene.add(this.world, this.model.root, this.model.shadow, this.trails.mesh, this.flakes.points, ...this.fx.objects);
     this.cam = new ChaseCamera(1);
+    this.hud.onBoard = () => { this.boardAsked = true; };
     this.load(def);
   }
 
@@ -305,10 +306,13 @@ export class Game {
       return;
     }
     if (this.mountain && this.live) {
-      // at a bottom station: Space (a swipe up, A) boards; the jump is spent on it
+      // at a bottom station: the lift button (as in GMA) or Space / A boards; the jump is spent on it
       const near = this.liftNear(s);
-      this.hud.board(near >= 0 ? `<kbd>${this.touchUi ? 'Swipe ↑' : 'Space'}</kbd> ride <b>${this.mountain.lifts[near].name || 'the lift'}</b>` : null);
-      if (near >= 0 && this.inp.jump) {
+      const name = near >= 0 ? this.mountain.lifts[near].name || 'the lift' : '';
+      this.hud.board(near >= 0 ? (this.touchUi ? `<span class="lift-ico">🚡</span> Ride <b>${name}</b>` : `<kbd>Space</kbd> ride <b>${name}</b>`) : null);
+      const asked = this.boardAsked;
+      this.boardAsked = false;
+      if (near >= 0 && (this.inp.jump || asked)) {
         this.phase = 'running';
         this.board(near);
         return;
@@ -753,7 +757,8 @@ export class Game {
         (s.airborne ? FLAG.air : 0) | (s.tuck ? FLAG.tuck : 0) | (s.braking ? FLAG.brake : 0) | (s.crashTimer > 0 ? FLAG.crash : 0) | (this.ride ? FLAG.lift : 0));
       this.online.update(realDt, w);
     }
-    this.sky.setTime(Math.min(0.95, this.sky.time + gdt * 0.0012)); // slow day cycle, stops at dusk (no wrap to morning)
+    // a calm afternoon: the sun sinks slowly (about 20 min from 15 h 30 to the golden hour) and stops there, never dark
+    this.sky.setTime(Math.min(Math.max(0.83, this.track.def.timeOfDay), this.sky.time + gdt * 0.0001));
     this.sky.update(this.cam.camera.position);
     this.view?.setSun(this.sky.sunDirection);
     this.aimShadow();
@@ -845,6 +850,8 @@ export class Game {
    * 1024 px over ±55 m on medium, 2048 px over ±110 m on high, centred ahead of the camera (aimShadow).
    */
   private shadowReach = 0;
+  /** The lift button was pressed (consumed at the next step). */
+  private boardAsked = false;
   /** The scene-wide light uniforms (relief shadows, groomed snow, height haze), for checks and captures. */
   readonly lightUniforms = { RELIEF, SNOW, HEIGHT_FOG };
   private setShadows(q: 'low' | 'medium' | 'high'): void {

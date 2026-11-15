@@ -69,7 +69,7 @@ export class Input {
   attachTouch(el: HTMLElement): void {
     el.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse') return;
-      const onButton = (e.target as HTMLElement).closest('.touch-btn, .minimap'); // a tap on the minimap opens the map, it does not steer
+      const onButton = (e.target as HTMLElement).closest('.touch-btn, .minimap, .hud-board'); // a tap on the minimap opens the map, it does not steer
       this.fingers.set(e.pointerId, {
         id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), x: e.clientX, y: e.clientY,
         side: e.clientX < window.innerWidth / 2 ? -1 : 1, mode: onButton ? 'button' : 'hold',

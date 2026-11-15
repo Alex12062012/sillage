@@ -91,11 +91,15 @@ export class Hud {
     this.flowName = q('.hud-flow .name');
     this.streakEl = q('.hud-streak');
     this.boardEl = q('.hud-board');
+    this.boardEl.addEventListener('click', () => this.onBoard?.()); // the lift button, as in Grand Mountain Adventure
     this.liftEl = q('.hud-lift');
     this.liftFill = q('.hud-lift i');
   }
 
   /** Free ride, at a lift's bottom station: "Space · ride <lift>" (html), or null. */
+  /** Tapped / clicked the lift button (free ride, at a bottom station). */
+  onBoard: (() => void) | null = null;
+
   board(html: string | null): void {
     if ((html ?? '') === this.lastBoard) return;
     this.lastBoard = html ?? '';

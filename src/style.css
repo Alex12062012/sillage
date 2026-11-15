@@ -373,7 +373,9 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
   padding: 8px 16px; border-radius: 14px; background: rgba(16, 32, 58, 0.62); backdrop-filter: blur(6px);
   font-size: 17px; white-space: nowrap; opacity: 0; transition: opacity 0.18s, transform 0.18s;
 }
-.hud-board.show { opacity: 1; transform: translateX(-50%) scale(1); }
+.hud-board.show { opacity: 1; transform: translateX(-50%) scale(1); pointer-events: auto; cursor: pointer; }
+.touch.show ~ .hud .hud-board { padding: 12px 22px; font-size: 18px; border-radius: 18px; background: rgba(16, 32, 58, 0.78); border: 2px solid rgba(255, 255, 255, 0.85); }
+.hud-board .lift-ico { margin-right: 6px; }
 .hud-board kbd {
   font: 800 13px system-ui; padding: 2px 8px; margin-right: 8px; border-radius: 6px; color: var(--ink); background: #fff;
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
