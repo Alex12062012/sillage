@@ -1,4 +1,4 @@
-import { Group, HalfFloatType, MathUtils, Mesh, Scene, Vector2, Vector3, WebGLRenderTarget, type MeshBasicMaterial, type WebGLRenderer } from 'three';
+import { Group, HalfFloatType, MathUtils, Mesh, PCFSoftShadowMap, Scene, Vector2, Vector3, WebGLRenderTarget, type Material, type MeshBasicMaterial, type WebGLRenderer } from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -10,7 +10,7 @@ import { ChaseCamera } from './render/camera';
 import { Flakes, pointScale, SkiTrails, SnowFx, type SceneLight } from './render/fx';
 import { buildChunkProps, buildLandmarks } from './render/props';
 import { DEFAULT_COLORS, SkierModel, type SkierColors } from './render/skierModel';
-import { HEIGHT_FOG } from './render/heightFog';
+import { HEIGHT_FOG, RELIEF } from './render/heightFog';
 import { Sky } from './render/sky';
 import { addSnowSparkle, Terrain } from './render/terrain';
 import { Crowd } from './render/crowd';
@@ -44,6 +44,12 @@ type LandEvent = Extract<SkierEvent, { type: 'land' }>;
 export type Phase = 'ready' | 'running' | 'finished';
 
 /** Owns one run: fixed-step simulation, interpolated rendering and all the feel layers. */
+const UP = new Vector3(0, 1, 0);
+const shTmp = new Vector3();
+const shC = new Vector3();
+const shRight = new Vector3();
+const shUp = new Vector3();
+
 /**
  * Grade (medium / high, after tone mapping, in display space): shadows a touch cooler, highlights a touch warmer,
  * a little more saturation, a soft vignette. Winter light at the end of the day, kept subtle.
@@ -191,6 +197,7 @@ export class Game {
     this.cam.camera.updateProjectionMatrix();
     this.sky.showPeaks(!this.mountain);
     this.sky.realSun = !!this.mountain;
+    if (!this.mountain) RELIEF.uReliefOn.value = 0; // the arcade has no relief texture
     HEIGHT_FOG.value.set(this.mountain ? this.mountain.station.alt[0] - 150 : 0, this.mountain ? 260 : 0);
     this.sky.setTime(def.timeOfDay);
     this.reset();
@@ -680,6 +687,7 @@ export class Game {
     this.cam.camera.far = this.mountain ? (q === 'low' ? this.sky.fog.far * 1.02 : this.mountain.station.far) : 3000; // from La Dôle you see the Léman, Mont Blanc from Avoriaz
     this.cam.camera.updateProjectionMatrix();
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
+    this.setShadows(q);
     if (q !== this.quality || !this.postSet) this.setPost(q);
     this.postSet = true;
     this.quality = q;
@@ -744,6 +752,8 @@ export class Game {
     }
     this.sky.setTime(Math.min(0.95, this.sky.time + gdt * 0.0012)); // slow day cycle, stops at dusk (no wrap to morning)
     this.sky.update(this.cam.camera.position);
+    this.view?.setSun(this.sky.sunDirection);
+    this.aimShadow();
 
     // snow: continuous spray, the glove skimming the snow, pole plants, trails, flakes
     this.light.sunIntensity = this.sky.sun.intensity;
@@ -825,6 +835,58 @@ export class Game {
     this.renderer.info.autoReset = false;
     this.renderer.info.reset();
     c.render();
+  }
+
+  /**
+   * Sun shadow map, free ride only: none on low (the relief's shadows and the skiers' own projected shadows stay),
+   * 1024 px over ±55 m on medium, 2048 px over ±110 m on high, centred ahead of the camera (aimShadow).
+   */
+  private shadowReach = 0;
+  private setShadows(q: 'low' | 'medium' | 'high'): void {
+    const on = q !== 'low' && !!this.mountain, sun = this.sky.sun, size = q === 'high' ? 2048 : 1024;
+    if (this.renderer.shadowMap.enabled !== on) {
+      this.renderer.shadowMap.enabled = on;
+      this.renderer.shadowMap.type = PCFSoftShadowMap;
+      this.scene.traverse((o) => {
+        const m = (o as Mesh).material as Material | Material[] | undefined;
+        if (m) for (const x of Array.isArray(m) ? m : [m]) x.needsUpdate = true; // shadow-map programs
+      });
+    }
+    sun.castShadow = on;
+    this.shadowReach = q === 'high' ? 110 : 55;
+    if (sun.shadow.mapSize.x !== size) {
+      sun.shadow.mapSize.set(size, size);
+      sun.shadow.map?.dispose();
+      sun.shadow.map = null;
+    }
+    const c = sun.shadow.camera;
+    c.left = c.bottom = -this.shadowReach;
+    c.right = c.top = this.shadowReach;
+    c.near = 1;
+    c.far = 1300; // from 650 m up-sun: the long shadows of a low sun reach in from far behind
+    c.updateProjectionMatrix();
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.04;
+  }
+
+  /** The shadow box ahead of the camera, snapped to its texels (no shimmering as the camera moves). */
+  private aimShadow(): void {
+    const sun = this.sky.sun;
+    if (!sun.castShadow) return;
+    const cam = this.cam.camera, d = this.sky.sunDirection, R = this.shadowReach;
+    cam.getWorldDirection(shTmp);
+    shTmp.y = 0;
+    shTmp.normalize();
+    shC.copy(cam.position).addScaledVector(shTmp, R * 0.5);
+    shC.y -= 8;
+    shRight.crossVectors(UP, d).normalize();
+    shUp.crossVectors(d, shRight);
+    const texel = (2 * R) / sun.shadow.mapSize.x;
+    const a = Math.round(shC.dot(shRight) / texel) * texel - shC.dot(shRight), b = Math.round(shC.dot(shUp) / texel) * texel - shC.dot(shUp);
+    shC.addScaledVector(shRight, a).addScaledVector(shUp, b);
+    sun.target.position.copy(shC);
+    sun.position.copy(shC).addScaledVector(d, 650);
+    sun.target.updateMatrixWorld();
   }
 
   private setPost(q: 'low' | 'medium' | 'high'): void {

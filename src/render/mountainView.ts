@@ -1,5 +1,5 @@
 import {
-  Box3, BoxGeometry, BufferAttribute, BufferGeometry, Color, CylinderGeometry, DynamicDrawUsage, Float32BufferAttribute, Frustum, Group,
+  Box3, BoxGeometry, BufferAttribute, DataTexture, LinearFilter, RedFormat, BufferGeometry, Color, CylinderGeometry, DynamicDrawUsage, Float32BufferAttribute, Frustum, Group,
   IcosahedronGeometry, InstancedBufferAttribute, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial,
   PerspectiveCamera, Quaternion, Sphere, Vector3, Vector4,
 } from 'three';
@@ -8,7 +8,7 @@ import { fbm } from '../core/rng';
 import { DEEP, towerGap, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { smoothstep } from '../sim/track';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
-import { addHeightFog } from './heightFog';
+import { addHeightFog, RELIEF } from './heightFog';
 import { building, RestoView } from './restos';
 
 const C_GROOMED = new Color(0xe9eff7);
@@ -113,6 +113,8 @@ class Tiled {
   readonly mesh: Mesh;
   /** Tiles further than this (m, from the camera to the tile's edge) take their far version, if they have one. */
   far = Infinity;
+  /** Tiles within this distance (m) are drawn even out of the frustum (shadow casters behind the camera). */
+  keep = 0;
   private index: BufferAttribute;
 
   constructor(src: BufferGeometry, private tiles: Tile[], mat: MeshLambertMaterial) {
@@ -130,8 +132,9 @@ class Tiled {
     const a = this.index.array as Uint32Array;
     let n = 0;
     for (const t of this.tiles) {
-      if (!wide.intersectsSphere(t.sphere)) continue;
-      const l = t.lods[t.lods.length > 1 && t.sphere.center.distanceTo(cam) - t.sphere.radius > this.far ? 1 : 0];
+      const edge = t.sphere.center.distanceTo(cam) - t.sphere.radius;
+      if (edge > this.keep && !wide.intersectsSphere(t.sphere)) continue;
+      const l = t.lods[t.lods.length > 1 && edge > this.far ? 1 : 0];
       a.set(l, n);
       n += l.length;
     }
@@ -162,6 +165,8 @@ class Culled {
   total: number;
   readonly size: number;
   near = Infinity;
+  /** Kept within this distance (m) even out of the frustum: shadow casters behind the camera (a low sun in the back). */
+  keep = 0;
   dirty = true;
   private mats: Float32Array;
   private cols: Float32Array | null;
@@ -185,13 +190,14 @@ class Culled {
 
   update(cam: Vector3): void {
     this.dirty = false;
-    const r = this.radius, near2 = this.near * this.near, M = this.mats, C = this.cols;
+    const r = this.radius, near2 = this.near * this.near, keep2 = this.keep * this.keep, M = this.mats, C = this.cols;
     const out = [this.mesh, this.far];
     const n = [0, 0];
     for (let i = 0; i < this.total; i++) {
       const o = i * 16, x = M[o + 12], y = M[o + 13], z = M[o + 14];
-      if (!wide.intersectsSphere(sph.set(p3.set(x, y, z), r))) continue;
-      const k = (x - cam.x) ** 2 + (z - cam.z) ** 2 > near2 ? 1 : 0;
+      const d2 = (x - cam.x) ** 2 + (z - cam.z) ** 2;
+      if (d2 > keep2 && !wide.intersectsSphere(sph.set(p3.set(x, y, z), r))) continue;
+      const k = d2 > near2 ? 1 : 0;
       const im = out[k];
       if (!im) continue;
       (im.instanceMatrix.array as Float32Array).set(M.subarray(o, o + 16), n[k] * 16);
@@ -366,6 +372,10 @@ export class MountainView {
   private chairReach = Infinity;
   private cabinReach = Infinity;
   private lastCam = new Vector3(Infinity, 0, 0);
+  /** Relief shadows on the 20 m grid: 255 lit, 0 behind a ridge; re-worked a few rows a frame when the sun moves. */
+  private relief: { data: Uint8Array; nx: number; nz: number; tex: DataTexture; dir: Vector3; next: Vector3 | null; row: number };
+  /** Time (ms) of the first, whole relief bake (at the first frame). */
+  reliefMs = 0;
   private lastDir = new Vector3();
   private riderChair: Mesh;
   private riderCabin: Mesh;
@@ -396,6 +406,7 @@ export class MountainView {
     const around = aroundMesh(m, this.material);
     this.aroundTiles = new Tiled(around.geometry, gridTiles(around, A.nx, A.nz, Math.ceil(Math.max(A.nx, A.nz) / 12)), this.material);
     around.geometry.index = null;
+    this.fineTiles.mesh.receiveShadow = this.coarseTiles.mesh.receiveShadow = true;
     this.group.add(this.fineTiles.mesh, this.coarseTiles.mesh, this.aroundTiles.mesh);
     const detail = (): Detail => {
       const pos = new Float32Array(DETAIL_N * DETAIL_N * 3), col = new Float32Array(DETAIL_N * DETAIL_N * 3);
@@ -405,11 +416,25 @@ export class MountainView {
       return { mesh, pos, nrm: mesh.geometry.attributes.normal.array as Float32Array, col, x0: 0, z0: 0, every: 0, row: 0 };
     };
     this.details = [detail(), detail()];
+    for (const d of this.details) d.mesh.receiveShadow = true;
+    {
+      const nx = Math.floor((G.nx - 1) / 2) + 1, nz = Math.floor((G.nz - 1) / 2) + 1, st = G.step * 2;
+      const data = new Uint8Array(nx * nz).fill(255);
+      const tex = new DataTexture(data, nx, nz, RedFormat);
+      tex.magFilter = tex.minFilter = LinearFilter;
+      tex.needsUpdate = true;
+      this.relief = { data, nx, nz, tex, dir: new Vector3(), next: null, row: 0 };
+      RELIEF.uRelief.value = tex;
+      RELIEF.uReliefRect.value.set(G.x0 - st / 2, G.z0 - st / 2, 1 / (st * nx), 1 / (st * nz));
+      RELIEF.uReliefOn.value = 1;
+    }
 
     // spruces: shuffled, so any prefix (lower quality) is an even thinning; tall and slim
     const flat = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
     const all = m.obstaclesBetween(-1e5, 1e5).filter((o) => o.kind === 'tree').sort((a, b) => ((a.id * 0.618) % 1) - ((b.id * 0.618) % 1));
-    for (const [geo, far, list] of [[treeGeometry(), treeGeometryLow(), all.filter((o) => o.h < DEEP)], [treeGeometryLow(), null, all.filter((o) => o.h >= DEEP)]] as const) {
+    // the deep ones have one geometry for near and far: the split only says which cast a shadow (never dropped)
+    const low = treeGeometryLow();
+    for (const [geo, far, list] of [[treeGeometry(), treeGeometryLow(), all.filter((o) => o.h < DEEP)], [low, low, all.filter((o) => o.h >= DEEP)]] as const) {
       const im = new InstancedMesh(geo, flat, list.length);
       list.forEach((o, i) => {
         q.setFromAxisAngle(up, (o.id * 2.39) % (Math.PI * 2));
@@ -417,6 +442,7 @@ export class MountainView {
         im.setMatrixAt(i, m4.compose(p3.set(o.x, m.height(o.x, o.z) - 0.3, o.z), q, s3.set(s * 0.72, s, s * 0.72)));
       });
       const t = new Culled(im, far, 25);
+      t.mesh.castShadow = true; // the near ones only: the shadow pass must not redraw the forest to the horizon
       this.trees.push(t);
       this.group.add(...t.meshes);
     }
@@ -494,6 +520,7 @@ export class MountainView {
     }
     for (const { h, side, list } of towers.values()) {
       const im = new InstancedMesh(towerGeo(h, side), flat, list.length);
+      im.castShadow = true;
       list.forEach((t, k) => im.setMatrixAt(k, t));
       this.group.add(im);
     }
@@ -529,6 +556,7 @@ export class MountainView {
       parts.push(...lod);
     }
     this.buildingTiles = new Tiled(parts.length ? mergeGeometries(parts) : new BufferGeometry(), tiles, flat);
+    this.buildingTiles.mesh.castShadow = this.buildingTiles.mesh.receiveShadow = true;
     this.group.add(this.buildingTiles.mesh);
     built.push(roads(m));
     if (m.scenery.radar) {
@@ -540,6 +568,7 @@ export class MountainView {
     }
     this.group.add(new Mesh(mergeGeometries(built), flat));
     this.restos = new RestoView(m, true);
+    this.restos.group.traverse((o) => { o.castShadow = o.receiveShadow = true; });
     this.group.add(this.restos.group);
 
     // chairs (seat, back, hanger; wide as their seats) and drag perches (a rod and its disc)
@@ -565,6 +594,7 @@ export class MountainView {
     this.cabins = new InstancedMesh(cabinGeo, flat, count('gondola'));
     this.perches = new InstancedMesh(perchGeo, flat, count('drag'));
     this.chairs.frustumCulled = this.cabins.frustumCulled = this.perches.frustumCulled = false;
+    this.chairs.castShadow = this.cabins.castShadow = this.perches.castShadow = true;
     this.riderChair = new Mesh(chairGeo, flat);
     this.riderCabin = new Mesh(cabinGeo, flat);
     this.riderPerch = new Mesh(perchGeo, flat);
@@ -648,13 +678,18 @@ export class MountainView {
     this.chairReach = q === 'low' ? 700 : Infinity;
     this.cabinReach = q === 'low' ? 1500 : Infinity;
     this.every = q === 'high' ? 1 : 2; // the detail patch, bent onto the other mesh, is rebuilt at the next focus()
-    // palier bas : sapins simplifiés au-delà de 200 m (comme le mode arcade), piquets au-delà de 700 m (moins d'un pixel)
+    // sapins simplifiés au-delà de 200 m (bas), 300 m (moyen), 450 m (élevé) : l'arcade le fait dès 170 m. Seuls les proches
+    // projettent une ombre. Piquets coupés au-delà de 700 m au palier bas (moins d'un pixel)
     for (const t of this.trees) {
       t.total = Math.round(t.size * { low: 0.3, medium: 0.5, high: 1 }[q]);
-      t.near = q === 'low' ? 200 : Infinity;
+      t.near = { low: 200, medium: 300, high: 450 }[q];
       t.dirty = true;
     }
     this.poles.near = q === 'low' ? 700 : Infinity;
+    // shadow casters behind the camera, within the reach of a low sun's shadows (shadow maps on medium / high only)
+    const keep = { low: 0, medium: 150, high: 260 }[q];
+    for (const t of this.trees) t.keep = keep;
+    this.buildingTiles.keep = keep;
     this.poles.dirty = true;
   }
 
@@ -671,6 +706,50 @@ export class MountainView {
   detailRect(): { x0: number; z0: number; x1: number; z1: number } {
     const d = this.shown;
     return d ? { x0: d.x0, z0: d.z0, x1: d.x0 + 2 * DETAIL_HALF, z1: d.z0 + 2 * DETAIL_HALF } : { x0: 0, z0: 0, x1: 0, z1: 0 };
+  }
+
+  /**
+   * Every frame, with the sun's direction: the relief's shadows. Worked out whole at the first call, then again
+   * (all rows within ~20 frames, shown once done) when the sun has turned more than about 1°.
+   */
+  setSun(dir: Vector3): void {
+    const r = this.relief;
+    if (!r.next && r.dir.dot(dir) < 0.99985) {
+      r.next = dir.clone();
+      r.row = 0;
+      if (this.reliefMs === 0) {
+        const t0 = performance.now();
+        while (r.next) this.bakeRelief(r.nz);
+        this.reliefMs = performance.now() - t0;
+        return;
+      }
+    }
+    if (r.next) this.bakeRelief(Math.ceil(r.nz / 20));
+  }
+
+  private bakeRelief(rows: number): void {
+    const r = this.relief, G = this.m.grid, d = r.next!, h = G.h;
+    const len = Math.hypot(d.x, d.z) || 1, dx = d.x / len / G.step, dz = d.z / len / G.step, tanE = d.y / len;
+    for (const end = Math.min(r.nz, r.row + rows); r.row < end; r.row++) {
+      const gj = r.row * 2;
+      for (let i = 0; i < r.nx; i++) {
+        const gi = i * 2, h0 = h[gj * G.nx + gi];
+        let worst = -1;
+        // march towards the sun, 15 m to 3 km, steps growing by 20 %: the steepest rise seen is the horizon
+        for (let s = 15; s < 3000; s *= 1.2) {
+          const x = Math.round(gi + dx * s), z = Math.round(gj + dz * s);
+          if (x < 0 || z < 0 || x >= G.nx || z >= G.nz) break;
+          const rise = (h[z * G.nx + x] - h0) / s;
+          if (rise > worst) worst = rise;
+        }
+        r.data[r.row * r.nx + i] = Math.round(255 * Math.min(1, Math.max(0, (tanE - worst) / 0.08 + 0.5))); // soft edge
+      }
+    }
+    if (r.row >= r.nz) {
+      r.dir.copy(d);
+      r.next = null;
+      r.tex.needsUpdate = true;
+    }
   }
 
   /** Every frame, with the skier's position: keeps the detail patch around them. */
@@ -826,6 +905,8 @@ export class MountainView {
       if (o instanceof Mesh || o instanceof LineSegments) o.geometry.dispose();
     });
     this.material.dispose();
+    this.relief.tex.dispose();
+    RELIEF.uReliefOn.value = 0;
     this.massif.dispose();
   }
 }

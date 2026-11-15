@@ -31,6 +31,8 @@ const SHOTS = opt('list', '') ? JSON.parse(readFileSync(opt('list', ''), 'utf8')
   { name: 'extra-illico', station: 'rousses', time: 0.72, cam: { x: -1514, z: -1747.6, up: 2.5, yaw: 118.7, pitch: 4, fov: 55 } },
   { name: 'extra-foret', station: 'rousses', time: 0.74, cam: { x: -1619, z: -514, up: 2.2, yaw: -73, pitch: -6, fov: 55 } },
   { name: 'extra-avoriaz', station: 'avoriaz', time: 0.74, cam: { x: 0, z: 0, up: 30, yaw: 30, pitch: -12, fov: 55 }, summitView: true },
+  // a low sun in the camera's back (16 h 36, sun ~9° up in the WSW): every shadow must still fall into view
+  { name: 'ombres-dos', station: 'rousses', time: 0.8, cam: { x: -1619, z: -514, up: 3, yaw: 120, pitch: -8, fov: 55 } },
   { name: 'extra-arcade', track: 'crete-du-loup', time: 0.8, play: { z: 300, kmh: 55, wait: 3000 } },
 ];
 
