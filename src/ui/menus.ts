@@ -55,8 +55,8 @@ export class Menus {
   main(): void {
     const s = this.a.save();
     const hint = isTouch()
-      ? 'Hold left / right to carve · both thumbs to tuck · swipe ↑ to jump · swipe ↓ to brake'
-      : '← → carve · ↑ tuck · ↓ brake · Space jump · R restart · Esc pause';
+      ? 'Hold left / right to carve · hold both to brake · tap both or swipe ↑ to jump'
+      : '← → carve · ↓ brake · Space jump · ↑ ↓ flip in the air · R restart · Esc pause';
     this.open('main', `
       <div class="menu">
         <div class="brand"><h1>Sillage</h1><p>Carve your line.</p></div>

@@ -10,10 +10,13 @@ const SWIPE_PX = 38;
 const SWIPE_MS = 320;
 
 /**
- * One SkierInput per physics step from keyboard, touch, gamepad and tilt.
- * Touch (default): hold left / right half = carve (analog ramp), both halves = tuck, swipe up = jump,
- * swipe down and hold = brake. In the air the same gestures spin (hold one side), grab (hold both) and
- * flip (swipe up / down). Keyboard grab = hold Space in the air; pad grab = hold A or RT in the air.
+ * One SkierInput per physics step from keyboard, touch, gamepad and tilt, laid out like Grand Mountain Adventure 2.
+ * Touch: hold the left / right half = carve (analog ramp), hold both = brake, tap both (or swipe up) = jump,
+ * a short tap = a pole push (skating on the flats), swipe down and hold = brake too. In the air: hold one side
+ * = spin, swipe up and keep holding = backflip, swipe down = frontflip, hold both = grab.
+ * Keyboard (as GMA: Wonderlands on PC): ← → carve, ↓ brake, Space jump, in the air ↑ / ↓ flip and Space or
+ * Shift held = grab; ↑ on the ground skates on the flats. Pad: stick carve, B / LT brake, A jump, A or RT grab.
+ * Riding straight and fast, the skier tucks on their own (Game.step), as in GMA.
  */
 export class Input {
   readonly keys = new Set<string>();
@@ -29,6 +32,10 @@ export class Input {
   private airLockSteer = false;
   private airLockFlip = false;
   private fingers = new Map<number, Finger>();
+  /** When both thumbs went down (one on each half): a quick release is a jump, a hold a brake. */
+  private bothT0 = 0;
+  /** A short tap pushes on the poles until then (performance.now ms). */
+  private pushUntil = 0;
   private padPrev: boolean[] = [];
   /** Any input this frame (used to leave the start gate / attract mode). */
   touched = false;
@@ -68,6 +75,8 @@ export class Input {
       });
       this.touched = true;
       this.lastTouch = performance.now();
+      const sides = new Set([...this.fingers.values()].filter((f) => f.mode === 'hold').map((f) => f.side));
+      if (sides.size === 2) this.bothT0 = performance.now();
     });
     el.addEventListener('pointermove', (e) => {
       const f = this.fingers.get(e.pointerId);
@@ -80,7 +89,18 @@ export class Input {
       if (dy < -SWIPE_PX && -dy > dx) { f.mode = 'jump'; this.jumpQueued = true; }
       else if (dy > SWIPE_PX && dy > dx) f.mode = 'brake';
     });
-    const end = (e: PointerEvent) => this.fingers.delete(e.pointerId);
+    const end = (e: PointerEvent) => {
+      const f = this.fingers.get(e.pointerId);
+      this.fingers.delete(e.pointerId);
+      if (!f || f.mode !== 'hold' || e.type === 'pointercancel') return;
+      const now = performance.now(), still = Math.hypot(f.x - f.x0, f.y - f.y0) < 20;
+      const other = [...this.fingers.values()].find((o) => o.mode === 'hold' && o.side !== f.side);
+      if (still && other && now - this.bothT0 < 260) {
+        // both thumbs tapped together: jump (the other thumb then neither steers nor brakes)
+        this.jumpQueued = true;
+        other.mode = 'button';
+      } else if (still && !other && now - f.t0 < 220) this.pushUntil = now + 350;
+    };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   }
@@ -165,7 +185,7 @@ export class Input {
     let flip = (down ? 1 : 0) - (up ? 1 : 0);
     if (left || right || up || down) this.touched = true;
 
-    // touch: holds steer (or tuck with both thumbs), swipes jump / brake / flip
+    // touch: holds steer (both thumbs: brake on the snow, grab in the air), taps jump / push, swipes jump / brake / flip
     let holdL = false;
     let holdR = false;
     let swipeBrake = false;
@@ -175,17 +195,22 @@ export class Input {
       if (f.mode === 'brake') { swipeBrake = true; swipeFlip = 1; }
       if (f.mode === 'jump' && airborne) swipeFlip = -1;
     }
-    let touchTuck = false;
+    const now = performance.now();
+    let touchGrab = false;
+    let touchBrake = false;
     if (this.tilt) {
       target = Math.abs(this.tiltSteer) > Math.abs(target) ? this.tiltSteer : target;
-      touchTuck = holdL || holdR;
-    } else if (holdL && holdR) touchTuck = true;
-    else if (holdL || holdR) target = holdR ? 1 : -1;
-    up = up || touchTuck;
-    down = down || swipeBrake;
+      up = up || holdL || holdR; // with tilt steering, a thumb tucks (grabs in the air)
+      touchGrab = holdL || holdR;
+    } else if (holdL && holdR) {
+      if (airborne) touchGrab = true;
+      else if (now - this.bothT0 > 200) touchBrake = true; // not in the first 200 ms: that may be a two-thumb tap (jump)
+    } else if (holdL || holdR) target = holdR ? 1 : -1;
+    if (now < this.pushUntil) up = true;
+    down = down || swipeBrake || touchBrake;
     if (airborne && swipeFlip) flip = swipeFlip;
 
-    let grab = this.has('Space') || touchTuck;
+    let grab = this.has('Space', 'ShiftLeft', 'ShiftRight') || touchGrab;
     const pad = this.pad();
     if (pad) {
       if (Math.abs(pad.steer) > Math.abs(target)) target = pad.steer;
@@ -204,7 +229,7 @@ export class Input {
     out.jump = this.jumpQueued;
     out.flip = airborne ? flip : 0;
     out.grab = airborne && grab;
-    this.holding = grab;
+    this.holding = grab || (holdL && holdR); // both thumbs on a lift: faster
     this.jumpQueued = false;
 
     if (airborne) {

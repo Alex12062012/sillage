@@ -298,6 +298,8 @@ export class Game {
     this.input.sample(this.inp, DT, s.airborne && !this.ride); // seated on a chair the keys still count (Space speeds it up)
     if (s !== this.skier) return; // a pad callback restarted / loaded the run mid-step: drop the stale step
     if (this.bot) botInput(s, this.track, this.inp, this.bot, this.botGap);
+    // as in Grand Mountain Adventure: running straight and fast, the skier tucks on their own
+    else if (this.phase === 'running' && !s.airborne && !this.inp.brake && Math.abs(this.inp.steer) < 0.05 && s.vel.lengthSq() > 81) this.inp.tuck = true;
     if (this.ride) {
       this.rideStep(s);
       return;

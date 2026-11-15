@@ -34,7 +34,7 @@ export class MiniMap {
     this.el = document.createElement('div');
     this.el.className = 'minimap';
     this.el.hidden = true;
-    this.el.innerHTML = `<canvas></canvas><span class="minimap-key"><kbd>M</kbd> Map</span>`;
+    this.el.innerHTML = `<canvas></canvas><span class="minimap-key"><kbd>M</kbd> Map</span><small class="minimap-credit">© OSM</small>`;
     parent.appendChild(this.el);
     this.cv = this.el.querySelector('canvas')!;
     this.g = this.cv.getContext('2d')!;

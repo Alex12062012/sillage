@@ -221,16 +221,7 @@ async function startRun(id: string): Promise<void> {
   setMode('run');
   if (station) game.goOnline(playerName(), params.get('portal') ?? undefined); // the other players on the station, through the portal (?portal=<url> for a local one)
   else game.goOffline();
-  if (station) {
-    hud.showHint(`<b>${station.name}</b> · ${station.area} — <b>Space</b> at a lift's bottom station to ride up · ${isTouch()
-      ? 'hold <b>both</b> to skate on the flats · tap the <b>map</b> to find a lift' : `<b>↑</b> skates on the flats · <b>T</b> top of ${station.summitName} · <b>M</b> trail map`} · <small>map © OpenStreetMap${station.id === 'rousses' ? '' : ' · IGN'}</small>`, 8);
-  } else if (!save.seenHint) {
-    hud.showHint(isTouch()
-      ? '<b>Hold</b> left / right to carve · <b>both</b> to tuck (grab in the air) · swipe <b>↑</b> jump · swipe <b>↓</b> brake'
-      : '<b>← →</b> carve · <b>↑</b> tuck · <b>↓</b> brake · <b>Space</b> jump, hold to grab · <b>R</b> restart', 8);
-    save.seenHint = true;
-    persist();
-  }
+  // no controls banner at the start any more: a tutorial will teach them (the map credits are on the trail map)
 }
 
 /**

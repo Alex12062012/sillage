@@ -166,7 +166,7 @@ export class TrailMap {
       <canvas></canvas>
       <div class="trailmap-head"><b></b><span>drag to move · scroll to zoom · click a lift to ride it<em> · <kbd>M</kbd> close</em></span><button class="close" aria-label="Close map">✕</button></div>
       <div class="trailmap-ctrl"><button data-z="1" aria-label="Zoom in">+</button><button data-z="-1" aria-label="Zoom out">−</button><button class="me" aria-label="Centre on me">◎</button></div>
-      <div class="trailmap-legend"><i class="green"></i>green <i class="blue"></i>blue <i class="red"></i>red <i class="black"></i>black <i class="lift"></i>lift</div>
+      <div class="trailmap-legend"><i class="green"></i>green <i class="blue"></i>blue <i class="red"></i>red <i class="black"></i>black <i class="lift"></i>lift <small class="credit"></small></div>
       <div class="trailmap-card" hidden></div>
       <div class="trailmap-tip" hidden></div>`;
     parent.appendChild(this.el);
@@ -194,6 +194,7 @@ export class TrailMap {
   show(m: Mountain): void {
     this.m = m;
     this.el.querySelector('.trailmap-head b')!.textContent = `${m.station.name} · ${m.station.area}`;
+    this.el.querySelector('.credit')!.textContent = `© OpenStreetMap contributors${m.station.id === 'rousses' ? '' : ' · IGN'}`;
     this.el.hidden = false;
     this.resize();
     // open on you, close enough to read the names around
