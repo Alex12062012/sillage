@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, Color, Group, InstancedMesh, Mesh, MeshLambertMaterial, type Object3D } from 'three';
 import { addHeightFog } from './heightFog';
+import { addSnowSurface } from './snow';
 import { kickerLength, smoothstep, Surface, type Track } from '../sim/track';
 import { TUNING as T } from '../tuning';
 
@@ -251,6 +252,7 @@ export function addSnowSparkle(material: MeshLambertMaterial): { setQuality(q: '
   let level = 1;
   material.onBeforeCompile = (sh) => {
     addHeightFog(sh);
+    addSnowSurface(sh);
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSparkleW;')

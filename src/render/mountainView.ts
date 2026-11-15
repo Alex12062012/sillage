@@ -1,5 +1,5 @@
 import {
-  Box3, BoxGeometry, BufferAttribute, DataTexture, LinearFilter, RedFormat, BufferGeometry, Color, CylinderGeometry, DynamicDrawUsage, Float32BufferAttribute, Frustum, Group,
+  Box3, BoxGeometry, BufferAttribute, DataTexture, LinearFilter, RedFormat, RGBAFormat, BufferGeometry, Color, CylinderGeometry, DynamicDrawUsage, Float32BufferAttribute, Frustum, Group,
   IcosahedronGeometry, InstancedBufferAttribute, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial,
   PerspectiveCamera, Quaternion, Sphere, Vector3, Vector4,
 } from 'three';
@@ -9,6 +9,7 @@ import { DEEP, towerGap, type Lift, type Mountain, type PisteColor } from '../si
 import { smoothstep } from '../sim/track';
 import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
 import { addHeightFog, RELIEF } from './heightFog';
+import { addSnowSurface, SNOW } from './snow';
 import { building, RestoView } from './restos';
 
 const C_GROOMED = new Color(0xe9eff7);
@@ -376,6 +377,8 @@ export class MountainView {
   private relief: { data: Uint8Array; nx: number; nz: number; tex: DataTexture; dir: Vector3; next: Vector3 | null; row: number };
   /** Time (ms) of the first, whole relief bake (at the first frame). */
   reliefMs = 0;
+  /** Time (ms) to find the pistes' directions for the corduroy (at load). */
+  groomMs = 0;
   private lastDir = new Vector3();
   private riderChair: Mesh;
   private riderCabin: Mesh;
@@ -388,6 +391,7 @@ export class MountainView {
   constructor(private m: Mountain) {
     this.massif.onBeforeCompile = (sh) => {
       addHeightFog(sh);
+      addSnowSurface(sh);
       sh.uniforms.uHole = this.hole;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vHoleW;')
@@ -427,6 +431,30 @@ export class MountainView {
       RELIEF.uRelief.value = tex;
       RELIEF.uReliefRect.value.set(G.x0 - st / 2, G.z0 - st / 2, 1 / (st * nx), 1 / (st * nz));
       RELIEF.uReliefOn.value = 1;
+      // groomed snow on the 10 m grid, for the corduroy (snow.ts): R how groomed, G B the piste's direction as
+      // (cos 2θ, sin 2θ), which blends smoothly between nodes (a groomer's lines have no front nor back)
+      const t0 = performance.now(), gd = new Uint8Array(G.nx * G.nz * 4), dir = { x: 0, z: 0, dx: 0, dz: 0 };
+      for (let j = 0; j < G.nz; j++) {
+        for (let i = 0; i < G.nx; i++) {
+          const k = j * G.nx + i, g = Math.min(1, Math.max(0, G.groomed[k]));
+          gd[k * 4] = Math.round(255 * g);
+          gd[k * 4 + 1] = gd[k * 4 + 2] = 128;
+          if (g < 0.05) continue;
+          const hit = m.pisteAt(G.x0 + i * G.step, G.z0 + j * G.step);
+          if (!hit) continue;
+          m.along(hit.p, hit.s, dir);
+          const a = 2 * Math.atan2(dir.dz, dir.dx);
+          gd[k * 4 + 1] = Math.round(127.5 + 127.5 * Math.cos(a));
+          gd[k * 4 + 2] = Math.round(127.5 + 127.5 * Math.sin(a));
+        }
+      }
+      this.groomMs = performance.now() - t0;
+      const groom = new DataTexture(gd, G.nx, G.nz, RGBAFormat);
+      groom.magFilter = groom.minFilter = LinearFilter;
+      groom.needsUpdate = true;
+      SNOW.uGroom.value = groom;
+      SNOW.uGroomRect.value.set(G.x0 - G.step / 2, G.z0 - G.step / 2, 1 / (G.step * G.nx), 1 / (G.step * G.nz));
+      SNOW.uGroomOn.value = 1;
     }
 
     // spruces: shuffled, so any prefix (lower quality) is an even thinning; tall and slim
@@ -907,6 +935,8 @@ export class MountainView {
     this.material.dispose();
     this.relief.tex.dispose();
     RELIEF.uReliefOn.value = 0;
+    SNOW.uGroom.value.dispose();
+    SNOW.uGroomOn.value = 0;
     this.massif.dispose();
   }
 }

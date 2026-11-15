@@ -11,6 +11,7 @@ import { Flakes, pointScale, SkiTrails, SnowFx, type SceneLight } from './render
 import { buildChunkProps, buildLandmarks } from './render/props';
 import { DEFAULT_COLORS, SkierModel, type SkierColors } from './render/skierModel';
 import { HEIGHT_FOG, RELIEF } from './render/heightFog';
+import { SNOW } from './render/snow';
 import { Sky } from './render/sky';
 import { addSnowSparkle, Terrain } from './render/terrain';
 import { Crowd } from './render/crowd';
@@ -197,7 +198,7 @@ export class Game {
     this.cam.camera.updateProjectionMatrix();
     this.sky.showPeaks(!this.mountain);
     this.sky.realSun = !!this.mountain;
-    if (!this.mountain) RELIEF.uReliefOn.value = 0; // the arcade has no relief texture
+    if (!this.mountain) RELIEF.uReliefOn.value = SNOW.uGroomOn.value = 0; // the arcade has no relief nor groomed-snow texture
     HEIGHT_FOG.value.set(this.mountain ? this.mountain.station.alt[0] - 150 : 0, this.mountain ? 260 : 0);
     this.sky.setTime(def.timeOfDay);
     this.reset();
@@ -842,6 +843,8 @@ export class Game {
    * 1024 px over ±55 m on medium, 2048 px over ±110 m on high, centred ahead of the camera (aimShadow).
    */
   private shadowReach = 0;
+  /** The scene-wide light uniforms (relief shadows, groomed snow, height haze), for checks and captures. */
+  readonly lightUniforms = { RELIEF, SNOW, HEIGHT_FOG };
   private setShadows(q: 'low' | 'medium' | 'high'): void {
     const on = q !== 'low' && !!this.mountain, sun = this.sky.sun, size = q === 'high' ? 2048 : 1024;
     if (this.renderer.shadowMap.enabled !== on) {
