@@ -74,7 +74,7 @@ if (game.mountain && game.mountain.config.slopes !== game.stationConfig(game.mou
 // ── touch buttons (pause, jump), mirrored for left-handed players
 const touch = document.createElement('div');
 touch.className = 'touch';
-touch.innerHTML = `<button class="touch-btn pause" aria-label="Pause">II</button><button class="touch-btn jump" aria-label="Jump">↑</button>`;
+touch.innerHTML = `<button class="touch-btn pause" aria-label="Pause">II</button>`; // no jump button: two thumbs jump
 ui.insertBefore(touch, hud.el); // before the HUD so `.touch.show ~ .hud` can shift the score clear of the button
 const fpsEl = document.createElement('div');
 fpsEl.className = 'fps';
@@ -100,7 +100,6 @@ if (matchMedia('(pointer: coarse)').matches && !embedded) {
       .catch(() => { /* not allowed here: the card does the asking */ });
   }, { once: true });
 }
-touch.querySelector('.jump')!.addEventListener('pointerdown', () => game.input.pressJump());
 // free ride: the station's trail map (M, the map button); the game waits while it is open
 const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { closeMap(); game.toLift(i); }, () => closeMap(), (i) => { closeMap(); game.toResto(i); });
 const miniMap = new MiniMap(ui, () => game.mapMarkers(), () => openMap()); // top right; a tap opens the full map

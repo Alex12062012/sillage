@@ -8,12 +8,14 @@ interface Finger { id: number; x0: number; y0: number; t0: number; x: number; y:
 
 const SWIPE_PX = 38;
 const SWIPE_MS = 320;
+const BRAKE_MS = 700; // a thumb pulled down within this long brakes
 
 /**
  * One SkierInput per physics step from keyboard, touch, gamepad and tilt, laid out like Grand Mountain Adventure 2.
- * Touch: hold the left / right half = carve (analog ramp), hold both = brake, tap both (or swipe up) = jump,
- * a short tap = a pole push (skating on the flats), swipe down and hold = brake too. In the air: hold one side
- * = spin, swipe up and keep holding = backflip, swipe down = frontflip, hold both = grab.
+ * Touch: hold the left / right half = carve (analog ramp), both thumbs = jump when one lifts (a tap or a long
+ * hold alike), swipe up = jump too, pull a thumb down and hold = brake, a short tap = a pole push (skating on
+ * the flats). In the air: hold one side = spin, swipe up and keep holding = backflip, swipe down = frontflip,
+ * hold both = grab.
  * Keyboard (as GMA: Wonderlands on PC): ← → carve, ↓ brake, Space jump, in the air ↑ / ↓ flip and Space or
  * Shift held = grab; ↑ on the ground skates on the flats. Pad: stick carve, B / LT brake, A jump, A or RT grab.
  * Riding straight and fast, the skier tucks on their own (Game.step), as in GMA.
@@ -32,8 +34,7 @@ export class Input {
   private airLockSteer = false;
   private airLockFlip = false;
   private fingers = new Map<number, Finger>();
-  /** When both thumbs went down (one on each half): a quick release is a jump, a hold a brake. */
-  private bothT0 = 0;
+
   /** A short tap pushes on the poles until then (performance.now ms). */
   private pushUntil = 0;
   private padPrev: boolean[] = [];
@@ -75,19 +76,18 @@ export class Input {
       });
       this.touched = true;
       this.lastTouch = performance.now();
-      const sides = new Set([...this.fingers.values()].filter((f) => f.mode === 'hold').map((f) => f.side));
-      if (sides.size === 2) this.bothT0 = performance.now();
     });
     el.addEventListener('pointermove', (e) => {
       const f = this.fingers.get(e.pointerId);
       if (!f) return;
       f.x = e.clientX;
       f.y = e.clientY;
-      if (f.mode !== 'hold' || performance.now() - f.t0 > SWIPE_MS) return;
+      const age = performance.now() - f.t0;
+      if (f.mode !== 'hold' || age > BRAKE_MS) return;
       const dy = f.y - f.y0;
       const dx = Math.abs(f.x - f.x0);
-      if (dy < -SWIPE_PX && -dy > dx) { f.mode = 'jump'; this.jumpQueued = true; }
-      else if (dy > SWIPE_PX && dy > dx) f.mode = 'brake';
+      if (dy < -SWIPE_PX && -dy > dx && age <= SWIPE_MS) { f.mode = 'jump'; this.jumpQueued = true; }
+      else if (dy > SWIPE_PX && dy > dx) f.mode = 'brake'; // pulling a thumb down brakes, even slowly
     });
     const end = (e: PointerEvent) => {
       const f = this.fingers.get(e.pointerId);
@@ -95,8 +95,8 @@ export class Input {
       if (!f || f.mode !== 'hold' || e.type === 'pointercancel') return;
       const now = performance.now(), still = Math.hypot(f.x - f.x0, f.y - f.y0) < 20;
       const other = [...this.fingers.values()].find((o) => o.mode === 'hold' && o.side !== f.side);
-      if (still && other && now - this.bothT0 < 260) {
-        // both thumbs tapped together: jump (the other thumb then neither steers nor brakes)
+      if (other) {
+        // both thumbs down, one lifts (tap or long hold): jump; the other thumb then neither steers nor jumps again
         this.jumpQueued = true;
         other.mode = 'button';
       } else if (still && !other && now - f.t0 < 220) this.pushUntil = now + 350;
@@ -197,17 +197,15 @@ export class Input {
     }
     const now = performance.now();
     let touchGrab = false;
-    let touchBrake = false;
     if (this.tilt) {
       target = Math.abs(this.tiltSteer) > Math.abs(target) ? this.tiltSteer : target;
       up = up || holdL || holdR; // with tilt steering, a thumb tucks (grabs in the air)
       touchGrab = holdL || holdR;
     } else if (holdL && holdR) {
-      if (airborne) touchGrab = true;
-      else if (now - this.bothT0 > 200) touchBrake = true; // not in the first 200 ms: that may be a two-thumb tap (jump)
+      if (airborne) touchGrab = true; // on the snow, both thumbs wait for one to lift: the jump
     } else if (holdL || holdR) target = holdR ? 1 : -1;
     if (now < this.pushUntil) up = true;
-    down = down || swipeBrake || touchBrake;
+    down = down || swipeBrake;
     if (airborne && swipeFlip) flip = swipeFlip;
 
     let grab = this.has('Space', 'ShiftLeft', 'ShiftRight') || touchGrab;
