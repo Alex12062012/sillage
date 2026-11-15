@@ -630,6 +630,15 @@ export class MountainView {
       // the sign at the top, facing the skiers coming
       m.along(p, Math.min(10, p.len / 2), pt);
       { const x = pt.x + pt.dz * (hw + 2.5), z = pt.z - pt.dx * (hw + 2.5); if (!m.pisteAt(x, z)) pisteSign(kit(x, z), k, x, m.height(x, z), z, Math.atan2(-pt.dx, -pt.dz)); }
+      // where it runs into another piste: a sign in that piste's colour, facing the skiers arriving
+      if (p.len > 60) {
+        m.along(p, p.len - 6, pt);
+        const join = m.pisteAt(pt.x + pt.dx * 18, pt.z + pt.dz * 18);
+        if (join && join.p !== p) {
+          const x = pt.x + pt.dz * (hw + 2.5), z = pt.z - pt.dx * (hw + 2.5);
+          if (!m.pisteAt(x, z)) pisteSign(kit(x, z), PISTE_COLOR[join.p.difficulty], x, m.height(x, z), z, Math.atan2(-pt.dx, -pt.dz));
+        }
+      }
       for (let s = 20; s < p.len - 20; s += 20) {
         m.along(p, s, pt);
         const ax = pt.x, az = pt.z, dx = pt.dx, dz = pt.dz;

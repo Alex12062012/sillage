@@ -17,14 +17,15 @@ Départ, palier bas, Pixel 7 émulé (triangles / draw calls) : Rousses 271 k / 
 - [x] Ombres des lisières dans les ombres du relief (DECISIONS.md, point 101). Palier bas inchangé en triangles : Rousses 267 k / 52, Avoriaz 322 k / 32, village 242 k / 51.
 - [x] Mode Auto prudent : High seulement sur un ordinateur clairement puissant (DECISIONS.md, point 102). 3 tests ajoutés (130 au total).
 - [x] Archétype de restaurant d'altitude pour le mode générique (DECISIONS.md, point 103). Palier bas inchangé : Rousses 267 k / 52, village 242 k / 51.
+- [x] Panneaux aux intersections (DECISIONS.md, point 104).
 
 ### Fin de session 3
 
 - Chiffres finaux, profil mobile, triangles / draw calls : bas Rousses 267 k / 52, Avoriaz 322 k / 32, village 242 k / 51 ; moyen 516 k / 90, 1 422 k / 44, 354 k / 61 ; élevé 829 k / 103, 2 442 k / 57, 597 k / 74. Tableau complet : PERF.md.
 - Captures : `docs/captures/v2-avant/` et `docs/captures/v2-apres/` (palier bas, profil mobile, mêmes points de vue).
-- Reste : ombres portées au palier bas, cabines de télécabine, canons en marche, panneaux aux intersections, archétype de restaurant d'altitude distinct, High à Avoriaz (p99 à 30 FPS).
+- Reste : ombres portées des objets au palier bas (seules les lisières et le relief ombrent), cabines de télécabine, canons en marche (pas de panache), restaurants à Avoriaz (absents des données), High à Avoriaz (p99 à 30 FPS sur M1). Une nouvelle critique indépendante n'a pas été refaite (le prompt en prévoyait une seule).
 - Pièges : les captures « nuit » de `shots.mjs` ne montrent pas la nuit en free ride (l'heure plafonne à t = 0,83, point 93). Les tests e2e réécrivent `docs/captures/e2e-*.jpg` : les restaurer avant un commit. Le marqueur de vitre est la couleur magenta pure : ne pas l'utiliser ailleurs. Medium aux Rousses est à 90 draw calls, le plafond : tout objet ajouté doit passer par une couche à tuiles existante.
-- Pas vérifié : un vrai téléphone, le vent des arbres à l'œil (aucune capture animée), l'éclairage des fenêtres en jeu (seule la fin d'après-midi l'atteint, à environ 28 %).
+- Pas vérifié : un vrai téléphone, le vent des arbres à l'œil (aucune capture animée), l'éclairage des fenêtres en jeu (seule la fin d'après-midi l'atteint, à environ 28 %), les ombres des lisières à l'œil (mesurées en chiffres seulement), le mode « bâtiments génériques » en jeu (seulement par les tests unitaires). Le test e2e « a gamepad can pause and resume » a échoué une fois sur 6 lancements : instable, comme celui du Retry.
 
 Usage : aucun outil de la session n'en donne le pourcentage (vérifié au début : rien dans `~/.claude`).
 
