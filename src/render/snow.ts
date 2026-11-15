@@ -3,7 +3,7 @@ import { DataTexture, RGBAFormat, Vector4, type Texture } from 'three';
 /**
  * The snow's own surface, for the snow materials only (massif, detail patch, land around, arcade terrain), no triangle:
  * - the groomer's corduroy: ridges every 30 cm along the piste and 4.5 m passes, on groomed snow (a texture of the
- *   10 m grid with the piste's direction, see MountainView), faded before it aliases;
+ *   10 m grid with the piste's direction, see MountainView), faded before it aliases (ridges past 70 m, passes past 90 m);
  * - a grain of crystals (12 cm), near the camera only;
  * - the shade lit by the blue sky: the light that does not come from the sun is a touch bluer.
  * Needs the world position varying of the relief patch (addHeightFog, called first by the same hook).
@@ -39,7 +39,7 @@ export function addSnowSurface(sh: { uniforms: Record<string, unknown>; fragment
           float aa = clamp(1.0 - fwidth(u) / 0.15, 0.0, 1.0);
           float pass = step(0.5, fract(u / 4.5));
           float k = groomed * smoothstep(0.0, 0.05, tilt); // not on the flat (no fall to groom along)
-          g *= 1.0 - k * (ridge * 0.07 * aa * near + pass * 0.03 * (1.0 - smoothstep(60.0, 240.0, dist)));
+          g *= 1.0 - k * (ridge * 0.07 * aa * near + pass * 0.02 * (1.0 - smoothstep(25.0, 90.0, dist))); // a groomer's work reads only up close
         }
       }
       reflectedLight.directDiffuse *= g;

@@ -10,7 +10,19 @@
 - [x] 4. Ombres : carte d'ombre du soleil en medium (1024 px, ±55 m) et high (2048 px, ±110 m), recentrée devant la caméra et calée sur les texels ; ombres du relief calculées sur le CPU (grille de 20 m) pour tous les paliers. Bug de la sous-étape A corrigé : les sapins « profonds » étaient coupés au-delà de 200 m au palier bas. Palier bas après correctif : Rousses 276 k / 50, Avoriaz 278 k / 31, village 260 k / 47.
 - [x] 5. Neige : velours de dameuse dans le sens de la piste (texture damé + direction sur la grille de 10 m, 14 ms aux Rousses et 56 ms à Avoriaz au chargement en desktop), grain de 12 cm près de la caméra, part de ciel bleutée dans l'ombre. Aucun triangle ajouté.
 - [x] 6. Remesure (PERF.md, « Couche lumière ») : palier bas Rousses 271 k / 49, Avoriaz 278 k / 31, village 255 k / 45. Budget de 250 k non tenu, proposition dans DECISIONS.md point 91. e2e : 18 réussis, aucun échec.
-- [ ] 7. Critique indépendante
+- [x] 7. Critique indépendante : 6,5/10. Défauts 1 à 3 corrigés (lavande, contraste, velours au loin), 4 et 5 restent (DECISIONS.md point 92).
+
+### Rapport final de la session 2
+
+- Fait : les 7 étapes. Draw calls regroupés ; paliers Auto/Low/Medium/High avec repli ; lumière de base (soleil réel, 15 h 30, brume de hauteur, tone mapping Neutral, étalonnage) ; ombres (carte d'ombre en medium/high, relief sur le CPU pour tous) ; neige (velours, grain, ombres bleutées) ; remesure ; critique et 3 corrections.
+- Palier bas, Pixel 7 émulé (CPU ×4), triangles / draw calls, avant → après : Rousses 275 k / 78 → 271 k / 49 ; Avoriaz 408 k / 98 → 278 k / 31 ; village 245 k / 70 → 255 k / 45. FPS 60 partout, p99 59,5.
+- Les chiffres « avant » oubliaient les forêts lointaines (bug de la sous-étape A, corrigé). Le budget de 250 k n'est pas tenu : proposition de budget séparé dans DECISIONS.md, point 91.
+- Medium : 543 k / 89, 1 476 k / 42, 402 k / 57. High : 889 k / 102, 2 647 k / 55 (Avoriaz : p99 à 30 FPS même sur le M1), 671 k / 70. Le budget de 60 draw calls n'est tenu qu'au palier bas.
+- Reste moyen : sapins trop sombres, ciel et brume sans profondeur, High trop lourd à Avoriaz, la foule pèse beaucoup en Medium/High.
+- Pas vérifié : la chaleur de la neige au soleil, le velours à l'œil, l'effet à l'image des ombres projetées par les objets derrière la caméra (seulement le comptage), le temps de démarrage sur un vrai téléphone (relief + velours : environ 0,2 à 0,35 s estimés avec le CPU ×4 à Avoriaz), le repli automatique de palier, qui n'a jamais été déclenché.
+- L'émulation (CPU bridé, GPU du M1 non bridé) ne remplace pas un test sur un vrai téléphone.
+- Usage : non mesurable depuis la session (aucun outil n'y donne accès). Rien n'a été poussé.
+
 
 ## Session 1 : sous-étape A
 

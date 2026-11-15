@@ -11,11 +11,11 @@ interface Mood {
 
 /** Time-of-day keyframes (morning → noon → golden hour → dusk). Fog = horizon colour. */
 const MOODS: Mood[] = [
-  { t: 0.15, top: 0x58709f, horizon: 0xe9b8a6, sun: 0xffc59a, sunI: 1.1, sky: 0xbfc9ec, ground: 0x7c7f9f, hemiI: 1.05, elev: 5 },
-  { t: 0.3, top: 0x5f93d3, horizon: 0xf3d8c6, sun: 0xffdcb4, sunI: 1.55, sky: 0xd3e2ff, ground: 0x8b91b0, hemiI: 1.25, elev: 16 },
-  { t: 0.52, top: 0x3d7ed0, horizon: 0xcfe4f6, sun: 0xfff3e2, sunI: 1.85, sky: 0xe4f0ff, ground: 0x8e9cb5, hemiI: 1.35, elev: 52 },
-  { t: 0.8, top: 0x45559d, horizon: 0xffb27f, sun: 0xffad6b, sunI: 1.6, sky: 0xbcc4ef, ground: 0x80708e, hemiI: 1.1, elev: 9 },
-  { t: 0.95, top: 0x2e3566, horizon: 0xd98c88, sun: 0xff8f6b, sunI: 0.9, sky: 0x8f97c9, ground: 0x5d5672, hemiI: 0.9, elev: 2 },
+  { t: 0.15, top: 0x58709f, horizon: 0xe9b8a6, sun: 0xffc59a, sunI: 1.1, sky: 0xbcd0ee, ground: 0x8a8c98, hemiI: 1.05, elev: 5 },
+  { t: 0.3, top: 0x5f93d3, horizon: 0xf3d8c6, sun: 0xffdcb4, sunI: 1.55, sky: 0xcfe2fb, ground: 0x9298a6, hemiI: 1.25, elev: 16 },
+  { t: 0.52, top: 0x3d7ed0, horizon: 0xcfe4f6, sun: 0xfff3e2, sunI: 1.85, sky: 0xdcebfb, ground: 0x9aa2ae, hemiI: 1.35, elev: 52 },
+  { t: 0.8, top: 0x45559d, horizon: 0xffb27f, sun: 0xffad6b, sunI: 1.6, sky: 0xb2c9e8, ground: 0x8e8784, hemiI: 1.1, elev: 9 },
+  { t: 0.95, top: 0x2e3566, horizon: 0xd98c88, sun: 0xff8f6b, sunI: 0.9, sky: 0x8ea3c8, ground: 0x666270, hemiI: 0.9, elev: 2 },
 ];
 
 const ca = new Color();
@@ -116,6 +116,9 @@ export class Sky {
     // sun from the front-left, so slopes facing the skier are lit and shadows read
     this.sunDir.set(-0.55 * Math.cos(elev), Math.sin(elev), 0.8 * Math.cos(elev)).normalize();
     if (this.realSun) {
+      // a real low winter sun: less sky light, more sun, so the shade falls to about half of the sunlit snow
+      this.hemi.intensity *= 0.8;
+      this.sun.intensity *= 1.15;
       // +x east, +z south. Solar time = clock − 50 min (6.5° E in CET, equation of time −14 min); declination −12.6°
       const r = Math.PI / 180, lat = 46.4 * r, dec = -12.6 * r, H = (7 + 12 * this.time - 0.83 - 12) * 15 * r;
       const e = Math.max(2 * r, Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(H))); // never under the horizon
