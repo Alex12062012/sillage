@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 /** Typed handle on the in-game debug API (window.__sillage). */
 type Api = {
+  play(id: string): void;
   state(): { phase: string; mode: string; kmh: number; z: number; finished: boolean; menu: string | null };
   drive(o: Record<string, unknown> | null): void;
   restart(): void;
@@ -37,9 +38,13 @@ test('boots behind a loading screen into the main menu', async ({ page }, info) 
   await page.screenshot({ path: `docs/captures/e2e-${info.project.name}-menu.jpg`, type: 'jpeg', quality: 75 });
 });
 
-test('a run starts from the menu and answers the controls', async ({ page }, info) => {
+test('Play opens the free ride ski areas', async ({ page }) => {
   await page.getByRole('button', { name: 'Play' }).click();
-  await page.locator('[data-run="combe-douce"]').click();
+  await expect(page.locator('[data-station]').first()).toBeVisible();
+});
+
+test('an arcade run starts and answers the controls', async ({ page }, info) => {
+  await call(page, (a) => a.play('combe-douce')); // the arcade runs are no longer in the menu (Play = free ride)
   expect((await call(page, (a) => a.state())).phase).toBe('ready');
   await call(page, (a) => a.drive({ tuck: true }));
   await expect.poll(async () => (await call(page, (a) => a.state())).kmh, { timeout: 20_000 }).toBeGreaterThan(15);
@@ -50,8 +55,7 @@ test('a run starts from the menu and answers the controls', async ({ page }, inf
 });
 
 test('restart is instant (< 1 s to the next rendered frame)', async ({ page }) => {
-  await page.getByRole('button', { name: 'Play' }).click();
-  await page.locator('[data-run="combe-douce"]').click();
+  await call(page, (a) => a.play('combe-douce')); // the arcade runs are no longer in the menu (Play = free ride)
   // mid-run without riding there: CI renders in software at ~2 FPS, where game time (5 steps a frame at most)
   // runs slower than the clock and 30 m of riding could outlast any poll
   await call(page, (a) => a.teleport(60, 40));
@@ -69,8 +73,7 @@ test('restart is instant (< 1 s to the next rendered frame)', async ({ page }) =
 });
 
 test('crossing the finish line shows the results and saves the record', async ({ page }, info) => {
-  await page.getByRole('button', { name: 'Play' }).click();
-  await page.locator('[data-run="combe-douce"]').click();
+  await call(page, (a) => a.play('combe-douce')); // the arcade runs are no longer in the menu (Play = free ride)
   await call(page, (a) => a.teleport(1080, 40));
   await expect.poll(() => call(page, (a) => a.results()), { timeout: 30_000 }).toBe(true);
   await expect(page.getByRole('button', { name: /Retry/ })).toBeVisible();
@@ -82,8 +85,7 @@ test('crossing the finish line shows the results and saves the record', async ({
 });
 
 test('pause and resume keep the run', async ({ page }, info) => {
-  await page.getByRole('button', { name: 'Play' }).click();
-  await page.locator('[data-run="combe-douce"]').click();
+  await call(page, (a) => a.play('combe-douce')); // the arcade runs are no longer in the menu (Play = free ride)
   await call(page, (a) => a.drive({ tuck: true }));
   await expect.poll(async () => (await call(page, (a) => a.state())).kmh, { timeout: 20_000 }).toBeGreaterThan(10);
   if (info.project.name === 'mobile') await page.locator('.touch-btn.pause').tap();

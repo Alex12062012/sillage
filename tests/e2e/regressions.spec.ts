@@ -2,6 +2,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 type Api = {
+  play(id: string): void;
   state(): { phase: string; mode: string; finished: boolean; menu: string | null };
   teleport(z: number, kmh: number): void;
   save(): { records: Record<string, { bestTime: number | null }> };
@@ -36,8 +37,7 @@ const press = async (page: Page, button: number) => {
 };
 
 async function finishRun(page: Page) {
-  await page.getByRole('button', { name: 'Play' }).click();
-  await page.locator('[data-run="combe-douce"]').click();
+  await api(page, (a) => a.play('combe-douce')); // the arcade runs are no longer in the menu (Play = free ride)
   await api(page, (a) => a.teleport(1085, 45));
 }
 
@@ -63,8 +63,7 @@ test('gamepad A on Retry starts a clean new run (no instant "record")', async ({
 });
 
 test('a gamepad can pause and resume', async ({ page }) => {
-  await page.getByRole('button', { name: 'Play' }).click();
-  await page.locator('[data-run="combe-douce"]').click();
+  await api(page, (a) => a.play('combe-douce')); // the arcade runs are no longer in the menu (Play = free ride)
   await press(page, 7); // RT drops in
   await press(page, 9); // Start
   expect((await api(page, (a) => a.state())).mode).toBe('paused');

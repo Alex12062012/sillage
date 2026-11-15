@@ -298,6 +298,11 @@ game.input.onKey = (code, key = '') => {
   const isMap = key.toLowerCase() === 'm'; // by letter: on AZERTY the M key is not KeyM
   game.audio.unlock();
   if (code === 'Backquote' || code === 'F2' || code === 'IntlBackslash') debug.toggle();
+  // F: fullscreen on and off (on a computer; phones go fullscreen at the first tap where the browser allows it)
+  if (key.toLowerCase() === 'f' && !document.activeElement?.closest('input, textarea')) {
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    else document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {});
+  }
   if (mode === 'run') {
     if (code === 'KeyR') restart();
     if (code === 'KeyT') game.toSummit();

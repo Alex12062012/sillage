@@ -308,8 +308,7 @@ export class Game {
     if (this.mountain && this.live) {
       // at a bottom station: the lift button (as in GMA) or Space / A boards; the jump is spent on it
       const near = this.liftNear(s);
-      const name = near >= 0 ? this.mountain.lifts[near].name || 'the lift' : '';
-      this.hud.board(near >= 0 ? (this.touchUi ? `<span class="lift-ico">🚡</span> Ride <b>${name}</b>` : `<kbd>Space</kbd> ride <b>${name}</b>`) : null);
+      this.hud.board(near >= 0 ? `<span class="lift-ico">🚡</span><b>Ride</b>${this.touchUi ? '' : ' · Space'}` : null);
       const asked = this.boardAsked;
       this.boardAsked = false;
       if (near >= 0 && (this.inp.jump || asked)) {

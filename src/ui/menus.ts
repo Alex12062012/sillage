@@ -52,27 +52,14 @@ export class Menus {
     this.el.querySelectorAll<HTMLElement>(sel).forEach((el) => el.addEventListener('click', () => fn(el)));
   }
 
+  /** The title screen: one button, into the free ride's ski areas (the arcade runs stay reachable by URL, ?track=). */
   main(): void {
-    const s = this.a.save();
-    const hint = isTouch()
-      ? 'Hold left / right to carve · two thumbs to jump · pull a thumb ↓ to brake'
-      : '← → carve · ↓ brake · Space jump · ↑ ↓ flip in the air · R restart · Esc pause';
     this.open('main', `
       <div class="menu">
         <div class="brand"><h1>Sillage</h1><p>Carve your line.</p></div>
-        <div class="stack">
-          <button class="primary big" data-go="select">Play</button>
-          <button class="big" data-go="free">Free ride</button>
-          <button data-go="locker">Locker</button>
-          <button data-go="settings">Settings</button>
-        </div>
-        <div class="foot"><b>★ ${totalStars(s)} / 27</b><span>${hint}</span></div>
-        ${isTouch() && innerHeight > innerWidth ? '<div class="rotate">↻ Turn your phone sideways for a wider view</div>' : ''}
+        <div class="stack"><button class="primary big" data-go="free">Play</button></div>
       </div>`);
-    this.on('[data-go="select"]', () => this.select());
     this.on('[data-go="free"]', () => this.stations());
-    this.on('[data-go="locker"]', () => this.locker());
-    this.on('[data-go="settings"]', () => this.settings(() => this.main()));
   }
 
   select(): void {
