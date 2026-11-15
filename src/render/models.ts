@@ -172,3 +172,68 @@ function append(g: Geo, s: Geo, x: number, y: number, z: number, yaw: number): v
   for (let i = 0; i < p.length; i += 3) g.pos.push(x + p[i] * c + p[i + 2] * sn, y + p[i + 1], z - p[i] * sn + p[i + 2] * c);
   g.col.push(...s.col);
 }
+
+const WOOD = C(0x7a5236), WOOD_DARK = C(0x5a3c28), IRON = C(0x3a3f47);
+
+/** A park bench: seat and back in wood on iron legs, snow on the seat; facing +z. */
+export function bench(g: Geo, x: number, y: number, z: number, yaw: number): void {
+  const s = new Geo();
+  s.block(0, 0.45, 0, 1.6, 0.06, 0.42, WOOD, SNOW);
+  s.block(0, 0.72, -0.2, 1.6, 0.34, 0.05, WOOD);
+  for (const lx of [-0.7, 0.7]) { bar(s, [lx, 0, 0.15], [lx, 0.45, 0.12], 0.03, IRON); bar(s, [lx, 0, -0.18], [lx, 0.9, -0.22], 0.03, IRON); }
+  append(g, s, x, y, z, yaw);
+}
+
+/** A ski rack 2.4 m long, five pairs of skis leaning on it (colours from `seed`); along x. */
+export function skiRack(g: Geo, x: number, y: number, z: number, yaw: number, seed: number): void {
+  const s = new Geo(), cols = [0x3a7bd5, 0xe0393e, 0xf2c14e, 0x2fa84f, 0xeef1f4, 0x1d1f26].map(C);
+  for (const lx of [-1.15, 1.15]) bar(s, [lx, 0, 0], [lx, 1.25, 0], 0.04, IRON);
+  bar(s, [-1.2, 1.2, 0], [1.2, 1.2, 0], 0.035, IRON);
+  bar(s, [-1.2, 0.5, 0], [1.2, 0.5, 0], 0.03, IRON);
+  for (let k = 0; k < 5; k++) {
+    const lx = -0.9 + k * 0.45, c = cols[(seed + k * 7) % cols.length];
+    for (const dx of [-0.05, 0.05]) s.block(lx + dx, 0.85, 0.12, 0.07, 1.7, 0.02, c);
+  }
+  append(g, s, x, y, z, yaw);
+}
+
+/** A street lamp 4.5 m high, its arm towards +z; the glass glows at dusk (the window marker). */
+export function lamp(g: Geo, x: number, y: number, z: number, yaw: number, far = false): void {
+  const s = new Geo();
+  if (far) { bar(s, [0, 0, 0], [0, 4.5, 0], 0.07, IRON); append(g, s, x, y, z, yaw); return; }
+  tube(s, 0, 0, 0, 4.4, 0.08, 0.05, 6, IRON);
+  bar(s, [0, 4.35, 0], [0, 4.45, 0.55], 0.03, IRON);
+  s.block(0, 4.25, 0.6, 0.32, 0.3, 0.32, IRON, SNOW);
+  for (const [a, b] of [[[-0.12, 4.08, 0.72], [0.12, 4.08, 0.72]], [[0.12, 4.08, 0.48], [-0.12, 4.08, 0.48]]] as const) {
+    s.quad([a[0], a[1], a[2]], [b[0], b[1], b[2]], [b[0], b[1] + 0.16, b[2]], [a[0], a[1] + 0.16, a[2]], WINDOW);
+  }
+  append(g, s, x, y, z, yaw);
+}
+
+/** A ski patrol hut, 3 × 2.5 m: boarded walls, a snowy gable roof, a door and a window; its door on +z. */
+export function hut(g: Geo, x: number, y: number, z: number, yaw: number, far = false): void {
+  const s = new Geo();
+  s.walls(0, 0, 3, 2.5, 0, 2.3, WOOD_DARK);
+  gableRoof(s, 3, 2.5, 2.3, { pitch: 0.55, over: 0.35, gableOver: 0.3, snow: SNOW, under: WOOD, edge: C(0xe4e9f0), gable: WOOD_DARK });
+  if (!far) {
+    s.quad([0.3, 0, 1.26], [1.1, 0, 1.26], [1.1, 1.9, 1.26], [0.3, 1.9, 1.26], C(0xc8312b));
+    s.quad([-1.1, 1.0, 1.26], [-0.3, 1.0, 1.26], [-0.3, 1.7, 1.26], [-1.1, 1.7, 1.26], WINDOW);
+  }
+  append(g, s, x, y, z, yaw);
+}
+
+/** The piste map board: two posts, a framed board with a small roof, facing +z. */
+export function mapBoard(g: Geo, x: number, y: number, z: number, yaw: number, far = false): void {
+  const s = new Geo();
+  for (const lx of [-1.1, 1.1]) bar(s, [lx, 0, 0], [lx, 2.6, 0], 0.06, WOOD_DARK);
+  s.block(0, 1.75, 0, 2.6, 1.5, 0.08, WOOD_DARK);
+  if (!far) {
+    s.quad([-1.2, 1.08, 0.045], [1.2, 1.08, 0.045], [1.2, 2.42, 0.045], [-1.2, 2.42, 0.045], C(0xe9eef2));
+    // the map's pistes, a few strokes of colour
+    for (const [k, x0, x1, y0, y1] of [[0x2f6fde, -0.9, -0.2, 2.3, 1.2], [0xe0393e, -0.1, 0.4, 2.35, 1.15], [0x1d1f26, 0.5, 1.0, 2.3, 1.3], [0x2fa84f, -1.0, 1.0, 1.25, 1.2]] as const) {
+      s.quad([x1, y1 - 0.04, 0.05], [x1 + 0.06, y1, 0.05], [x0 + 0.06, y0, 0.05], [x0, y0 - 0.04, 0.05], C(k));
+    }
+  }
+  s.block(0, 2.62, 0, 2.9, 0.08, 0.4, WOOD_DARK, SNOW);
+  append(g, s, x, y, z, yaw);
+}

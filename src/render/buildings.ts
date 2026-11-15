@@ -222,7 +222,8 @@ export function archetypeBuilding(x: number, y: number, z: number, w0: number, d
   const plinth = near && (kind === 'chalet' || kind === 'log') ? 0.9 : 0;
   if (plinth) g.walls(0, 0, w, d, 0, plinth, STONE);
   g.walls(0, 0, w, d, plinth, eave, wall);
-  gableRoof(g, w, d, eave, { pitch, over, gableOver: over * 0.8, offset, snow: SNOW, under, edge, gable });
+  const ridge = gableRoof(g, w, d, eave, { pitch, over, gableOver: over * 0.8, offset, snow: SNOW, under, edge, gable });
+  if (near && kind !== 'residence' && r(14) < 0.75) g.block(w * (r(15) - 0.5) * 0.6, ridge - 0.25, -d * 0.12, 0.6, 1.5, 0.6, STONE, SNOW); // a chimney
   if (near) {
     // windows: on the long sides, and on the gables of the smaller ones
     const nLong = Math.max(1, Math.min(kind === 'residence' ? 7 : 4, Math.floor(w / (kind === 'farm' ? 4.2 : 3.3))));

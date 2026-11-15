@@ -8,7 +8,7 @@ Branche `refonte-visuelle-3`, partie de `refonte-visuelle-2` (non fusionnée dan
 - [x] 2. Personnage : aucun candidat externe acceptable (compte Sketchfab requis, modèles stylisés ou scan d'une personne réelle, Mixamo non CC) ; personnage refait en code sur le même squelette, matières PBR, 5,2 k / 8,1 k / 13,2 k triangles selon le palier. Gain modeste, pas photoréaliste. `perf.mjs` hors ligne. DECISIONS.md, point 106.
 - [x] 3. Collisions : rectangles orientés (bâtiments, terrasses, gares, filets, dameuses), pylônes à la taille du socle, arbres selon leur forme (règle partagée `treeLook`), matériel placé par la simulation avec ses colliders, dameuse sortie de la file de départ. Mode debug `colliders()` (build de test), 6 captures dans `docs/captures/colliders/`, 5 tests. 138 tests unitaires. DECISIONS.md, point 107.
 - [x] 4. Barrières : aucune barrière dans les données du dépôt ; filets seulement au bord d'une vraie falaise ou d'une route qui longe la piste, toujours avec une ouverture après chaque tronçon. Rousses 382 → 94, Avoriaz 761 → 205. Test du bot qui revient sur la piste. DECISIONS.md, point 108.
-- [ ] 5. Modèles variés
+- [x] 5. Modèles : bancs, râteliers, lampadaires (globe allumé le soir), cabanes de pisteurs, plans des pistes, cheminées ; placés par la simulation avec leur collider ; version lointaine par tuile, un seul draw call. Rousses 269 k / 52, Avoriaz 323 k / 32, village 248 k / 51. DECISIONS.md, point 109.
 
 Usage : toujours aucun outil pour le mesurer.
 

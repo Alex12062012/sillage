@@ -52,7 +52,8 @@ export type Equipment =
   | { kind: 'sign'; x: number; z: number; yaw: number; difficulty: PisteColor }
   | { kind: 'net'; x: number; z: number; x2: number; z2: number }
   | { kind: 'gun'; x: number; z: number; yaw: number }
-  | { kind: 'groomer'; x: number; z: number; yaw: number };
+  | { kind: 'groomer'; x: number; z: number; yaw: number }
+  | { kind: 'bench' | 'rack' | 'lamp' | 'hut' | 'board'; x: number; z: number; yaw: number };
 
 /** A lift's tower size (the view's towers: × towerH / 10, never under 1). */
 export const towerScale = (l: Lift): number => Math.max(1, (l.kind === 'gondola' ? (l.seats > 12 ? 30 : 16) : l.kind === 'chair' ? 10 : 6.5) / 10);
@@ -553,6 +554,12 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
     else if (q.kind === 'sign') list.push({ id: list.length, x: q.x, z: q.z, r: 0.55, h: 2, kind: 'prop' });
     else if (q.kind === 'gun') list.push({ id: list.length, x: q.x, z: q.z, r: 0.9, h: 2.6, kind: 'prop' });
     else if (q.kind === 'groomer') list.push(boxObstacle(list.length, q.x + Math.sin(q.yaw) * 0.2, q.z + Math.cos(q.yaw) * 0.2, 1.75, 3.25, Math.cos(q.yaw), -Math.sin(q.yaw), 3, 'prop'));
+    else if (q.kind === 'lamp') list.push({ id: list.length, x: q.x, z: q.z, r: 0.15, h: 4.5, kind: 'prop' });
+    else if (q.kind !== 'net') {
+      // the street furniture (models.ts): bench 1.6 × 0.5, rack 2.4 × 0.5 (the skis lean out), hut 3 × 2.5, map board 2.6 wide
+      const [hx, hz, h] = { bench: [0.82, 0.3, 0.95], rack: [1.25, 0.35, 1.7], hut: [1.55, 1.3, 3.5], board: [1.35, 0.22, 2.8] }[q.kind];
+      list.push(boxObstacle(list.length, q.x, q.z, hx, hz, Math.cos(q.yaw), -Math.sin(q.yaw), h, 'prop'));
+    }
     else {
       // a net: rectangles of 4 m at most, so their bounding circles stay small (index, bots)
       const l = Math.hypot(q.x2 - q.x, q.z2 - q.z), n = Math.max(1, Math.ceil(l / 4)), ux = (q.x2 - q.x) / l, uz = (q.z2 - q.z) / l;
@@ -633,6 +640,65 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
         if (Math.hypot(x - spawn.x, z - spawn.z) < 28) continue; // the start queue (8 m each side, 20 m ahead) stays clear
         out.push({ kind: 'groomer', x, z, yaw: Math.atan2(ux, uz) + side * 0.4 });
         break;
+      }
+    }
+    // street furniture (DECISIONS.md, point 109): only on free snow, off the pistes, clear of every obstacle, of the
+    // other pieces and of the start queue
+    const index = indexObstacles(list), around: Obstacle[] = [];
+    const free = (x: number, z: number, rad: number) =>
+      !pisteAt(x, z, rad + 1) && Math.hypot(x - spawn.x, z - spawn.z) > 24 &&
+      !index.near(x, z, rad + 2, around).some((o) => obstacleGap(o, x, z, n) < rad + 1.2) &&
+      out.every((q) => Math.hypot(q.x - x, q.z - z) > rad + (q.kind === 'net' ? 12 : 2.5));
+    const put = (kind: 'bench' | 'rack' | 'lamp' | 'hut' | 'board', x: number, z: number, yaw: number, rad: number) => {
+      if (!free(x, z, rad)) return false;
+      out.push({ kind, x, z, yaw });
+      return true;
+    };
+    // at the foot of every chairlift and gondola: the piste map, a ski rack, a bench, two lamps; a patrol hut at the
+    // top of the longest ones
+    const tall = lifts.filter((l) => l.kind === 'chair' || l.kind === 'gondola');
+    for (const l of tall) {
+      liftPoint(l, 0, pt);
+      const s = stationScale(l), cx = pt.x, cz = pt.z, ux = pt.dx, uz = pt.dz;
+      const sides = Math.hypot(cx + uz * 13.5 - spawn.x, cz - ux * 13.5 - spawn.z) < 30 ? [-1, 1] : [1, -1]; // away from the queue first
+      // beside the platform, 4, 8 or 12 m out: the arrival area in front of a station is often still piste
+      const tries = sides.flatMap((side) => [4, 8, 12].map((d) => [side, 4.5 * s + d]));
+      for (const [side, off] of tries) {
+        const at = (a: number, b: number): [number, number] => [cx + uz * side * a - ux * b, cz - ux * side * a - uz * b];
+        if (!put('board', ...at(off, 2), Math.atan2(-ux, -uz), 1.4)) continue;
+        put('rack', ...at(off + 0.5, 7), Math.atan2(ux, uz) + Math.PI / 2, 1.3);
+        put('bench', ...at(off + 0.5, 11), Math.atan2(-uz * side, ux * side), 0.9);
+        break;
+      }
+      for (const side of [1, -1]) put('lamp', cx + uz * side * (4.5 * s + 2), cz - ux * side * (4.5 * s + 2), Math.atan2(-uz * side, ux * side), 0.4);
+    }
+    for (const l of [...tall].sort((a, b) => b.len - a.len).slice(0, 6)) {
+      liftPoint(l, 1, pt);
+      const s = stationScale(l);
+      for (const side of [1, -1]) if (put('hut', pt.x + pt.dz * side * (4.5 * s + 8) + pt.dx * 4, pt.z - pt.dx * side * (4.5 * s + 8) + pt.dz * 4, Math.atan2(-pt.dx, -pt.dz), 2.2)) break;
+    }
+    // by each restaurant's sign: a bench and a ski rack at the ends of its facade
+    for (const r of restos) {
+      const f = signFace(r), c = Math.cos(r.yaw), sn = Math.sin(r.yaw), half = Math.min(f.len * 0.4, 12) + 3;
+      for (const [k, sideA] of [['bench', 1], ['rack', -1]] as const) {
+        const [lx, lz] = f.axis === 'z' ? [sideA * half, f.side * (f.off + 3)] : [f.side * (f.off + 3), sideA * half];
+        const x = r.x + lx * c + lz * sn, z = r.z - lx * sn + lz * c;
+        put(k, x, z, r.signYaw + Math.PI + (k === 'rack' ? Math.PI / 2 : 0), k === 'rack' ? 1.3 : 0.9);
+      }
+    }
+    // lamps along the village roads (within 600 m of a lift's foot), every 45 m, on alternate sides
+    const feet = tall.map((l) => (liftPoint(l, 0, pt), [pt.x, pt.z]));
+    let lamps = 0;
+    for (const road of R.roads) {
+      for (let k = 2; k < road.length && lamps < 160; k += 2) {
+        const x0 = road[k - 2], z0 = road[k - 1], l = Math.hypot(road[k] - x0, road[k + 1] - z0);
+        if (l < 1) continue;
+        const ux = (road[k] - x0) / l, uz = (road[k + 1] - z0) / l;
+        for (let t = 20; t < l; t += 45) {
+          const side = Math.floor(t / 45) % 2 ? 1 : -1, x = x0 + ux * t + uz * side * 5.5, z = z0 + uz * t - ux * side * 5.5;
+          if (!feet.some(([fx, fz]) => Math.hypot(fx - x, fz - z) < 600)) continue;
+          if (put('lamp', x, z, Math.atan2(-uz * side, ux * side), 0.4)) lamps++;
+        }
       }
     }
     return out;

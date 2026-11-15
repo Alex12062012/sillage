@@ -9,7 +9,7 @@ import { DEEP, towerGap, type Lift, type Mountain, type PisteColor } from '../si
 import { treeLook } from '../sim/treeLook';
 import { smoothstep } from '../sim/track';
 import { paint } from './props';
-import { chairGeometry, groomer, net, pisteSign, pole, snowGun, stationGeometry, towerGeometry, towerPad } from './models';
+import { bench, chairGeometry, groomer, hut, lamp, mapBoard, net, pisteSign, pole, skiRack, snowGun, stationGeometry, towerGeometry, towerPad } from './models';
 import { bareFar, bareNear, coniferFar, coniferNear, TREE_WIND, treeMaterial } from './trees';
 import { addHeightFog, RELIEF } from './heightFog';
 import { addSnowSurface, SNOW } from './snow';
@@ -597,13 +597,16 @@ export class MountainView {
     this.buildingTiles = new Tiled(parts.length ? mergeGeometries(parts) : new BufferGeometry(), tiles, flat);
     this.buildingTiles.mesh.castShadow = this.buildingTiles.mesh.receiveShadow = true;
     this.group.add(this.buildingTiles.mesh);
-    // piste and lift equipment by 500 m tiles, no far version (DECISIONS.md, point 99): one draw call for all of it
-    const kits = new Map<string, Geo>();
-    const kit = (x: number, z: number) => {
+    // piste and lift equipment, street furniture, by 500 m tiles (DECISIONS.md, points 99 and 109): one draw call for
+    // all of it. Each tile has a near version and a far one, where only the big pieces stay, simplified
+    const kits = new Map<string, [Geo, Geo]>();
+    const tileOf = (x: number, z: number) => {
       const key = `${Math.floor(x / 500)},${Math.floor(z / 500)}`;
-      if (!kits.has(key)) kits.set(key, new Geo());
+      if (!kits.has(key)) kits.set(key, [new Geo(), new Geo()]);
       return kits.get(key)!;
     };
+    const kit = (x: number, z: number) => tileOf(x, z)[0];
+    const kitFar = (x: number, z: number) => tileOf(x, z)[1];
     // what the simulation placed (Mountain.equipment), each piece where its collider is
     for (const q2 of m.equipment) {
       const g = kit(q2.x, q2.z), y = m.height(q2.x, q2.z);
@@ -611,7 +614,14 @@ export class MountainView {
       else if (q2.kind === 'sign') pisteSign(g, PISTE_COLOR[q2.difficulty], q2.x, y, q2.z, q2.yaw);
       else if (q2.kind === 'gun') snowGun(g, q2.x, y, q2.z, q2.yaw);
       else if (q2.kind === 'groomer') groomer(g, q2.x, y - 0.05, q2.z, q2.yaw);
-      else net(g, [q2.x, y, q2.z], [q2.x2, m.height(q2.x2, q2.z2), q2.z2]);
+      else if (q2.kind === 'net') net(g, [q2.x, y, q2.z], [q2.x2, m.height(q2.x2, q2.z2), q2.z2]);
+      else if (q2.kind === 'bench') bench(g, q2.x, y, q2.z, q2.yaw);
+      else if (q2.kind === 'rack') skiRack(g, q2.x, y, q2.z, q2.yaw, Math.round(Math.abs(q2.x + q2.z)));
+      else {
+        const draw = { lamp, hut, board: mapBoard }[q2.kind];
+        draw(g, q2.x, y, q2.z, q2.yaw);
+        draw(kitFar(q2.x, q2.z), q2.x, y, q2.z, q2.yaw, true);
+      }
     }
     // pads on the towers standing on a piste (their collider: the tower's, as wide as its foot)
     for (const v of this.lifts) {
@@ -623,13 +633,13 @@ export class MountainView {
     {
       const parts: BufferGeometry[] = [], tiles: Tile[] = [];
       let at2 = 0;
-      for (const g of kits.values()) {
-        const geo = g.build();
+      for (const [g, gf] of kits.values()) {
+        const geo = g.build(), far = gf.build();
         geo.computeBoundingSphere();
-        const n = geo.attributes.position.count;
-        tiles.push({ sphere: geo.boundingSphere!, lods: [Uint32Array.from({ length: n }, (_, k) => at2 + k), new Uint32Array(0)] });
-        at2 += n;
-        parts.push(geo);
+        const n = geo.attributes.position.count, nf = far.attributes.position.count;
+        tiles.push({ sphere: geo.boundingSphere!, lods: [Uint32Array.from({ length: n }, (_, k) => at2 + k), Uint32Array.from({ length: nf }, (_, k) => at2 + n + k)] });
+        at2 += n + nf;
+        parts.push(geo, far);
       }
       this.props = new Tiled(parts.length ? mergeGeometries(parts) : new BufferGeometry(), tiles, flat);
       this.group.add(this.props.mesh);
