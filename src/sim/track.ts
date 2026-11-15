@@ -50,6 +50,9 @@ export const KICKERS = {
   small: { z: 0, x: 0, halfWidth: 4, height: 0.6, ramp: 5, knuckle: 0.5, land: 26, drop: 5, recover: 20 },
   medium: { z: 0, x: 0, halfWidth: 5, height: 1.0, ramp: 7, knuckle: 1, land: 40, drop: 9, recover: 30 },
   large: { z: 0, x: 0, halfWidth: 6, height: 1.6, ramp: 9, knuckle: 1, land: 56, drop: 17, recover: 36 },
+  // the tutorial's bumps span the whole piste: after the zigzags the skier may be anywhere across it
+  wide: { z: 0, x: 0, halfWidth: 26, height: 0.8, ramp: 6, knuckle: 0.6, land: 30, drop: 6, recover: 24 },
+  wideLarge: { z: 0, x: 0, halfWidth: 26, height: 1.6, ramp: 9, knuckle: 1, land: 56, drop: 17, recover: 36 },
 } satisfies Record<string, Kicker>;
 
 export const kickerLength = (k: Kicker) => k.ramp + k.knuckle + k.land + k.recover;

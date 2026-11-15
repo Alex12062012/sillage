@@ -95,6 +95,12 @@ export class Game {
   private wire: number[] = [];
   /** On a lift: which, how far up, for how long, and how much faster than the lift you are going (holding Space). */
   private ride: { lift: number; f: number; t: number; boost: number } | null = null;
+  /** The lift being ridden (free ride), or null. */
+  get riding(): number | null {
+    return this.ride?.lift ?? null;
+  }
+  /** The last landing (the tutorial checks its flips). */
+  lastLand: SkierEvent | null = null;
   private piste: Mountain['pistes'][number] | null = null;
   private pisteTick = 0;
   private world = new Group();
@@ -586,6 +592,7 @@ export class Game {
         this.rumble(0, 0.3, 40);
         break;
       case 'land':
+        this.lastLand = e;
         if (e.quality !== 'crash') this.landing = { e, points: 0 };
         break;
       case 'crash': {

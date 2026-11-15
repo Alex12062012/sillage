@@ -29,7 +29,21 @@ export const TRACKS: TrackDef[] = [
   },
 ];
 
+/**
+ * The tutorial run (after the lift, before the station's free ride): straight and wide, a turn each way, a bump
+ * across the whole piste to jump, a longer one for a backflip, a little forest to steer through, then a stop.
+ * Its own run: the stations' mountains stay 1:1.
+ */
+export const TUTO_TRACK: TrackDef = {
+  id: 'tuto', name: 'Tutorial', difficulty: 'easy', seed: 4711,
+  length: 1000, slopeDeg: 10, slopeVar: 0, halfWidth: 22, curve: 0,
+  kickers: [{ size: 'wide', z: 300 }, { size: 'wideLarge', z: 390 }],
+  moguls: 0, glades: 1, cliffs: 0, ice: 0, arches: 0, treeDensity: 0.7, rockDensity: 0,
+  timeOfDay: 0.708, par: 0,
+};
+
 export const trackById = (id: string): TrackDef => {
+  if (id === TUTO_TRACK.id) return TUTO_TRACK;
   const st = stationOfTrack(id);
   return st ? freeDef(st) : TRACKS.find((t) => t.id === id) ?? TRACKS[0];
 };

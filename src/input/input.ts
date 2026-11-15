@@ -14,8 +14,8 @@ const BRAKE_MS = 700; // a thumb pulled down within this long brakes
  * One SkierInput per physics step from keyboard, touch, gamepad and tilt, laid out like Grand Mountain Adventure 2.
  * Touch: hold the left / right half = carve (analog ramp), both thumbs = jump when one lifts (a tap or a long
  * hold alike), swipe up = jump too, pull a thumb down and hold = brake, a short tap = a pole push (skating on
- * the flats). In the air: hold one side = spin, swipe up and keep holding = backflip, swipe down = frontflip,
- * hold both = grab.
+ * the flats). In the air: hold one side = spin, pull the thumbs back (down) and hold = backflip, push them
+ * forward (up) and hold = frontflip, hold both = grab.
  * Keyboard (as GMA: Wonderlands on PC): ← → carve, ↓ brake, Space jump, in the air ↑ / ↓ flip and Space or
  * Shift held = grab; ↑ on the ground skates on the flats. Pad: stick carve, B / LT brake, A jump, A or RT grab.
  * Riding straight and fast, the skier tucks on their own (Game.step), as in GMA.
@@ -119,6 +119,26 @@ export class Input {
     }
   }
 
+  /** Tutorial: are these keys held now. */
+  held(...codes: string[]): boolean {
+    return this.has(...codes);
+  }
+
+  /** Tutorial: a jump is asked and not yet taken (Space, two thumbs, a swipe up, A). */
+  get jumpPending(): boolean {
+    return this.jumpQueued;
+  }
+
+  /** Tutorial: which halves have a thumb resting, and whether a thumb is pulled down. */
+  fingerState(): { left: boolean; right: boolean; pulled: boolean } {
+    let left = false, right = false, pulled = false;
+    for (const f of this.fingers.values()) {
+      if (f.mode === 'hold') { if (f.side < 0) left = true; else right = true; }
+      if (f.mode === 'brake') pulled = true;
+    }
+    return { left, right, pulled };
+  }
+
   pressJump(): void {
     this.jumpQueued = true;
     this.touched = true;
@@ -192,8 +212,8 @@ export class Input {
     let swipeFlip = 0;
     for (const f of this.fingers.values()) {
       if (f.mode === 'hold') { if (f.side < 0) holdL = true; else holdR = true; }
-      if (f.mode === 'brake') { swipeBrake = true; swipeFlip = 1; }
-      if (f.mode === 'jump' && airborne) swipeFlip = -1;
+      if (f.mode === 'brake') { swipeBrake = true; swipeFlip = -1; } // thumbs pulled back: backflip in the air
+      if (f.mode === 'jump' && airborne) swipeFlip = 1; // thumbs pushed forward: frontflip
     }
     const now = performance.now();
     let touchGrab = false;

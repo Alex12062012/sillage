@@ -14,6 +14,7 @@ import { showResults } from './ui/results';
 import { MiniMap } from './ui/miniMap';
 import { SetupPanel } from './ui/setup';
 import { TrailMap } from './ui/trailMap';
+import { Tutorial } from './ui/tutorial';
 
 // ── persistence
 const storage = (() => {
@@ -101,8 +102,18 @@ if (matchMedia('(pointer: coarse)').matches && !embedded) {
   }, { once: true });
 }
 // free ride: the station's trail map (M, the map button); the game waits while it is open
-const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { closeMap(); game.toLift(i); }, () => closeMap(), (i) => { closeMap(); game.toResto(i); });
+const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { leaveMap(); game.toLift(i); }, () => closeMap(), (i) => { leaveMap(); game.toResto(i); });
 const miniMap = new MiniMap(ui, () => game.mapMarkers(), () => openMap()); // top right; a tap opens the full map
+// the tutorial of the first free ride (done or skipped once: never again in this browser)
+const tutorialDone = () => { try { return localStorage.getItem('sillage.tutorial') === 'done'; } catch { return true; } };
+const tutorial = new Tutorial(ui, game, {
+  startRun: (id) => startRun(id),
+  goStation: (id, lift) => {
+    void startRun(id).then(() => {
+      if (lift >= 0 && game.mountain) { game.unload(game.mountain.unload(lift)); game.phase = 'running'; }
+    });
+  },
+}, () => { try { localStorage.setItem('sillage.tutorial', 'done'); } catch { /* private mode */ } });
 // ?setup: the station settings screen of a sales demo (visitors never see it); the URL keeps the choices
 const setupHost = document.createElement('div');
 setupHost.className = 'setup-host';
@@ -131,7 +142,11 @@ let results: HTMLElement | null = null;
 
 const menus = new Menus(document.body, {
   save: () => save,
-  play: (id) => startRun(id),
+  play: (id) => {
+    // the first free ride (Play → a station) starts with the tutorial; links straight into a station (?station=) skip it
+    if (stationOfTrack(id) && !tutorialDone()) tutorial.begin(id);
+    return startRun(id);
+  },
   setOutfit: (id) => { save.outfit = id; persist(); applyOutfit(); },
   setSettings: (s) => { save.settings = s; persist(); applySettings(); },
   enableTilt: () => game.input.enableTilt(),
@@ -189,6 +204,7 @@ function playerName(): string {
 }
 
 function attract(): void {
+  tutorial.cancel();
   game.goOffline();
   results?.remove();
   results = null;
@@ -235,12 +251,17 @@ function bankPartial(): void {
 }
 
 function restart(): void {
+  tutorial.restarted();
   bankPartial();
   startRun(game.track.def.id);
 }
 
+// the map opens from the run, or from the pause menu (a tap on the minimap): closing it goes back where it came from
+let mapFromPause = false;
 function openMap(): void {
-  if (mode !== 'run' || !game.mountain) return;
+  if ((mode !== 'run' && mode !== 'paused') || !game.mountain || trailMap.open) return;
+  mapFromPause = mode === 'paused';
+  if (mapFromPause) menus.hide();
   setMode('paused');
   trailMap.show(game.mountain);
 }
@@ -249,6 +270,14 @@ function closeMap(): void {
   if (!trailMap.open) return;
   trailMap.hide();
   setMode('run');
+  if (mapFromPause) pause();
+  mapFromPause = false;
+}
+
+/** Going somewhere from the map (a lift, a restaurant) resumes the run, even when the map came from the pause menu. */
+function leaveMap(): void {
+  mapFromPause = false;
+  closeMap();
 }
 
 function pause(): void {
@@ -357,6 +386,7 @@ let fpsT = 0;
 function loop(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
+  tutorial.update(dt, mode === 'run');
   game.frame(dt);
   miniMap.update(dt);
   if (mode === 'run' || mode === 'attract') {
