@@ -464,4 +464,17 @@ if (import.meta.env.MODE !== 'production') window.__sillage = {
   raw: () => game,
   tier: () => tier,
   photo: (p: { x: number; z: number; up: number; yaw: number; pitch: number; fov?: number } | null) => { game.photo = p; },
+  /** Debug: the colliders within `radius` m of (x, z) as red outlines (null: off). Test build only. */
+  colliders: async (at: { x: number; z: number; radius?: number } | null) => {
+    const old = game.scene.getObjectByName('colliders');
+    if (old) game.scene.remove(old);
+    const m = game.mountain;
+    if (!at || !m) return 0;
+    const { colliderLines } = await import('./render/colliderDebug');
+    const list = m.obstaclesBetween(-1e5, 1e5);
+    const lines = colliderLines(list, (x, z) => m.height(x, z), at.x, at.z, at.radius ?? 120);
+    lines.name = 'colliders';
+    game.scene.add(lines);
+    return lines.geometry.getAttribute('position').count / 2;
+  },
 };

@@ -281,3 +281,24 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
     - Paliers : 5 236 triangles en bas, 8 128 en moyen, 13 236 en élevé (budgets 10 k et 30 k, vérifiés par `tests/unit/skier-hero.test.ts`). La foule et les autres joueurs gardent le modèle léger (5 016 triangles). Aucun fichier à charger : 0 octet d'asset, donc ni GLB, ni Draco, ni KTX2, ni écran de crédits nécessaire.
     - Résultat, dit franchement : le personnage est plus fin et mieux habillé, mais il reste un personnage stylisé construit en code, loin d'un modèle photoréaliste texturé. Une première version avait des aérations de casque qui ressemblaient à des cheveux : retirées.
     - Mesures : `scripts/perf.mjs` reste maintenant hors ligne (portail injoignable). Avec de vrais joueurs connectés sur la station, la scène gagnait jusqu'à 10 k triangles et 3 draw calls, ce qui faussait la comparaison. Palier bas, Pixel 7 émulé, personnage compris : Rousses 267 k / 52, Avoriaz 322 k / 32, village 242 k / 51.
+107. **Collisions alignées sur la nouvelle géométrie.**
+    - Audit, ce qui n'allait pas :
+      - Bâtiments et restaurants : des cercles de diamètre égal au petit côté, posés le long du grand côté. Deux cercles voisins ne se touchaient qu'en un point, donc le milieu d'une façade était traversable presque jusqu'à l'axe du bâtiment, et les coins aussi.
+      - Terrasses des restaurants : aucune collision, plancher traversable.
+      - Gares : deux cercles qui laissaient dépasser les coins de la plateforme de 9 × 7 m et la cabine d'opérateur.
+      - Pylônes : 0,6 m pour tous, alors que le socle dessiné fait 1,4 m de côté pour un télésiège et jusqu'à 4,2 m pour un 3S.
+      - Arbres : un seul rayon (0,7 + 0,03 × hauteur) pour toutes les espèces. Il dépassait de 0,4 à 0,9 m le tronc nu des hêtres et des mélèzes, et restait plus petit que les branches basses des petits épicéas.
+      - Matériel ajouté en refonte 2 (panneaux, filets, canons, dameuses, protections) : aucune collision. Une dameuse était garée dans la file de départ du Jouvenceaux.
+      - Index spatial : il ne cherchait qu'à 2 m au-delà du rayon demandé, si bien qu'un grand obstacle centré dans un autre seau pouvait être raté.
+    - Corrections :
+      - Nouveau type d'obstacle, le rectangle orienté (`boxObstacle`), avec une distance exacte au contour (`obstacleGap`). Le skieur glisse le long de la façade comme le long d'un tronc. Pour les cercles, le calcul donne le même résultat qu'avant : les tests de feel et d'équilibrage n'ont pas bougé.
+      - Rectangles pour les murs des bâtiments et des restaurants (toits, balcons et auvents passent au-dessus de la tête), le plancher des terrasses, la plateforme des gares, les filets (en tronçons de 4 m au plus) et les dameuses.
+      - Pylônes : 0,75 m × l'échelle du pylône dessiné (socle compris).
+      - Arbres : la règle d'aspect (`src/sim/treeLook.ts`) est partagée par le rendu et la simulation. Le rayon est ce qui se trouve à hauteur de hanche (1 m) : les branches basses si elles descendent jusque-là, sinon le tronc, avec au moins 0,7 m pour un conifère (branches mortes serrées près du tronc). Pour les arbres nus, c'est le tronc.
+      - Le matériel de piste est placé par la simulation (`Mountain.equipment`) et dessiné par le rendu depuis cette liste : chaque objet a son collider, au même endroit. Piquets 6 cm (souples à l'œil, mais solides), panneaux 0,55 m, canons 0,9 m. Le matériel ne rapporte pas de points de frôlement, sinon chaque piquet de bord de piste en aurait donné.
+      - Dameuses : hors piste, au-delà de la zone d'embarquement et à plus de 28 m du départ.
+      - `clearSpot` et le test de la file de départ mesurent la distance au contour ; la place devant un restaurant à terrasse passe à 8 m de la façade.
+      - L'index cherche jusqu'au plus grand rayon de la liste.
+    - Mode debug, build de test seulement : `window.__sillage.colliders({ x, z, radius })` dessine les colliders en rouge (absent du build de production, vérifié). `scripts/collider-shots.mjs` fait 6 captures dans `docs/captures/colliders/` (arbre, bâtiment, gare, restaurant, filet, dameuse) : contours et modèles alignés.
+    - Tests ajoutés (`tests/unit/collisions.test.ts`) : distance à un rectangle (dedans, dehors, après un coin) ; le skieur poussé à 10 m/s contre un bâtiment est arrêté, et n'entre jamais dans un bâtiment, un arbre ou un pylône ; il file droit là où rien ne se trouve ; chaque collider correspond à la forme dessinée ; les dameuses sont hors piste et loin du départ.
+    - Effet sur le jeu : les hêtres, les mélèzes et la plupart des grands épicéas sont plus étroits qu'avant (0,7 à 0,9 m au lieu de 1,1 à 1,7 m). Les petits épicéas aux branches basses sont plus larges. Les façades et les terrasses sont pleines.

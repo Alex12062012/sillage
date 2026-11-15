@@ -49,3 +49,10 @@ export function toLocal(origin: number[], lat: number, lon: number): [number, nu
   const my = 111195, mx = 111195 * Math.cos((lat0 * Math.PI) / 180);
   return [(lon - lon0) * mx, (lat0 - lat) * my];
 }
+
+/** The facade the sign is on, in the building's own frame: its outward axis and side, its length, its distance from the centre. */
+export function signFace(r: Resto): { axis: 'x' | 'z'; side: 1 | -1; len: number; off: number } {
+  const c = Math.cos(r.yaw), s = Math.sin(r.yaw), fx = Math.sin(r.signYaw), fz = Math.cos(r.signYaw);
+  const lu = fx * c - fz * s, lv = fx * s + fz * c;
+  return Math.abs(lu) >= Math.abs(lv) ? { axis: 'x', side: lu >= 0 ? 1 : -1, len: r.d, off: r.w / 2 } : { axis: 'z', side: lv >= 0 ? 1 : -1, len: r.w, off: r.d / 2 };
+}

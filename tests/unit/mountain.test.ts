@@ -5,6 +5,7 @@ import { ROUSSES } from '../../src/sim/rousses-data';
 import { STATIONS } from '../../src/sim/stations';
 import { createSkier, stepSkier, type SkierEvent } from '../../src/sim/skier';
 import { DT, input } from './helpers';
+import { obstacleGap } from '../../src/sim/track';
 
 describe('free ride: Les Rousses, Dôle-Tuffes', () => {
   const m = makeMountain(STATIONS[0], ROUSSES);
@@ -104,7 +105,7 @@ describe('free ride: Les Rousses, Dôle-Tuffes', () => {
       const x0 = at.x + fz * side, z0 = at.z - fx * side;
       for (let a = 0; a <= 20; a += 1) {
         const x = x0 + fx * a, z = z0 + fz * a;
-        const hit = m.obstaclesNear(x, z, 1, []).filter((o) => o.kind === 'station' && Math.hypot(o.x - x, o.z - z) < o.r + 0.5);
+        const hit = m.obstaclesNear(x, z, 1, []).filter((o) => o.kind === 'station' && obstacleGap(o, x, z, { x: 0, z: 0 }) < 0.5); // its platform's rectangle
         expect(hit.length, `side ${side}, ${a} m ahead`).toBe(0);
       }
     }

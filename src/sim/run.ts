@@ -1,7 +1,9 @@
 import { TUNING as T } from '../tuning';
 import type { RunStats } from './missions';
 import type { SkierEvent, SkierState } from './skier';
-import { Surface, type Ground, type Obstacle } from './track';
+import { obstacleGap, Surface, type Ground, type Obstacle } from './track';
+
+const gapN = { x: 0, z: 0 };
 
 export type RunEvent =
   | { type: 'finish'; time: number; bonus: number }
@@ -119,12 +121,13 @@ export function stepRun(run: RunState, s: SkierState, g: Ground, dt: number, ski
   const offPiste = g.surface(s.pos.x, s.pos.z) === Surface.Powder;
   for (const p of run.passes.values()) p.seen = false;
   for (const o of g.obstaclesNear(s.pos.x, s.pos.z, 9, near)) {
+    if (o.kind === 'prop') continue; // piste equipment (poles, nets, signs…): solid, but no near-miss points along every edge
     const dx = o.x - s.pos.x;
     const dz = o.z - s.pos.z;
     const along = dx * fx + dz * fz;
     const p = run.passes.get(o.id);
     if (along > -1.5) {
-      const d = Math.hypot(dx, dz) - o.r - T.skierRadius;
+      const d = obstacleGap(o, s.pos.x, s.pos.z, gapN) - T.skierRadius; // to its outline (rectangles too)
       if (!p) run.passes.set(o.id, { minD: d, side: -Math.sign(fz * dx - fx * dz) || 1, speed, offPiste, kind: o.kind, seen: true, x: o.x, z: o.z, h: o.h });
       else {
         p.seen = true;

@@ -6,6 +6,7 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { fbm } from '../core/rng';
 import { DEEP, towerGap, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
+import { treeLook } from '../sim/treeLook';
 import { smoothstep } from '../sim/track';
 import { paint } from './props';
 import { chairGeometry, groomer, net, pisteSign, pole, snowGun, stationGeometry, towerGeometry, towerPad } from './models';
@@ -482,12 +483,9 @@ export class MountainView {
       { list: [], near: coniferNear(), far: coniferFar(), snow: 0.9 },
       { list: [], near: bareNear(), far: bareFar(), snow: 0.55 },
     ];
-    const species: Uint8Array = new Uint8Array(all.length); // 0 spruce, 1 fir, 2 beech, 3 larch
-    all.forEach((o, i) => {
-      const u = (ys[i] - yLo) / Math.max(1, yHi - yLo), h1 = (o.id * 0.754877) % 1;
-      species[i] = u < 0.16 && h1 < 0.2 ? 2 : alps && u > 0.5 && h1 < 0.2 + 0.6 * (u - 0.5) ? 3 : !alps && u < 0.55 && h1 < 0.38 ? 1 : 0;
-      kinds[species[i] >= 2 ? 1 : 0].list.push(i);
-    });
+    // species, width and size from the simulation's rule (treeLook), the one that sets each tree's collider
+    const looks = all.map((o, i) => treeLook(o.id, o.h, (ys[i] - yLo) / Math.max(1, yHi - yLo), alps));
+    looks.forEach((l, i) => kinds[l.species >= 2 ? 1 : 0].list.push(i));
     const key = (i: number) => ((all[i].id * 0.618) % 1) * (all[i].h < DEEP ? 0.5 : 1);
     const tint = new Color();
     kinds.forEach(({ list, near, far, snow }) => {
@@ -495,12 +493,9 @@ export class MountainView {
       this.treeKeys.push(Float32Array.from(list, key));
       const im = new InstancedMesh(near, treeMaterial(snow), list.length);
       list.forEach((i, n) => {
-        const o = all[i], sp = species[i], h2 = (o.id * 0.56984) % 1, h3 = (o.id * 0.31831) % 1, u = (ys[i] - yLo) / Math.max(1, yHi - yLo);
+        const o = all[i], { species: sp, scale: s, wide, tall } = looks[i], h2 = (o.id * 0.56984) % 1, h3 = (o.id * 0.31831) % 1;
         q.setFromAxisAngle(up, (o.id * 2.39) % (Math.PI * 2));
-        // stunted near the top of the Alpine forest; firs broader, larches tall and slim, beeches round
-        const s = (o.h / 4.4) * (alps ? 1 - 0.3 * smoothstep(0.7, 1, u) : 1);
-        const wide = [0.66 + h2 * 0.14, 0.86 + h2 * 0.1, 1.05 + h2 * 0.2, 0.5 + h2 * 0.1][sp];
-        im.setMatrixAt(n, m4.compose(p3.set(o.x, ys[i] - 0.3, o.z), q, s3.set(s * wide, s * (sp === 2 ? 0.8 : 1), s * wide)));
+        im.setMatrixAt(n, m4.compose(p3.set(o.x, ys[i] - 0.3, o.z), q, s3.set(s * wide, s * tall, s * wide)));
         // needle (or twig) colour per species, ±10 % per tree, a little warmer or bluer
         tint.setHex([0x30592f, 0x24493a, 0x9c938a, 0xa08458][sp]).multiplyScalar(0.9 + h3 * 0.2);
         tint.r *= 0.95 + h2 * 0.1;
@@ -513,19 +508,7 @@ export class MountainView {
       this.group.add(...t.meshes);
     });
 
-    // piste poles: both edges every 30 m, coloured by difficulty (none standing in another piste)
-    const marks: [number, number, Color][] = [];
-    for (const p of m.pistes) {
-      if (p.area) continue;
-      for (let s = 15; s < p.len - 10; s += 30) {
-        m.along(p, s, pt);
-        for (const side of [-1, 1]) {
-          const x = pt.x + pt.dz * side * (p.halfWidth + 1), z = pt.z - pt.dx * side * (p.halfWidth + 1);
-          if (!m.pisteAt(x, z)) marks.push([x, z, PISTE_COLOR[p.difficulty]]);
-        }
-      }
-    }
-    // (drawn with the other piste equipment, in the props layer below)
+    // piste poles: drawn with the other piste equipment, in the props layer below (placed by the simulation)
 
     // lifts: a tower at every OSM pylon (and every 120 / 80 / 220 m between), cables, stations
     const towerGeo = towerGeometry;
@@ -621,60 +604,20 @@ export class MountainView {
       if (!kits.has(key)) kits.set(key, new Geo());
       return kits.get(key)!;
     };
-    for (const [x, z, c] of marks) pole(kit(x, z), c, x, m.height(x, z), z);
-    const starts = m.pistes.filter((p) => !p.area).map((p) => (m.along(p, 0, pt), m.height(pt.x, pt.z)));
-    const gunLine = Math.min(...starts) + 0.6 * (Math.max(...starts) - Math.min(...starts)); // snow guns on the lower pistes
-    let nets = 0;
-    m.pistes.filter((p) => !p.area).forEach((p, i) => {
-      const k = PISTE_COLOR[p.difficulty], hw = p.halfWidth;
-      // the sign at the top, facing the skiers coming
-      m.along(p, Math.min(10, p.len / 2), pt);
-      { const x = pt.x + pt.dz * (hw + 2.5), z = pt.z - pt.dx * (hw + 2.5); if (!m.pisteAt(x, z)) pisteSign(kit(x, z), k, x, m.height(x, z), z, Math.atan2(-pt.dx, -pt.dz)); }
-      // where it runs into another piste: a sign in that piste's colour, facing the skiers arriving
-      if (p.len > 60) {
-        m.along(p, p.len - 6, pt);
-        const join = m.pisteAt(pt.x + pt.dx * 18, pt.z + pt.dz * 18);
-        if (join && join.p !== p) {
-          const x = pt.x + pt.dz * (hw + 2.5), z = pt.z - pt.dx * (hw + 2.5);
-          if (!m.pisteAt(x, z)) pisteSign(kit(x, z), PISTE_COLOR[join.p.difficulty], x, m.height(x, z), z, Math.atan2(-pt.dx, -pt.dz));
-        }
-      }
-      for (let s = 20; s < p.len - 20; s += 20) {
-        m.along(p, s, pt);
-        const ax = pt.x, az = pt.z, dx = pt.dx, dz = pt.dz;
-        for (const side of [-1, 1]) {
-          const ex = ax + dz * side * (hw + 1.5), ez = az - dx * side * (hw + 1.5);
-          if (m.pisteAt(ex, ez)) continue;
-          // a net where the ground falls away past the edge
-          const ox = ax + dz * side * (hw + 10), oz = az - dx * side * (hw + 10);
-          if (nets < 900 && m.height(ex, ez) - m.height(ox, oz) > 4.5) {
-            m.along(p, s + 20, pt);
-            const fx = pt.x + pt.dz * side * (hw + 1.5), fz = pt.z - pt.dx * side * (hw + 1.5);
-            if (!m.pisteAt(fx, fz)) { net(kit(ex, ez), [ex, m.height(ex, ez), ez], [fx, m.height(fx, fz), fz]); nets++; }
-          }
-          // a snow gun every 100 m on the lower pistes, sides alternating, aimed across and down the piste
-          if (starts[i] < gunLine && s % 100 === 0 && (s / 100) % 2 === (side > 0 ? 0 : 1)) {
-            const gx = ax + dz * side * (hw + 2), gz = az - dx * side * (hw + 2);
-            snowGun(kit(gx, gz), gx, m.height(gx, gz), gz, Math.atan2(-dz * side + dx, dx * side + dz));
-          }
-        }
-      }
-    });
-    // pads on the towers standing on a piste; groomers parked by the bottom stations of the longest lifts
+    // what the simulation placed (Mountain.equipment), each piece where its collider is
+    for (const q2 of m.equipment) {
+      const g = kit(q2.x, q2.z), y = m.height(q2.x, q2.z);
+      if (q2.kind === 'pole') pole(g, PISTE_COLOR[q2.difficulty], q2.x, y, q2.z);
+      else if (q2.kind === 'sign') pisteSign(g, PISTE_COLOR[q2.difficulty], q2.x, y, q2.z, q2.yaw);
+      else if (q2.kind === 'gun') snowGun(g, q2.x, y, q2.z, q2.yaw);
+      else if (q2.kind === 'groomer') groomer(g, q2.x, y - 0.05, q2.z, q2.yaw);
+      else net(g, [q2.x, y, q2.z], [q2.x2, m.height(q2.x2, q2.z2), q2.z2]);
+    }
+    // pads on the towers standing on a piste (their collider: the tower's, as wide as its foot)
     for (const v of this.lifts) {
       for (let k = 1; k < v.anchors.length - 1; k++) {
         const a = v.anchors[k], hit = m.pisteAt(a.x, a.z);
         if (hit && v.lift.kind !== 'carpet') towerPad(kit(a.x, a.z), a.x, a.y - v.towerH, a.z);
-      }
-    }
-    for (const v of [...this.lifts].filter((l) => l.lift.kind !== 'carpet').sort((a, b) => b.lift.len - a.lift.len).slice(0, 8)) {
-      const [x0, z0, x1, z1] = [v.lift.pts[0], v.lift.pts[1], v.lift.pts[2], v.lift.pts[3]];
-      const l = Math.hypot(x1 - x0, z1 - z0) || 1, ux = (x1 - x0) / l, uz = (z1 - z0) / l;
-      for (const side of [1, -1]) {
-        const x = x0 + uz * side * 15 - ux * 4, z = z0 - ux * side * 15 - uz * 4;
-        if (m.pisteAt(x, z)) continue;
-        groomer(kit(x, z), x, m.height(x, z) - 0.05, z, Math.atan2(ux, uz) + side * 0.4);
-        break;
       }
     }
     {

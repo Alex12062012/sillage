@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { TUNING as T } from '../tuning';
-import { clamp, Surface, type Ground, type Obstacle } from './track';
+import { clamp, obstacleGap, Surface, type Ground, type Obstacle } from './track';
 
 /** steer: -1 left … +1 right (screen space). flip: -1 back … +1 front. jump: edge-triggered. grab: held in the air. */
 export interface SkierInput { steer: number; tuck: boolean; brake: boolean; jump: boolean; flip: number; grab?: boolean }
@@ -261,22 +261,23 @@ function airStep(s: SkierState, inp: SkierInput, g: Ground, dt: number, ev: Skie
   if (s.pos.y <= h) land(s, g, h, ev);
 }
 
-/** Trees, rocks, other skiers: circles in the ground plane. Any touch, any speed = blocked and slide along, never a crash. */
+/**
+ * Trees, rocks, other skiers (circles), buildings, stations, nets, groomers (rectangles): any touch, any speed =
+ * blocked and slide along, never a crash.
+ */
 function collide(s: SkierState, g: Ground): void {
   if (!g.obstaclesNear) return;
   for (const o of g.obstaclesNear(s.pos.x, s.pos.z, T.skierRadius + 0.5, near)) {
-    const dx = s.pos.x - o.x;
-    const dz = s.pos.z - o.z;
-    const d = Math.hypot(dx, dz) || 1e-6;
-    const minD = o.r + T.skierRadius;
-    if (d >= minD || s.pos.y - g.height(o.x, o.z) > o.h) continue;
-    s.pos.x = o.x + (dx / d) * minD;
-    s.pos.z = o.z + (dz / d) * minD;
+    const gap = obstacleGap(o, s.pos.x, s.pos.z, nrm);
+    if (gap >= T.skierRadius || s.pos.y - g.height(o.x, o.z) > o.h) continue;
+    s.pos.x += nrm.x * (T.skierRadius - gap);
+    s.pos.z += nrm.z * (T.skierRadius - gap);
     if (!s.airborne) s.pos.y = g.height(s.pos.x, s.pos.z);
-    const into = (s.vel.x * dx + s.vel.z * dz) / d;
-    if (into < 0) { s.vel.x -= (into * dx) / d; s.vel.z -= (into * dz) / d; }
+    const into = s.vel.x * nrm.x + s.vel.z * nrm.z;
+    if (into < 0) { s.vel.x -= into * nrm.x; s.vel.z -= into * nrm.z; }
   }
 }
+const nrm = { x: 0, z: 0 };
 
 function land(s: SkierState, g: Ground, h: number, ev: SkierEvent[]): void {
   const n = g.normal(s.pos.x, s.pos.z, s.normal);

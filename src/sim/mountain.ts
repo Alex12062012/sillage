@@ -1,8 +1,9 @@
 import { fbm, mulberry32 } from '../core/rng';
 import { freeDef, type Station, type StationData } from './stations';
+import { treeLook } from './treeLook';
 import type { SlopesMode, StationConfig } from './stationConfig';
-import { toLocal, type Resto } from './restos';
-import { clamp, indexObstacles, normalOf, smoothstep, Surface, type Obstacle, type Track } from './track';
+import { signFace, toLocal, type Resto } from './restos';
+import { boxObstacle, clamp, indexObstacles, normalOf, obstacleGap, smoothstep, Surface, type Obstacle, type Track } from './track';
 
 /**
  * Free ride: a real ski area, 1:1 (Les Rousses, Avoriaz…). Real relief (terrain tiles), real pistes, lifts, forests
@@ -44,6 +45,17 @@ export function liftTowers(l: Lift): number[] {
 }
 
 export interface PisteHit { p: Piste; d: number; s: number }
+
+/** A piece of piste or lift equipment (see placeEquipment). */
+export type Equipment =
+  | { kind: 'pole'; x: number; z: number; difficulty: PisteColor }
+  | { kind: 'sign'; x: number; z: number; yaw: number; difficulty: PisteColor }
+  | { kind: 'net'; x: number; z: number; x2: number; z2: number }
+  | { kind: 'gun'; x: number; z: number; yaw: number }
+  | { kind: 'groomer'; x: number; z: number; yaw: number };
+
+/** A lift's tower size (the view's towers: × towerH / 10, never under 1). */
+export const towerScale = (l: Lift): number => Math.max(1, (l.kind === 'gondola' ? (l.seats > 12 ? 30 : 16) : l.kind === 'chair' ? 10 : 6.5) / 10);
 export interface Spot { x: number; z: number; heading: number }
 
 export interface Mountain extends Track {
@@ -66,6 +78,8 @@ export interface Mountain extends Track {
   scenery: { roads: number[][]; buildings: number[][]; radar: number[] | null };
   /** The places to eat, as the real buildings (their generic boxes are left out of scenery.buildings). */
   restos: Resto[];
+  /** Piste and lift equipment, drawn by the view and solid in the simulation (each with its collider). */
+  equipment: Equipment[];
   /** On the snow in front of resto i's sign, facing it. */
   restoSpot(i: number): Spot;
   /** In the start lift's queue, facing it. */
@@ -476,38 +490,132 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
       list.push({ id: list.length, x: tx, z: tz, r: 0.7 + th * 0.03, h: th, kind: 'tree' });
     }
   }
-  // lift stations, top and bottom: solid, two circles across the line cover the 9 × 7 m base
+  // each tree as solid as it is drawn (treeLook: what stands at a skier's hip), not one radius for every species
+  {
+    let yLo = Infinity, yHi = -Infinity;
+    const ys = list.map((o) => { const y = height(o.x, o.z); yLo = Math.min(yLo, y); yHi = Math.max(yHi, y); return y; });
+    list.forEach((o, i) => { o.r = treeLook(o.id, o.h, (ys[i] - yLo) / Math.max(1, yHi - yLo), st.id === 'avoriaz').r; });
+  }
+  // lift stations, top and bottom: the 9 × 7 m platform (× the station's scale), a rectangle across the line
   for (const l of lifts) {
     const s = stationScale(l);
     if (!s) continue;
     for (const f of [0, 1]) {
       liftPoint(l, f, pt);
-      for (const side of [-1, 1]) {
-        list.push({ id: list.length, x: pt.x + pt.dz * side * s, z: pt.z - pt.dx * side * s, r: 3.5 * s, h: 7.6 * s, kind: 'station' });
-      }
+      list.push(boxObstacle(list.length, pt.x, pt.z, 4.5 * s, 3.5 * s, pt.dz, -pt.dx, 7.6 * s, 'station'));
     }
   }
-  // the buildings (the restaurants, the others): solid, circles along the footprint's long side
+  // the buildings (the restaurants, the others): their walls' rectangle (circles left gaps mid-facade); roofs,
+  // balconies and canopies overhang above a skier's head
   const footprint = (x: number, z: number, w: number, d: number, yaw: number, h: number) => {
-    const long = Math.max(w, d), short = Math.min(w, d);
     const ax = w >= d ? [Math.cos(yaw), -Math.sin(yaw)] : [Math.sin(yaw), Math.cos(yaw)];
-    const n = Math.max(1, Math.ceil(long / short));
-    for (let k = 0; k < n; k++) {
-      const t = n === 1 ? 0 : -long / 2 + short / 2 + ((long - short) * k) / (n - 1);
-      list.push({ id: list.length, x: x + ax[0] * t, z: z + ax[1] * t, r: short / 2, h, kind: 'building' });
-    }
+    list.push(boxObstacle(list.length, x, z, Math.max(w, d) / 2, Math.min(w, d) / 2, ax[0], ax[1], h, 'building'));
   };
-  for (const r of restos) footprint(r.x, r.z, r.w, r.d, r.yaw, r.ridge + 1);
+  for (const r of restos) {
+    footprint(r.x, r.z, r.w, r.d, r.yaw, r.ridge + 1);
+    if (!r.terrace) continue;
+    // the terrace deck along the sign's facade, as the view draws it (restos.ts: 5 m deep, 80 % of the facade, ≤ 24 m)
+    const f = signFace(r), len = Math.min(f.len * 0.8, 24), out = f.side * (f.off + 2.7), c = Math.cos(r.yaw), sn = Math.sin(r.yaw);
+    const [lx, lz] = f.axis === 'z' ? [0, out] : [out, 0];
+    const tx = r.x + lx * c + lz * sn, tz = r.z - lx * sn + lz * c;
+    if (f.axis === 'z') list.push(boxObstacle(list.length, tx, tz, len / 2, 2.5, c, -sn, 1.2, 'building'));
+    else list.push(boxObstacle(list.length, tx, tz, 2.5, len / 2, c, -sn, 1.2, 'building'));
+  }
   for (const [x, z, w, d, yaw, levels] of buildings) footprint(x, z, w, d, yaw, levels * 2.9 + 0.4 + Math.min(w, d) * 0.42 + 1);
   // the lift towers: a post each
   for (const l of lifts) {
     if (l.kind === 'carpet') continue;
     for (const f of liftTowers(l)) {
       liftPoint(l, f, pt);
-      list.push({ id: list.length, x: pt.x, z: pt.z, r: 0.6, h: 40, kind: 'tower' });
+      list.push({ id: list.length, x: pt.x, z: pt.z, r: 0.75 * towerScale(l), h: 40, kind: 'tower' }); // its concrete foot
     }
   }
+  const equipment = placeEquipment();
+  for (const q of equipment) {
+    if (q.kind === 'pole') list.push({ id: list.length, x: q.x, z: q.z, r: 0.06, h: 1.9, kind: 'prop' });
+    else if (q.kind === 'sign') list.push({ id: list.length, x: q.x, z: q.z, r: 0.55, h: 2, kind: 'prop' });
+    else if (q.kind === 'gun') list.push({ id: list.length, x: q.x, z: q.z, r: 0.9, h: 2.6, kind: 'prop' });
+    else if (q.kind === 'groomer') list.push(boxObstacle(list.length, q.x + Math.sin(q.yaw) * 0.2, q.z + Math.cos(q.yaw) * 0.2, 1.75, 3.25, Math.cos(q.yaw), -Math.sin(q.yaw), 3, 'prop'));
+    else {
+      // a net: rectangles of 4 m at most, so their bounding circles stay small (index, bots)
+      const l = Math.hypot(q.x2 - q.x, q.z2 - q.z), n = Math.max(1, Math.ceil(l / 4)), ux = (q.x2 - q.x) / l, uz = (q.z2 - q.z) / l;
+      for (let k = 0; k < n; k++) {
+        const t = ((k + 0.5) / n) * l;
+        list.push(boxObstacle(list.length, q.x + ux * t, q.z + uz * t, l / n / 2, 0.12, ux, uz, 1.8, 'prop'));
+      }
+    }
+  }
+
+  /**
+   * Piste and lift equipment (DECISIONS.md, points 99 and 107), placed here so the view draws exactly what the skier
+   * hits: poles on both edges every 30 m, a sign at the top of each piste and where it runs into another, nets where
+   * the ground falls away past the edge, snow guns on the lower pistes, a groomer parked by the bottom station of the
+   * longest lifts (off the pistes, away from the queue and the boarding area).
+   */
+  function placeEquipment(): Equipment[] {
+    const out: Equipment[] = [];
+    const runs = pistes.filter((p) => !p.area);
+    for (const p of runs) {
+      for (let s = 15; s < p.len - 10; s += 30) {
+        along(p, s, pt);
+        for (const side of [-1, 1]) {
+          const x = pt.x + pt.dz * side * (p.halfWidth + 1), z = pt.z - pt.dx * side * (p.halfWidth + 1);
+          if (!pisteAt(x, z)) out.push({ kind: 'pole', x, z, difficulty: p.difficulty });
+        }
+      }
+    }
+    const starts = runs.map((p) => (along(p, 0, pt), height(pt.x, pt.z)));
+    const gunLine = Math.min(...starts) + 0.6 * (Math.max(...starts) - Math.min(...starts));
+    let nets = 0;
+    runs.forEach((p, i) => {
+      const hw = p.halfWidth;
+      along(p, Math.min(10, p.len / 2), pt);
+      { const x = pt.x + pt.dz * (hw + 2.5), z = pt.z - pt.dx * (hw + 2.5); if (!pisteAt(x, z)) out.push({ kind: 'sign', x, z, yaw: Math.atan2(-pt.dx, -pt.dz), difficulty: p.difficulty }); }
+      if (p.len > 60) {
+        along(p, p.len - 6, pt);
+        const join = pisteAt(pt.x + pt.dx * 18, pt.z + pt.dz * 18);
+        if (join && join.p !== p) {
+          const x = pt.x + pt.dz * (hw + 2.5), z = pt.z - pt.dx * (hw + 2.5);
+          if (!pisteAt(x, z)) out.push({ kind: 'sign', x, z, yaw: Math.atan2(-pt.dx, -pt.dz), difficulty: join.p.difficulty });
+        }
+      }
+      for (let s = 20; s < p.len - 20; s += 20) {
+        along(p, s, pt);
+        const ax = pt.x, az = pt.z, dx = pt.dx, dz = pt.dz;
+        for (const side of [-1, 1]) {
+          const ex = ax + dz * side * (hw + 1.5), ez = az - dx * side * (hw + 1.5);
+          if (pisteAt(ex, ez)) continue;
+          const ox = ax + dz * side * (hw + 10), oz = az - dx * side * (hw + 10);
+          if (nets < 900 && height(ex, ez) - height(ox, oz) > 4.5) {
+            along(p, s + 20, pt);
+            const fx = pt.x + pt.dz * side * (hw + 1.5), fz = pt.z - pt.dx * side * (hw + 1.5);
+            if (!pisteAt(fx, fz)) { out.push({ kind: 'net', x: ex, z: ez, x2: fx, z2: fz }); nets++; }
+          }
+          if (starts[i] < gunLine && s % 100 === 0 && (s / 100) % 2 === (side > 0 ? 0 : 1)) {
+            const gx = ax + dz * side * (hw + 2), gz = az - dx * side * (hw + 2);
+            out.push({ kind: 'gun', x: gx, z: gz, yaw: Math.atan2(-dz * side + dx, dx * side + dz) });
+          }
+        }
+      }
+    });
+    const solid = list.filter((o) => o.kind === 'station' || o.kind === 'building');
+    const n = { x: 0, z: 0 };
+    for (const l of lifts.filter((q) => q.kind !== 'carpet').sort((a, b) => b.len - a.len).slice(0, 8)) {
+      liftPoint(l, 0, pt);
+      const s = stationScale(l), sx = pt.x, sz = pt.z, ux = pt.dx, uz = pt.dz;
+      for (const side of [1, -1]) {
+        // beside the station, beyond its boarding reach (boardReach), a little behind it
+        const across = 4.5 * s + 16, x = sx + uz * side * across - ux * 8, z = sz - ux * side * across - uz * 8;
+        if (pisteAt(x, z, 4) || solid.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + 12 && obstacleGap(o, x, z, n) < 4)) continue;
+        if (Math.hypot(x - spawn.x, z - spawn.z) < 28) continue; // the start queue (8 m each side, 20 m ahead) stays clear
+        out.push({ kind: 'groomer', x, z, yaw: Math.atan2(ux, uz) + side * 0.4 });
+        break;
+      }
+    }
+    return out;
+  }
   const idx = indexObstacles(list);
+  const gapN = { x: 0, z: 0 };
   const dynamic: Obstacle[] = [];
 
   const m: Mountain = {
@@ -526,11 +634,13 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
     bounds,
     scenery: { roads: R.roads, buildings, radar: R.radar },
     restos,
+    equipment,
     restoSpot(i) {
       const r = restos[i], fx = Math.sin(r.signYaw), fz = Math.cos(r.signYaw);
       const c = Math.cos(r.yaw), s = Math.sin(r.yaw);
       const reach = (Math.abs(fx * c - fz * s) * r.w + Math.abs(fx * s + fz * c) * r.d) / 2; // the footprint's half extent that way
-      return m.clearSpot({ x: r.x + fx * (reach + 6), z: r.z + fz * (reach + 6), heading: r.signYaw + Math.PI });
+      const off = reach + (r.terrace ? 8 : 6); // past the terrace deck (5.2 m out), on the snow
+      return m.clearSpot({ x: r.x + fx * off, z: r.z + fz * off, heading: r.signYaw + Math.PI });
     },
     spawn,
     summit,
@@ -556,7 +666,7 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
       for (const [a, side] of SLOTS) {
         const x = at.x + fx * a + fz * side, z = at.z + fz * a - fx * side;
         near.length = 0;
-        const busy = m.obstaclesNear(x, z, 2.5, near).some((o) => Math.hypot(o.x - x, o.z - z) < o.r + (o.kind === 'skier' ? 2.5 : 0.8));
+        const busy = m.obstaclesNear(x, z, 2.5, near).some((o) => obstacleGap(o, x, z, gapN) < (o.kind === 'skier' ? 2.5 : 0.8));
         if (!busy) return { x, z, heading: at.heading };
       }
       return at;

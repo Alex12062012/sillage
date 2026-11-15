@@ -4,7 +4,9 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Mountain } from '../sim/mountain';
-import type { Resto } from '../sim/restos';
+import { signFace, type Resto } from '../sim/restos';
+
+export { signFace };
 import { paint } from './props';
 import { altitudeRestaurant, balcony, Geo, gableRoof, windows, WINDOW, withWindows } from './buildings';
 
@@ -15,13 +17,6 @@ const GLASS = WINDOW; // dark by day, lit at dusk (buildings.ts)
 const BOARD = new Color(0x4a3220);
 const DECK = new Color(0x9a7650);
 const PARASOLS = [0xd23b3b, 0xf2c14e];
-
-/** The facade the sign is on, in the building's own frame: its outward axis and side, its length, its distance from the centre. */
-export function signFace(r: Resto): { axis: 'x' | 'z'; side: 1 | -1; len: number; off: number } {
-  const c = Math.cos(r.yaw), s = Math.sin(r.yaw), fx = Math.sin(r.signYaw), fz = Math.cos(r.signYaw);
-  const lu = fx * c - fz * s, lv = fx * s + fz * c;
-  return Math.abs(lu) >= Math.abs(lv) ? { axis: 'x', side: lu >= 0 ? 1 : -1, len: r.d, off: r.w / 2 } : { axis: 'z', side: lv >= 0 ? 1 : -1, len: r.w, off: r.d / 2 };
-}
 
 /** A box on a facade: `along` the facade, `out` from the centre, its size across / up / through. */
 function onFace(f: ReturnType<typeof signFace>, along: number, y: number, out: number, sx: number, sy: number, sz: number): BufferGeometry {

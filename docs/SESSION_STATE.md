@@ -6,7 +6,7 @@ Branche `refonte-visuelle-3`, partie de `refonte-visuelle-2` (non fusionnée dan
 
 - [x] 1. Touches PC : Z/W = salto avant, S = salto arrière en l'air (sol inchangé), flèches inchangées, tutoriel PC mis à jour ; bouton Ride agrandi à droite, mi-hauteur, sur ordinateur seulement. DECISIONS.md, point 105.
 - [x] 2. Personnage : aucun candidat externe acceptable (compte Sketchfab requis, modèles stylisés ou scan d'une personne réelle, Mixamo non CC) ; personnage refait en code sur le même squelette, matières PBR, 5,2 k / 8,1 k / 13,2 k triangles selon le palier. Gain modeste, pas photoréaliste. `perf.mjs` hors ligne. DECISIONS.md, point 106.
-- [ ] 3. Collisions (dameuse de départ à déplacer : elle est garée dans la file du Jouvenceaux)
+- [x] 3. Collisions : rectangles orientés (bâtiments, terrasses, gares, filets, dameuses), pylônes à la taille du socle, arbres selon leur forme (règle partagée `treeLook`), matériel placé par la simulation avec ses colliders, dameuse sortie de la file de départ. Mode debug `colliders()` (build de test), 6 captures dans `docs/captures/colliders/`, 5 tests. 138 tests unitaires. DECISIONS.md, point 107.
 - [ ] 4. Barrières et filets
 - [ ] 5. Modèles variés
 

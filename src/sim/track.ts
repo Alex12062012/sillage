@@ -17,7 +17,46 @@ export interface Ground {
   launch?: number;
 }
 
-export interface Obstacle { id: number; x: number; z: number; r: number; h: number; kind: 'tree' | 'rock' | 'skier' | 'station' | 'building' | 'tower' }
+/**
+ * An obstacle: a circle of radius r in the ground plane, or (box) an oriented rectangle whose local x axis is (c, s) in
+ * world xz, half-sizes hx along it and hz across; r is then its bounding radius (index, bots). h: its height.
+ */
+export interface Obstacle {
+  id: number; x: number; z: number; r: number; h: number;
+  kind: 'tree' | 'rock' | 'skier' | 'station' | 'building' | 'tower' | 'prop';
+  box?: { c: number; s: number; hx: number; hz: number };
+}
+
+/** An oriented rectangle obstacle centred on (x, z), its long side `hx` along the direction `yaw` (x: cos, z: −sin). */
+export function boxObstacle(id: number, x: number, z: number, hx: number, hz: number, c: number, s: number, h: number, kind: Obstacle['kind']): Obstacle {
+  return { id, x, z, r: Math.hypot(hx, hz), h, kind, box: { c, s, hx, hz } };
+}
+
+/**
+ * Distance from (x, z) to the obstacle's outline (negative inside) and, in n, the outward normal there. Circles as
+ * before; rectangles exactly (the nearest point of the outline, or the shortest way out from inside).
+ */
+export function obstacleGap(o: Obstacle, x: number, z: number, n: { x: number; z: number }): number {
+  const dx = x - o.x, dz = z - o.z;
+  if (!o.box) {
+    const d = Math.hypot(dx, dz) || 1e-6;
+    n.x = dx / d;
+    n.z = dz / d;
+    return d - o.r;
+  }
+  const { c, s, hx, hz } = o.box;
+  const lx = dx * c + dz * s, lz = -dx * s + dz * c;
+  const qx = clamp(lx, -hx, hx), qz = clamp(lz, -hz, hz);
+  let nx = lx - qx, nz = lz - qz;
+  let d = Math.hypot(nx, nz);
+  if (d > 1e-9) { nx /= d; nz /= d; } else {
+    const px = hx - Math.abs(lx), pz = hz - Math.abs(lz); // inside: out by the nearest side
+    if (px < pz) { nx = Math.sign(lx) || 1; nz = 0; d = -px; } else { nx = 0; nz = Math.sign(lz) || 1; d = -pz; }
+  }
+  n.x = nx * c - nz * s;
+  n.z = nx * s + nz * c;
+  return d;
+}
 
 export const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 export const smoothstep = (a: number, b: number, v: number) => {
@@ -182,6 +221,8 @@ const FOOTPRINT: Record<FeatureType, [number, number]> = {
 /** Spatial index of static obstacles in 16 m slices along z. */
 export function indexObstacles(list: Obstacle[]) {
   const buckets = new Map<number, Obstacle[]>();
+  // the widest obstacle: a big one centred in a farther bucket still reaches the query (it was missed before)
+  const maxR = list.reduce((a, o) => Math.max(a, o.r), 2);
   for (const o of list) {
     const k = Math.floor(o.z / BUCKET);
     let b = buckets.get(k);
@@ -191,8 +232,8 @@ export function indexObstacles(list: Obstacle[]) {
   return {
     near(x: number, z: number, radius: number, out: Obstacle[]): Obstacle[] {
       out.length = 0;
-      const k0 = Math.floor((z - radius - 2) / BUCKET);
-      const k1 = Math.floor((z + radius + 2) / BUCKET);
+      const k0 = Math.floor((z - radius - maxR) / BUCKET);
+      const k1 = Math.floor((z + radius + maxR) / BUCKET);
       for (let k = k0; k <= k1; k++) {
         const b = buckets.get(k);
         if (!b) continue;
