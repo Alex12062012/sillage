@@ -9,7 +9,7 @@ Départ, palier bas, Pixel 7 émulé (triangles / draw calls) : Rousses 271 k / 
 - [x] 1. Lumière : clé d'ambiance de l'après-midi, horizon froid à l'opposé du soleil, brume teintée selon la direction et bleutée à mi-distance, aiguilles vertes. Après : Rousses 276 k / 50, Avoriaz 278 k / 31, village 260 k / 47 (même géométrie, la foule fait varier le total de 5 à 10 k). DECISIONS.md, point 96.
 - [x] 2. Végétation : conifère (épicéa, sapin) et arbre nu (feuillus, mélèzes), neige au pixel, vent, cônes lointains à 6 triangles, forêt plus dense au palier bas. Après : Rousses 269 k / 49, Avoriaz 280 k / 32, village 252 k / 48 ; moyen 514 k / 88 et élevé 790 k / 101 aux Rousses. DECISIONS.md, point 97.
 - [x] 3. Bâtiments : Illico refait (ferme crépie, arche), cinq archétypes à variantes, vitres sombres le jour et allumées en fin de journée, restaurants regroupés par carré de 2 km (test mis à jour). Après : Rousses 241 k / 52, Avoriaz 282 k / 32, village 227 k / 51 ; moyen Rousses 456 k / 90 ; élevé Avoriaz 2 202 k / 57. DECISIONS.md, point 98.
-- [ ] 4. Modèles
+- [x] 4. Modèles : sièges, pylônes, gares, piquets refaits ; panneaux, filets, canons à neige, dameuses garées et protections de pylônes ajoutés, dans une seule couche à tuiles. Après : Rousses 259 k / 52, Avoriaz 300 k / 32, village 237 k / 51 ; moyen Rousses 471 k / 90 ; élevé Avoriaz 2 377 k / 57. DECISIONS.md, point 99. `docs/CREDITS.md` créé (aucun asset externe).
 - [ ] 5. Critique
 
 Usage : aucun outil de la session n'en donne le pourcentage (vérifié au début : rien dans `~/.claude`).

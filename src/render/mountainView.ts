@@ -7,12 +7,13 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { fbm } from '../core/rng';
 import { DEEP, towerGap, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { smoothstep } from '../sim/track';
-import { paint, poleGeometry } from './props';
+import { paint } from './props';
+import { chairGeometry, groomer, net, pisteSign, pole, snowGun, stationGeometry, towerGeometry, towerPad } from './models';
 import { bareFar, bareNear, coniferFar, coniferNear, TREE_WIND, treeMaterial } from './trees';
 import { addHeightFog, RELIEF } from './heightFog';
 import { addSnowSurface, SNOW } from './snow';
 import { RestoView } from './restos';
-import { archetypeBuilding, withWindows } from './buildings';
+import { archetypeBuilding, Geo, withWindows } from './buildings';
 
 const C_GROOMED = new Color(0xe9eff7);
 const C_POWDER = new Color(0xf8fafd);
@@ -312,12 +313,7 @@ function aroundMesh(m: Mountain, mat: MeshLambertMaterial): Mesh {
 
 /** Lift station: concrete base, a red roof over the bullwheel (smaller for drag lifts). */
 function station(x: number, y: number, z: number, yaw: number, s: number, towerH: number): BufferGeometry {
-  return mergeGeometries([
-    paint(new BoxGeometry(9, 4, 7).translate(0, 2, 0).toNonIndexed(), () => new Color(0x9aa3b0)),
-    paint(new BoxGeometry(11, 0.6, 9).translate(0, 7.4, 0).toNonIndexed(), () => new Color(0xd94f3d)),
-    paint(new BoxGeometry(0.8, 4, 0.8).translate(0, 5.2, 0).toNonIndexed(), () => new Color(0x50596a)),
-    paint(new CylinderGeometry(SIDE, SIDE, 0.4, 16).translate(0, towerH / s - 0.8, 0).toNonIndexed(), () => new Color(0x2d3340)),
-  ].map(noUv)).scale(s, s, s).rotateY(yaw).translate(x, y, z);
+  return stationGeometry(towerH / s, SIDE).scale(s, s, s).rotateY(yaw).translate(x, y, z);
 }
 
 /** Cleared roads (Route de la Faucille, des Jouvencelles, d'Avoriaz…): a wet-asphalt ribbon, not where a piste crosses. */
@@ -368,7 +364,9 @@ export class MountainView {
   private trees: Culled[] = [];
   /** Per tree list, the sort keys in order: a quality draws the prefix under its density (setQuality). */
   private treeKeys: Float32Array[] = [];
-  private poles: Culled;
+  /** Piste and lift equipment (poles, signs, nets, snow guns, groomers, tower pads): one tiled mesh, near only. */
+  private props: Tiled;
+  private propsDirty = true;
   private fineTiles: Tiled;
   private coarseTiles: Tiled;
   private aroundTiles: Tiled;
@@ -516,22 +514,10 @@ export class MountainView {
         }
       }
     }
-    const poles = new InstancedMesh(poleGeometry(), flat, marks.length);
-    marks.forEach(([x, z, c], i) => {
-      poles.setMatrixAt(i, m4.compose(p3.set(x, m.height(x, z), z), q.identity(), s3.set(1, 1, 1)));
-      poles.setColorAt(i, c);
-    });
-    this.poles = new Culled(poles, null, 3);
-    this.group.add(poles);
+    // (drawn with the other piste equipment, in the props layer below)
 
     // lifts: a tower at every OSM pylon (and every 120 / 80 / 220 m between), cables, stations
-    const towerGeo = (h: number, side: number) => {
-      const r = 0.3 * Math.max(1, h / 10); // gondola towers are stouter
-      return mergeGeometries([
-        paint(new CylinderGeometry(r, r * 1.5, h, 6).translate(0, h / 2, 0).toNonIndexed(), () => new Color(0x5b6576)),
-        paint(new BoxGeometry(side * 2 + 1, 0.4 * Math.max(1, h / 16), 0.4).translate(0, h, 0).toNonIndexed(), () => new Color(0x3b4352)),
-      ].map(noUv));
-    };
+    const towerGeo = towerGeometry;
     const towers = new Map<string, { h: number; side: number; list: Matrix4[] }>();
     const cable: number[] = [];
     const built: BufferGeometry[] = [];
@@ -617,6 +603,74 @@ export class MountainView {
     this.buildingTiles = new Tiled(parts.length ? mergeGeometries(parts) : new BufferGeometry(), tiles, flat);
     this.buildingTiles.mesh.castShadow = this.buildingTiles.mesh.receiveShadow = true;
     this.group.add(this.buildingTiles.mesh);
+    // piste and lift equipment by 500 m tiles, no far version (DECISIONS.md, point 99): one draw call for all of it
+    const kits = new Map<string, Geo>();
+    const kit = (x: number, z: number) => {
+      const key = `${Math.floor(x / 500)},${Math.floor(z / 500)}`;
+      if (!kits.has(key)) kits.set(key, new Geo());
+      return kits.get(key)!;
+    };
+    for (const [x, z, c] of marks) pole(kit(x, z), c, x, m.height(x, z), z);
+    const starts = m.pistes.filter((p) => !p.area).map((p) => (m.along(p, 0, pt), m.height(pt.x, pt.z)));
+    const gunLine = Math.min(...starts) + 0.6 * (Math.max(...starts) - Math.min(...starts)); // snow guns on the lower pistes
+    let nets = 0;
+    m.pistes.filter((p) => !p.area).forEach((p, i) => {
+      const k = PISTE_COLOR[p.difficulty], hw = p.halfWidth;
+      // the sign at the top, facing the skiers coming
+      m.along(p, Math.min(10, p.len / 2), pt);
+      { const x = pt.x + pt.dz * (hw + 2.5), z = pt.z - pt.dx * (hw + 2.5); if (!m.pisteAt(x, z)) pisteSign(kit(x, z), k, x, m.height(x, z), z, Math.atan2(-pt.dx, -pt.dz)); }
+      for (let s = 20; s < p.len - 20; s += 20) {
+        m.along(p, s, pt);
+        const ax = pt.x, az = pt.z, dx = pt.dx, dz = pt.dz;
+        for (const side of [-1, 1]) {
+          const ex = ax + dz * side * (hw + 1.5), ez = az - dx * side * (hw + 1.5);
+          if (m.pisteAt(ex, ez)) continue;
+          // a net where the ground falls away past the edge
+          const ox = ax + dz * side * (hw + 10), oz = az - dx * side * (hw + 10);
+          if (nets < 900 && m.height(ex, ez) - m.height(ox, oz) > 4.5) {
+            m.along(p, s + 20, pt);
+            const fx = pt.x + pt.dz * side * (hw + 1.5), fz = pt.z - pt.dx * side * (hw + 1.5);
+            if (!m.pisteAt(fx, fz)) { net(kit(ex, ez), [ex, m.height(ex, ez), ez], [fx, m.height(fx, fz), fz]); nets++; }
+          }
+          // a snow gun every 100 m on the lower pistes, sides alternating, aimed across and down the piste
+          if (starts[i] < gunLine && s % 100 === 0 && (s / 100) % 2 === (side > 0 ? 0 : 1)) {
+            const gx = ax + dz * side * (hw + 2), gz = az - dx * side * (hw + 2);
+            snowGun(kit(gx, gz), gx, m.height(gx, gz), gz, Math.atan2(-dz * side + dx, dx * side + dz));
+          }
+        }
+      }
+    });
+    // pads on the towers standing on a piste; groomers parked by the bottom stations of the longest lifts
+    for (const v of this.lifts) {
+      for (let k = 1; k < v.anchors.length - 1; k++) {
+        const a = v.anchors[k], hit = m.pisteAt(a.x, a.z);
+        if (hit && v.lift.kind !== 'carpet') towerPad(kit(a.x, a.z), a.x, a.y - v.towerH, a.z);
+      }
+    }
+    for (const v of [...this.lifts].filter((l) => l.lift.kind !== 'carpet').sort((a, b) => b.lift.len - a.lift.len).slice(0, 8)) {
+      const [x0, z0, x1, z1] = [v.lift.pts[0], v.lift.pts[1], v.lift.pts[2], v.lift.pts[3]];
+      const l = Math.hypot(x1 - x0, z1 - z0) || 1, ux = (x1 - x0) / l, uz = (z1 - z0) / l;
+      for (const side of [1, -1]) {
+        const x = x0 + uz * side * 15 - ux * 4, z = z0 - ux * side * 15 - uz * 4;
+        if (m.pisteAt(x, z)) continue;
+        groomer(kit(x, z), x, m.height(x, z) - 0.05, z, Math.atan2(ux, uz) + side * 0.4);
+        break;
+      }
+    }
+    {
+      const parts: BufferGeometry[] = [], tiles: Tile[] = [];
+      let at2 = 0;
+      for (const g of kits.values()) {
+        const geo = g.build();
+        geo.computeBoundingSphere();
+        const n = geo.attributes.position.count;
+        tiles.push({ sphere: geo.boundingSphere!, lods: [Uint32Array.from({ length: n }, (_, k) => at2 + k), new Uint32Array(0)] });
+        at2 += n;
+        parts.push(geo);
+      }
+      this.props = new Tiled(parts.length ? mergeGeometries(parts) : new BufferGeometry(), tiles, flat);
+      this.group.add(this.props.mesh);
+    }
     built.push(roads(m));
     if (m.scenery.radar) {
       const [x, z] = m.scenery.radar, y = m.height(x, z);
@@ -631,11 +685,7 @@ export class MountainView {
     this.group.add(this.restos.group);
 
     // chairs (seat, back, hanger; wide as their seats) and drag perches (a rod and its disc)
-    const chairGeo = mergeGeometries([
-      paint(new BoxGeometry(1.8, 0.12, 0.6).translate(0, -2.3, 0.1).toNonIndexed(), () => new Color(0x2a6bd1)),
-      paint(new BoxGeometry(1.8, 0.45, 0.1).translate(0, -2.05, -0.2).toNonIndexed(), () => new Color(0x2a6bd1)), // low back: the rider shows
-      paint(new BoxGeometry(0.08, 2.3, 0.08).translate(0, -1.15, 0).toNonIndexed(), () => new Color(0x3b4352)),
-    ].map(noUv));
+    const chairGeo = chairGeometry();
     const perchGeo = mergeGeometries([
       paint(new CylinderGeometry(0.03, 0.03, 4.6, 4).translate(0, -2.3, 0).toNonIndexed(), () => new Color(0x8a919c)),
       paint(new CylinderGeometry(0.2, 0.2, 0.06, 8).translate(0, -4.6, 0).toNonIndexed(), () => new Color(0xe2b23a)),
@@ -749,12 +799,12 @@ export class MountainView {
       t.near = { low: 200, medium: 300, high: 450 }[q];
       t.dirty = true;
     });
-    this.poles.near = q === 'low' ? 700 : Infinity;
+    this.props.far = { low: 700, medium: 1500, high: 3000 }[q]; // poles, signs, nets…: under a pixel beyond
     // shadow casters behind the camera, within the reach of a low sun's shadows (shadow maps on medium / high only)
     const keep = { low: 0, medium: 150, high: 260 }[q];
     for (const t of this.trees) t.keep = keep;
     this.buildingTiles.keep = keep;
-    this.poles.dirty = true;
+    this.propsDirty = true;
   }
 
   /** Height of the snow as drawn at (x, z): the detail patch near the skier, the massif's triangles beyond. */
@@ -929,7 +979,7 @@ export class MountainView {
       // trees and poles: refilled when the camera has moved 10 m or turned 8°, against a frustum 24° wider
       cam.getWorldDirection(tmp);
       const moved = cam.position.distanceToSquared(this.lastCam) > 100 || tmp.dot(this.lastDir) < 0.99;
-      if (moved || this.poles.dirty || this.trees.some((t) => t.dirty)) {
+      if (moved || this.propsDirty || this.trees.some((t) => t.dirty)) {
         this.lastCam.copy(cam.position);
         this.lastDir.copy(tmp);
         wideCam.copy(cam);
@@ -938,7 +988,8 @@ export class MountainView {
         wide.setFromProjectionMatrix(viewProj.multiplyMatrices(wideCam.projectionMatrix, cam.matrixWorldInverse));
         for (const t of this.trees) t.update(cam.position);
         for (const t of [this.fineTiles, this.coarseTiles, this.aroundTiles, this.buildingTiles]) if (t.mesh.visible) t.update(cam.position);
-        this.poles.update(cam.position);
+        this.props.update(cam.position);
+        this.propsDirty = false;
       }
     }
     let c = 0, d = 0, g = 0;
