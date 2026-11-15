@@ -116,6 +116,8 @@ const sph = new Sphere();
 const viewProj = new Matrix4();
 /** The camera's frustum, every frame (lift cabins), and a wider one refreshed now and then (trees, poles). */
 const frustum = new Frustum();
+/** The camera's frustum as of the last MountainView.update (the crowd culls its shadows with it). */
+export const viewFrustum = frustum;
 const wide = new Frustum();
 const wideCam = new PerspectiveCamera();
 

@@ -1,15 +1,17 @@
-import { Group, Vector3 } from 'three';
+import { Group, Sphere, Vector3 } from 'three';
 import { mulberry32 } from '../core/rng';
 import { COSMETICS } from '../sim/progress';
 import type { Mountain, Piste, PisteColor } from '../sim/mountain';
 import type { CrowdLevel } from '../sim/stationConfig';
 import { createSkier, type SkierState } from '../sim/skier';
 import type { Ground, Obstacle } from '../sim/track';
+import { viewFrustum } from './mountainView';
 import { SkierModel } from './skierModel';
 
 interface Rider { s: SkierState; piste: Piste; d: number; speed: number; phase: number; amp: number; wave: number; obstacle: Obstacle; dist: number; model: SkierModel | null }
 
 const tmp = new Vector3();
+const sph = new Sphere();
 const a = { x: 0, z: 0, dx: 0, dz: 0 };
 /** How busy a piste is, per metre, by colour: the blues and greens of the resort's heart fill up, the blacks less. */
 const BUSY: Record<PisteColor, number> = { green: 1.3, blue: 1.5, red: 1, black: 0.45 };
@@ -144,7 +146,8 @@ export class Crowd {
       s.surface = this.m.surface(p1.x, p1.z);
       this.m.normal(p1.x, p1.z, s.normal);
       r.model.root.visible = true;
-      r.model.shadow.visible = r.dist < this.shadowReach;
+      // the projected shadow is never culled by three (frustumCulled false): out of sight, it is not drawn
+      r.model.shadow.visible = r.dist < this.shadowReach && viewFrustum.intersectsSphere(sph.set(s.pos, 12));
       r.model.update(s, s.pos, s.heading, this.ground, dt, sunDir);
     }
   }
