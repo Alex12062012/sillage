@@ -16,6 +16,7 @@ Départ, palier bas, Pixel 7 émulé (triangles / draw calls) : Rousses 271 k / 
 
 - [x] Ombres des lisières dans les ombres du relief (DECISIONS.md, point 101). Palier bas inchangé en triangles : Rousses 267 k / 52, Avoriaz 322 k / 32, village 242 k / 51.
 - [x] Mode Auto prudent : High seulement sur un ordinateur clairement puissant (DECISIONS.md, point 102). 3 tests ajoutés (130 au total).
+- [x] Archétype de restaurant d'altitude pour le mode générique (DECISIONS.md, point 103). Palier bas inchangé : Rousses 267 k / 52, village 242 k / 51.
 
 ### Fin de session 3
 

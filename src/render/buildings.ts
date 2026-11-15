@@ -246,3 +246,49 @@ export function archetypeBuilding(x: number, y: number, z: number, w0: number, d
   }
   return g.build().rotateY(turn + yaw).translate(x, y, z);
 }
+
+/**
+ * Altitude restaurant (the generic restaurants, the Chalet du Lac's family): a log chalet on a stone footing, a
+ * standing-seam steel roof with a deep overhang, big glazed bays onto a raised terrace with a plank railing and
+ * parasols on the +z side, a chimney. Local frame: long side along x, ground at y = 0.
+ */
+export function altitudeRestaurant(w0: number, d0: number, eave: number, seed: number): BufferGeometry {
+  const g = new Geo(), w = Math.max(w0, d0), d = Math.min(w0, d0), r = (k: number) => rnd(seed, k);
+  const logs = HONEY[Math.floor(r(1) * HONEY.length) % HONEY.length], steel = EAVES[2], deck = C(0x9a7650);
+  g.walls(0, 0, w, d, 0, 0.9, STONE);
+  g.walls(0, 0, w, d, 0.9, eave, logs);
+  const ridge = gableRoof(g, w, d, eave, { pitch: 0.47, over: 1.6, gableOver: 1.2, snow: SNOW, under: C(0x7a5230), edge: steel, gable: logs });
+  g.block(w * 0.25, ridge - 0.2, -d * 0.12, 0.8, 1.6, 0.8, STONE, SNOW);
+  // the bays onto the terrace, small windows elsewhere
+  const n = Math.max(2, Math.floor(w / 3.4)), zf = d / 2 + 0.03;
+  for (let k = 0; k < n; k++) {
+    const a = ((k + 0.5) / n - 0.5) * w * 0.9;
+    g.quad([a - 1.25, 0.95, zf], [a + 1.25, 0.95, zf], [a + 1.25, 3.0, zf], [a - 1.25, 3.0, zf], steel);
+    g.quad([a - 1.12, 1.05, zf + 0.02], [a + 1.12, 1.05, zf + 0.02], [a + 1.12, 2.9, zf + 0.02], [a - 1.12, 2.9, zf + 0.02], WINDOW);
+  }
+  const floors = Math.max(1, Math.round((eave - 0.4) / 2.9));
+  windows(g, 'z', -1, w * 0.85, d / 2, floors, Math.max(2, Math.floor(w / 3.6)), 0.9, 1.0);
+  for (const s of [1, -1] as const) windows(g, 'x', s, d * 0.7, w / 2, floors, 2, 0.9, 1.0);
+  // the terrace: a deck 5 m deep along +z, its railing on the three open sides, parasols
+  const tl = w * 0.92, z0 = d / 2, z1 = d / 2 + 5;
+  g.block(0, 0.45, (z0 + z1) / 2, tl, 0.9, 5, STONE, deck);
+  g.quad([-tl / 2, 0.9, z1], [tl / 2, 0.9, z1], [tl / 2, 1.95, z1], [-tl / 2, 1.95, z1], logs);
+  g.quad([tl / 2, 0.9, z1], [-tl / 2, 0.9, z1], [-tl / 2, 1.95, z1], [tl / 2, 1.95, z1], logs);
+  for (const s of [1, -1]) {
+    const x = (s * tl) / 2;
+    g.quad([x, 0.9, s > 0 ? z1 : z0], [x, 0.9, s > 0 ? z0 : z1], [x, 1.95, s > 0 ? z0 : z1], [x, 1.95, s > 0 ? z1 : z0], logs);
+    g.quad([x, 0.9, s > 0 ? z0 : z1], [x, 0.9, s > 0 ? z1 : z0], [x, 1.95, s > 0 ? z1 : z0], [x, 1.95, s > 0 ? z0 : z1], logs);
+  }
+  const np = Math.max(1, Math.floor(tl / 6)), cols = [C(0xd23b3b), C(0xf2c14e)];
+  for (let k = 0; k < np; k++) {
+    const x = ((k + 0.5) / np - 0.5) * tl, z = (z0 + z1) / 2 + 0.6, top = 3.4, k2 = cols[k % 2];
+    g.walls(x, z, 0.1, 0.1, 0.9, top, GRIP_DARK);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2, b = ((i + 1) / 6) * Math.PI * 2;
+      const p: [number, number, number] = [x + Math.cos(a) * 1.7, top - 0.5, z - Math.sin(a) * 1.7], q: [number, number, number] = [x + Math.cos(b) * 1.7, top - 0.5, z - Math.sin(b) * 1.7];
+      g.tri(p, q, [x, top, z], k2).tri(q, p, [x, top - 0.55, z], k2); // the canopy and its underside
+    }
+  }
+  return g.build();
+}
+const GRIP_DARK = C(0x3b4352);

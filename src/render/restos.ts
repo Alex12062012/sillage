@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Mountain } from '../sim/mountain';
 import type { Resto } from '../sim/restos';
 import { paint } from './props';
-import { balcony, Geo, gableRoof, windows, WINDOW, withWindows } from './buildings';
+import { altitudeRestaurant, balcony, Geo, gableRoof, windows, WINDOW, withWindows } from './buildings';
 
 const noUv = (g: BufferGeometry) => (g.deleteAttribute('uv'), g);
 const SNOW = new Color(0xf4f7fb);
@@ -15,19 +15,6 @@ const GLASS = WINDOW; // dark by day, lit at dusk (buildings.ts)
 const BOARD = new Color(0x4a3220);
 const DECK = new Color(0x9a7650);
 const PARASOLS = [0xd23b3b, 0xf2c14e];
-
-/** Building: walls (timber, or render for the big ones), a snowy hipped roof, warm windows per floor. */
-/** `windows` false: without the lit window bands (12 triangles a floor), for buildings seen from afar. */
-export function building(x: number, y: number, z: number, w: number, d: number, yaw: number, levels: number, windows = true): BufferGeometry {
-  const wall = levels * 2.9 + 0.4;
-  const parts = [
-    paint(new BoxGeometry(w, wall, d).translate(0, wall / 2, 0).toNonIndexed(), () => new Color(levels > 2 ? 0xd8ccb4 : 0x7d5538)),
-    paint(new ConeGeometry(Math.hypot(w, d) * 0.62, Math.min(w, d) * 0.42 + 1, 4).rotateY(Math.PI / 4)
-      .scale((w / Math.hypot(w, d)) * 1.45, 1, (d / Math.hypot(w, d)) * 1.45).translate(0, wall + Math.min(w, d) * 0.21 + 0.5, 0).toNonIndexed(), () => new Color(0xf4f7fb)),
-  ];
-  for (let l = 0; windows && l < levels; l++) parts.push(paint(new BoxGeometry(w * 0.7, 0.8, d + 0.06).translate(0, 1.7 + l * 2.9, 0).toNonIndexed(), () => WINDOW));
-  return mergeGeometries(parts.map(noUv)).rotateY(yaw).translate(x, y, z);
-}
 
 /** The facade the sign is on, in the building's own frame: its outward axis and side, its length, its distance from the centre. */
 export function signFace(r: Resto): { axis: 'x' | 'z'; side: 1 | -1; len: number; off: number } {
@@ -153,8 +140,12 @@ export function restoGeometry(r: Resto, real: boolean): BufferGeometry {
   const f = signFace(r);
   const board = paint(onFace(f, 0, signHeight(r), f.off + 0.12, signWidth(r.name, f.len), 1.1, 0.2), () => BOARD);
   if (!real) {
+    // the generic restaurant: the altitude restaurant archetype (log chalet, steel roof, terrace); the terrace on the
+    // sign's facade when that is a long side
     const levels = Math.max(1, Math.round(r.eave / 2.9));
-    const g = building(0, -0.4, 0, r.w, r.d, 0, levels);
+    const g = altitudeRestaurant(r.w, r.d, levels * 2.9 + 0.4, Math.round(r.x * 3.1 + r.z * 1.7)).translate(0, -0.4, 0);
+    if (r.w < r.d) g.rotateY(Math.PI / 2);
+    if (f.axis === (r.w >= r.d ? 'z' : 'x') && f.side < 0) g.rotateY(Math.PI); // the sign on the other long side
     const plinth = paint(new BoxGeometry(r.w + 0.3, r.floor - r.y + 1, r.d + 0.3).translate(0, -(r.floor - r.y + 1) / 2, 0).toNonIndexed(), () => STONE);
     return mergeGeometries([g, board, plinth].map((p) => (p.getAttribute('uv') ? noUv(p) : p))).rotateY(r.yaw).translate(r.x, r.floor, r.z);
   }
