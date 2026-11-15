@@ -1,5 +1,17 @@
 # État de session : refonte visuelle
 
+## Session 4 (15/11/2026, autonomie) : refonte visuelle 3
+
+Branche `refonte-visuelle-3`, partie de `refonte-visuelle-2` (non fusionnée dans `main`). On peut pousser la branche de travail (prévisualisation Vercel), jamais `main`. Points : 1 touches PC, 2 personnage réaliste, 3 collisions, 4 barrières, 5 modèles variés.
+
+- [x] 1. Touches PC : Z/W = salto avant, S = salto arrière en l'air (sol inchangé), flèches inchangées, tutoriel PC mis à jour ; bouton Ride agrandi à droite, mi-hauteur, sur ordinateur seulement. DECISIONS.md, point 105.
+- [ ] 2. Personnage réaliste
+- [ ] 3. Collisions (dameuse de départ à déplacer : elle est garée dans la file du Jouvenceaux)
+- [ ] 4. Barrières et filets
+- [ ] 5. Modèles variés
+
+Usage : toujours aucun outil pour le mesurer.
+
 ## Session 3 (15/11/2026, autonomie) : refonte visuelle 2
 
 Branche `refonte-visuelle-2`, partie de `main`. Rien n'est poussé. Étapes : 1 lumière, 2 végétation, 3 bâtiments, 4 modèles, 5 critique.

@@ -202,7 +202,9 @@ export class Input {
     let up = this.has('ArrowUp', 'KeyW');
     let down = this.has('ArrowDown', 'KeyS');
     let target = (right ? 1 : 0) - (left ? 1 : 0);
-    let flip = (down ? 1 : 0) - (up ? 1 : 0);
+    // flips (DECISIONS.md, point 105): the letters lean like the body, W (Z on AZERTY) forward = frontflip, S back =
+    // backflip; the arrows keep pulling like a stick, ↑ = backflip, ↓ = frontflip. On the snow W/↑ tuck, S/↓ brake.
+    let flip = (this.has('ArrowDown', 'KeyW') ? 1 : 0) - (this.has('ArrowUp', 'KeyS') ? 1 : 0);
     if (left || right || up || down) this.touched = true;
 
     // touch: holds steer (both thumbs: brake on the snow, grab in the air), taps jump / push, swipes jump / brake / flip

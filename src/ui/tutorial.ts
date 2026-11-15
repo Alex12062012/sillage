@@ -173,12 +173,12 @@ export class Tutorial {
         if (s.airborne) this.air += dt;
         if (this.air > 0.15) {
           g.lastLand = null;
-          this.freeze(touch ? 'Pull <b>both thumbs back</b> and hold for a backflip,<br>let go when you are upright' : 'Hold <kbd>↑</kbd> for a backflip,<br>let go when you are upright', touch ? [['pull', 22, 52], ['pull', 78, 52]] : []);
+          this.freeze(touch ? 'Pull <b>both thumbs back</b> and hold for a backflip,<br>let go when you are upright' : 'Hold <kbd>S</kbd> or <kbd>↑</kbd> for a backflip,<br>let go when you are upright', touch ? [['pull', 22, 52], ['pull', 78, 52]] : []);
           this.go('flip');
         } else if (this.t > 1.5) this.retry();
         break;
       case 'flip':
-        if (f.pulled || inp.held('ArrowUp', 'KeyW')) { this.thaw(); this.go('flipLand'); }
+        if (f.pulled || inp.held('ArrowUp', 'KeyS')) { this.thaw(); this.go('flipLand'); }
         break;
       case 'flipLand': {
         const e = g.lastLand;
@@ -204,7 +204,7 @@ export class Tutorial {
       }
       case 'brakeWait':
         if (s.pos.z >= Math.min(g.track.def.length - 200, (g.track.features.find((x) => x.type === 'glade')?.z1 ?? 0) + 40)) {
-          this.freeze(touch ? 'Pull a thumb <b>down</b> to brake' : 'Hold <kbd>↓</kbd> to brake', touch ? [['pull', 78, 52]] : []);
+          this.freeze(touch ? 'Pull a thumb <b>down</b> to brake' : 'Hold <kbd>S</kbd> or <kbd>↓</kbd> to brake', touch ? [['pull', 78, 52]] : []);
           this.go('brake');
         }
         break;
