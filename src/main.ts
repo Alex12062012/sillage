@@ -30,13 +30,30 @@ let save: Save = loadSave(storage);
 if (!storage.getItem('sillage.save.v1')) {
   // first launch: comfort mode when the OS asks for reduced motion; phones start on Medium (DPR ≤ 1.5)
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) save.settings.comfort = true;
-  if (matchMedia('(pointer: coarse)').matches) save.settings.quality = 'medium';
 }
+/**
+ * The 'auto' tier, from the device: a weak or software GPU (or a small phone) gets low, other phones and tablets
+ * medium, computers high. It then steps down by one if the frame rate stays low at the lowest resolution (loop).
+ */
+function detectTier(): 'low' | 'medium' | 'high' {
+  const gl = document.createElement('canvas').getContext('webgl2');
+  const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+  const gpu = String(gl && ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl?.getParameter(gl.RENDERER) ?? '');
+  gl?.getExtension('WEBGL_lose_context')?.loseContext();
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
+  const touch = matchMedia('(pointer: coarse)').matches;
+  if (!gl || /SwiftShader|llvmpipe|Software|Mali-[GT]?[4-7]\d|Adreno \(TM\) [3-5]\d\d|PowerVR/i.test(gpu)) return 'low';
+  if (touch) return mem <= 4 || navigator.hardwareConcurrency <= 4 ? 'low' : 'medium';
+  return /Intel.*HD Graphics|Intel.*UHD Graphics [56]/i.test(gpu) ? 'medium' : 'high';
+}
+let autoTier = detectTier();
+let tier = save.settings.quality === 'auto' ? autoTier : save.settings.quality;
 const persist = () => saveSave(storage, save);
 
 // ── renderer (MSAA only on the high setting; it is chosen at boot)
 const canvas = document.getElementById('game') as HTMLCanvasElement;
-const renderer = new WebGLRenderer({ canvas, antialias: save.settings.quality === 'high', powerPreference: 'high-performance', stencil: true });
+// no MSAA on the canvas: medium / high draw through a post-processing target (multisampled on high), low has none
+const renderer = new WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: true });
 const ui = document.getElementById('ui')!;
 const hud = new Hud(ui);
 const params = new URLSearchParams(location.search);
@@ -111,9 +128,10 @@ function applyOutfit(): void {
 let qualityScale = 1; // adaptive resolution multiplier
 function applySettings(): void {
   const st: Settings = save.settings;
-  const cap = { low: 1, medium: 1.5, high: 2 }[st.quality];
+  tier = st.quality === 'auto' ? autoTier : st.quality;
+  const cap = { low: 1, medium: 1.5, high: 2 }[tier];
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap) * qualityScale);
-  game.setQuality(st.quality);
+  game.setQuality(tier);
   game.input.sensitivity = st.sensitivity;
   game.input.haptics = st.vibration;
   game.audio.setVolume(st.volume);
@@ -329,6 +347,8 @@ function loop(now: number): void {
   miniMap.update(dt);
   if (mode === 'run' || mode === 'attract') {
     if (dt > 0.022) { slow += dt > 0.033 ? 2 : 1; fast = 0; } else if (dt < 0.0145) { fast++; slow = Math.max(0, slow - 1); }
+    // Auto: still slow at half resolution, one tier down (a chosen tier is kept)
+    if (slow > 60 && qualityScale <= 0.5 && save.settings.quality === 'auto' && tier !== 'low') { autoTier = tier === 'high' ? 'medium' : 'low'; qualityScale = 0.8; slow = 0; applySettings(); }
     if (slow > 60 && qualityScale > 0.5) { qualityScale = Math.max(0.5, qualityScale - (dt > 0.033 ? 0.15 : 0.1)); slow = 0; applySettings(); }
     if (fast > 600 && qualityScale < 1) { qualityScale = Math.min(1, qualityScale + 0.05); fast = 0; applySettings(); }
   }
@@ -396,5 +416,6 @@ if (import.meta.env.MODE !== 'production') window.__sillage = {
   debug: () => debug.toggle(),
   // captures: the game itself, and a free camera at (x, `up` m above the snow, z) looking along yaw / pitch (degrees)
   raw: () => game,
+  tier: () => tier,
   photo: (p: { x: number; z: number; up: number; yaw: number; pitch: number; fov?: number } | null) => { game.photo = p; },
 };

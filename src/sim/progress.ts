@@ -21,7 +21,8 @@ export const COSMETICS: Outfit[] = [
 export interface TrackRecord { bestTime: number | null; bestScore: number; topKmh: number }
 
 export interface Settings {
-  quality: 'low' | 'medium' | 'high';
+  /** 'auto': the tier is picked from the device at boot, and steps down by one if the frame rate stays low. */
+  quality: 'auto' | 'low' | 'medium' | 'high';
   volume: number;
   music: boolean;
   sensitivity: number;
@@ -46,7 +47,7 @@ export interface Save {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  quality: 'high', volume: 0.8, music: true, sensitivity: 1, leftHanded: false, comfort: false, camera: 'chase', tilt: false, showFps: false,
+  quality: 'auto', volume: 0.8, music: true, sensitivity: 1, leftHanded: false, comfort: false, camera: 'chase', tilt: false, showFps: false,
   vibration: true, traffic: 1,
 };
 

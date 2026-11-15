@@ -1,4 +1,8 @@
-import { Group, MathUtils, Mesh, Scene, Vector3, type MeshBasicMaterial, type WebGLRenderer } from 'three';
+import { Group, HalfFloatType, MathUtils, Mesh, Scene, Vector2, Vector3, WebGLRenderTarget, type MeshBasicMaterial, type WebGLRenderer } from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { GameAudio } from './audio/audio';
 import { Input } from './input/input';
 import { ChaseCamera } from './render/camera';
@@ -647,6 +651,8 @@ export class Game {
     this.sky.fog.far = this.mountain ? view * this.mountain.station.haze : view;
     this.sky.fog.near = this.mountain ? view * 2 : view * 0.26;
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
+    if (q !== this.quality || !this.postSet) this.setPost(q);
+    this.postSet = true;
     this.quality = q;
     this.view?.setQuality(q);
     if (this.crowd) {
@@ -658,12 +664,13 @@ export class Game {
     this.sparkle?.setQuality(q);
   }
   private viewDistance = 470;
+  private postSet = false;
 
   frame(realDt: number): void {
     if (this.paused) {
       this.input.pollPad(); // a pad-only player must be able to resume
       this.audio.update(0, 0, 0, this.skier.surface, true, true, realDt); // hush wind and edges
-      this.renderer.render(this.scene, this.cam.camera);
+      this.draw();
       return;
     }
     const scale = this.slowmo.update(realDt);
@@ -766,7 +773,43 @@ export class Game {
       this.fpsN = 0;
       this.fpsT = 0;
     }
-    this.renderer.render(this.scene, this.cam.camera);
+    this.draw();
+  }
+
+  /** Low tier: straight to the screen. Medium / high: through the post-processing chain (bloom on high), tone mapped at the end. */
+  private composer: EffectComposer | null = null;
+  private composerSize = new Vector2();
+  private draw(): void {
+    const c = this.composer;
+    if (!c) {
+      this.renderer.info.autoReset = true;
+      this.renderer.render(this.scene, this.cam.camera);
+      return;
+    }
+    const w = this.renderer.domElement.width, h = this.renderer.domElement.height;
+    if (this.composerSize.x !== w || this.composerSize.y !== h) {
+      this.composerSize.set(w, h);
+      c.setPixelRatio(1);
+      c.setSize(w, h);
+    }
+    // count the whole frame (scene + post passes), not only the last pass
+    this.renderer.info.autoReset = false;
+    this.renderer.info.reset();
+    c.render();
+  }
+
+  private setPost(q: 'low' | 'medium' | 'high'): void {
+    this.composer?.dispose();
+    this.composer = null;
+    this.composerSize.set(0, 0);
+    if (q === 'low') return;
+    // HDR target with a stencil (the skier's shadow needs it), MSAA on high (the canvas's own antialias does not reach a render target)
+    const target = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: q === 'high' ? 4 : 0, stencilBuffer: true });
+    const c = new EffectComposer(this.renderer, target);
+    c.addPass(new RenderPass(this.scene, this.cam.camera));
+    if (q === 'high') c.addPass(new UnrealBloomPass(new Vector2(256, 256), 0.18, 0.4, 0.92)); // only the sun's glints on the snow bloom
+    c.addPass(new OutputPass());
+    this.composer = c;
   }
 
   /** In the air: the trick builds live ("180", "360 · Grab"), with a whoosh per half-turn and per flip. */
