@@ -145,3 +145,18 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
     - Correctif : un carré de 320 m autour du skieur trace lui-même la surface lisse, avec un point tous les 2,5 m. Le maillage du massif est percé à cet endroit (`discard` dans le shader). Sur ses 40 derniers mètres, le carré se plie sur les triangles du massif, et ses bords tombent sur les lignes de la grille à 20 m : aucune marche, aucune couture de couleur ni d'ombrage.
     - Il est reconstruit 8 rangées par image pendant qu'on avance (environ 1 ms par image sur desktop, une reconstruction toutes les 0,75 s à 140 km/h), et d'un coup après une remontée, un respawn ou un changement de qualité (environ 11 ms).
     - Résultat : 99 % du temps sous 5 cm, 15 cm au pire, dans toutes les qualités. Les autres skieurs sont posés sur la neige telle qu'elle est dessinée. Un test le garde (`tests/unit/mountain-view.test.ts`).
+
+## Refonte visuelle, sous-étape A : 250 k triangles au palier bas
+
+84. **Le décor de la montagne passe par le culling de la caméra, avec un LOD lointain au palier bas.** Avant, le massif, la forêt, les piquets, les remontées et les bâtiments étaient chacun un maillage couvrant toute la station, dessiné en entier même derrière le skieur : 1 044 k triangles au palier bas aux Rousses, 1 392 k à Avoriaz.
+    - Terrain : découpé en tuiles d'environ 1,3 km qui partagent leurs sommets. Au palier bas, une tuile à plus de 1 km prend sa version lointaine, avec un sommet sur deux.
+    - Sapins et piquets : deux maillages instanciés, remplis avec les seuls objets du champ de vision (frustum élargi de 24°, rafraîchi tous les 10 m ou tous les 8° de rotation). Ça reste un draw call par type. Au palier bas, les sapins prennent la géométrie simplifiée au-delà de 200 m, comme l'arcade depuis la phase 1, et les piquets ne sont plus dessinés au-delà de 700 m (moins d'un pixel).
+    - Bâtiments : regroupés par tuiles de 2 km. Au palier bas, au-delà de 800 m, ils perdent leurs bandes de fenêtres (12 triangles par étage, moins d'un pixel à cette distance).
+    - Remontées : sièges, cabines et perches hors champ ne sont plus dessinés. Au palier bas, les sièges et perches sont coupés au-delà de 700 m, les cabines au-delà de 1,5 km.
+    - Foule au palier bas : 12 corps au plus (24 sinon). Une ombre n'est dessinée qu'à moins de 80 m et dans le champ ; three ne la cullait jamais.
+    - Résultat : Rousses 275 k, Avoriaz 408 k, vue village 245 k (détail dans PERF.md). Les draw calls passent de 94 / 35 / 55 à 78 / 98 / 70.
+
+85. **Le budget de 250 k n'est pas atteint à Avoriaz ni aux Rousses, et l'image n'a pas été dégradée pour y arriver.** Les options restantes changent toutes ce qu'on voit. À trancher :
+    - Avoriaz (408 k) : depuis le sommet, on voit toute la station. Il faudrait un troisième niveau de terrain au-delà de 3 km (une maille de 80 m, des crêtes plus anguleuses), retirer les bâtiments ou les sapins au-delà de 2,5 km (Morzine devient une pente vide), ou réduire la distance de vue au palier bas (le brouillard monterait).
+    - Rousses (275 k) : un maillage par restaurant donnait 249 k, mais le test `restos-view.test.ts` impose 3 maillages au plus pour les restaurants. Le culling ne compte pourtant que les restaurants dans le champ. Assouplir ce test (3 draw calls « visibles ») suffirait. Autre piste : moins de corps dans la foule, ce qui se voit sur une piste chargée.
+

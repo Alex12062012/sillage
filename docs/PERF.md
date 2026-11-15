@@ -1,4 +1,24 @@
-# PERF — mesures (22/10/2026)
+# PERF — mesures
+
+## Free ride, palier bas : budget de 250 k triangles (15/11/2026, sous-étape A de la refonte visuelle)
+
+Build de test (`npm run build:test && npm run preview`, identique à la production plus l'API de debug), `node scripts/perf.mjs --tiers=low --profiles=mobile,desktop --scenes=rousses,avoriaz,village`. Scénarios fixes : même point de départ, skieur freiné sur place, heure par défaut de la station. MacBook M1, ANGLE Metal. La foule bouge, donc le total varie d'environ 10 k d'une mesure à l'autre.
+
+| Scénario | Avant : triangles / draw calls | Après : triangles / draw calls | Budget |
+|---|---|---|---|
+| Free ride Rousses (départ du Jouvenceaux) | 1 044 k / 94 | **275 k** / 78 | 250 k : dépassé de 10 % |
+| Free ride Avoriaz (sommet) | 1 392 k / 35 | **408 k** / 98 | 250 k : dépassé de 63 % |
+| Vue village (pied des pistes, Rousses) | 914 k / 55 | **245 k** / 70 | 250 k : tenu |
+
+Chiffres du profil mobile (Pixel 7, CPU ×4). En desktop 1280×720 : 268 k, 401 k et 245 k après. Le FPS reste à 60 avant comme après, mais le GPU n'est pas bridé dans ces mesures : elles ne disent rien du FPS sur un vrai téléphone.
+
+**Où partaient les triangles (avant, Rousses / Avoriaz)** : sapins 339 k / 428 k, terrain du massif 159 k / 317 k, foule 241 k / 40 k, remontées 93 k / 136 k, bâtiments et routes 42 k / 204 k, terrain alentour 43 k / 111 k, piquets 42 k / 100 k, restaurants 41 k, carré de détail 33 k. Tous ces maillages couvraient la station entière, donc rien n'était retiré par le culling de la caméra.
+
+**Ce qui reste (après, Avoriaz)** : terrain du massif 112 k, bâtiments lointains 80 k, terrain alentour 57 k, sapins lointains 55 k, carré de détail 33 k, foule 25 k. Depuis le sommet, la caméra voit toute la station jusqu'à Morzine : voir DECISIONS.md, point 84.
+
+Ventilation par objet : `node scripts/perf.mjs ... --breakdown` (masque chaque objet, refait le rendu, affiche la différence).
+
+## Mesures du 22/10/2026 (mode arcade)
 
 Toutes les mesures portent sur le **build de production** (`npm run build && npm run preview`). Le bot parcourt la piste à 65 km/h et le temps de chaque frame est mesuré dans la page pendant 15 s (`scripts/perf.mjs`). Machine : MacBook M1, Chromium 1248 (Playwright 1.64.1), GPU via ANGLE Metal.
 
