@@ -101,6 +101,8 @@ export class Game {
   private hudTick = 0;
   private hudPhase: Phase | null = null;
   private landmarks: Group | null = null;
+  /** Captures: a free camera instead of the chase camera (see window.__sillage.photo). */
+  photo: { x: number; z: number; up: number; yaw: number; pitch: number; fov?: number } | null = null;
   onFinish: ((stats: RunStats) => void) | null = null;
   onStart: (() => void) | null = null;
   time = 0;
@@ -682,6 +684,12 @@ export class Game {
     }
     this.model.update(s, this.renderPos, heading, this.snow, realDt, this.sky.sunDirection);
     this.cam.update(this.renderPos, s, realDt, this.track.height);
+    if (this.photo) {
+      const p = this.photo, c = this.cam.camera, yaw = MathUtils.degToRad(p.yaw), pitch = MathUtils.degToRad(p.pitch);
+      c.position.set(p.x, this.track.height(p.x, p.z) + p.up, p.z);
+      c.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ'); // yaw 0 looks down +z (south on a station), like a heading
+      if (p.fov && c.fov !== p.fov) { c.fov = p.fov; c.updateProjectionMatrix(); }
+    }
     this.terrain?.update(this.cam.camera.position.z, 1);
     this.view?.update(gdt);
     this.crowd?.update(gdt, this.sky.sunDirection, this.cam.camera.position);

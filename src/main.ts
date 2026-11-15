@@ -393,4 +393,7 @@ window.__sillage = {
   restos: () => game.mountain?.restos.map((r) => ({ name: r.name, x: r.x, z: r.z })) ?? [],
   config: (c: Partial<StationConfig>) => game.setConfig({ ...(game.mountain?.station.config ?? DEFAULT_CONFIG), ...c }),
   debug: () => debug.toggle(),
+  // captures: the game itself, and a free camera at (x, `up` m above the snow, z) looking along yaw / pitch (degrees)
+  raw: () => game,
+  photo: (p: { x: number; z: number; up: number; yaw: number; pitch: number; fov?: number } | null) => { game.photo = p; },
 };
