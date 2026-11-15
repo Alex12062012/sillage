@@ -412,3 +412,14 @@ button.danger { background: rgba(255, 90, 90, 0.25) !important; }
 .setup label:hover { background: rgba(255, 255, 255, 0.08); }
 .setup input { accent-color: var(--accent); }
 .setup .export { width: 100%; border: 0; border-radius: 10px; padding: 9px; font: 700 14px system-ui; color: #fff; background: var(--accent); cursor: pointer; }
+
+/* phones held upright: ask to turn them (the game is played sideways) */
+.turn {
+  display: none; position: fixed; inset: 0; z-index: 100; pointer-events: auto; background: rgba(16, 22, 34, 0.94); color: #fff;
+  flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px; text-align: center; font: 700 18px system-ui, sans-serif;
+}
+.turn p { margin: 0; max-width: 16em; }
+.turn-phone { width: 44px; height: 76px; border: 4px solid #fff; border-radius: 10px; animation: turn-phone 2.2s ease-in-out infinite; }
+@keyframes turn-phone { 0%, 30% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) and (pointer: coarse) { .turn { display: flex; } }
+@media (prefers-reduced-motion: reduce) { .turn-phone { animation: none; transform: rotate(-90deg); } }

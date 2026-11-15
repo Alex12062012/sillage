@@ -38,7 +38,13 @@ export class MiniMap {
     parent.appendChild(this.el);
     this.cv = this.el.querySelector('canvas')!;
     this.g = this.cv.getContext('2d')!;
-    this.el.addEventListener('click', onOpen);
+    // on a phone, the tap opens the map when the finger lifts (a click there was lost to the steering)
+    let down: { x: number; y: number } | null = null;
+    this.el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+    this.el.addEventListener('pointerup', (e) => {
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 24) onOpen();
+      down = null;
+    });
   }
 
   /** The station to show, or null to hide it (arcade runs). */

@@ -84,6 +84,22 @@ onlineEl.className = 'online';
 onlineEl.hidden = true;
 ui.appendChild(onlineEl);
 game.input.attachTouch(document.body);
+// phones play sideways: fullscreen and a landscape lock at the first tap where the browser allows it (Android Chrome);
+// elsewhere (iPhone Safari has neither) a card asks to turn the phone, and a run in progress pauses
+const turnCard = document.createElement('div');
+turnCard.className = 'turn';
+turnCard.innerHTML = '<div class="turn-phone"></div><p>Turn your phone sideways to ride</p>';
+ui.appendChild(turnCard);
+const portraitPhone = matchMedia('(orientation: portrait) and (pointer: coarse)');
+portraitPhone.addEventListener('change', (e) => { if (e.matches) pause(); });
+if (matchMedia('(pointer: coarse)').matches && !embedded) {
+  window.addEventListener('pointerdown', () => {
+    const lock = (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock;
+    document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })
+      .then(() => lock?.call(screen.orientation, 'landscape'))
+      .catch(() => { /* not allowed here: the card does the asking */ });
+  }, { once: true });
+}
 touch.querySelector('.jump')!.addEventListener('pointerdown', () => game.input.pressJump());
 // free ride: the station's trail map (M, the map button); the game waits while it is open
 const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { closeMap(); game.toLift(i); }, () => closeMap(), (i) => { closeMap(); game.toResto(i); });

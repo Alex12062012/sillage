@@ -17,6 +17,7 @@ export default defineConfig({
     : { command: 'npm run build:test && npm run preview', url: 'http://localhost:4180', reuseExistingServer: !process.env.CI, timeout: 180_000 },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    // the game is played sideways on a phone (held upright, a card asks to turn it)
+    { name: 'mobile', use: { ...devices['Pixel 7'], viewport: { width: 915, height: 412 } } },
   ],
 });
