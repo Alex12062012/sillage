@@ -7,7 +7,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { fbm } from '../core/rng';
 import { DEEP, towerGap, type Lift, type Mountain, type PisteColor } from '../sim/mountain';
 import { smoothstep } from '../sim/track';
-import { paint, poleGeometry, treeGeometry, treeGeometryLow } from './props';
+import { paint, poleGeometry } from './props';
+import { bareFar, bareNear, coniferFar, coniferNear, TREE_WIND, treeMaterial } from './trees';
 import { addHeightFog, RELIEF } from './heightFog';
 import { addSnowSurface, SNOW } from './snow';
 import { building, RestoView } from './restos';
@@ -364,6 +365,8 @@ export class MountainView {
   private shown: Detail | null = null;
   private building: Detail | null = null;
   private trees: Culled[] = [];
+  /** Per tree list, the sort keys in order: a quality draws the prefix under its density (setQuality). */
+  private treeKeys: Float32Array[] = [];
   private poles: Culled;
   private fineTiles: Tiled;
   private coarseTiles: Tiled;
@@ -457,23 +460,48 @@ export class MountainView {
       SNOW.uGroomOn.value = 1;
     }
 
-    // spruces: shuffled, so any prefix (lower quality) is an even thinning; tall and slim
+    // trees (DECISIONS.md, point 97): spruces and firs share the conifer shape, beeches low down and larches high in the
+    // Alps the bare one. Each list is sorted so that any prefix (lower quality) thins evenly, the trees along the pistes
+    // (h < DEEP) twice as slowly as those deep in the woods: treeKeys[k] holds the sorted keys, setQuality cuts them.
     const flat = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
-    const all = m.obstaclesBetween(-1e5, 1e5).filter((o) => o.kind === 'tree').sort((a, b) => ((a.id * 0.618) % 1) - ((b.id * 0.618) % 1));
-    // the deep ones have one geometry for near and far: the split only says which cast a shadow (never dropped)
-    const low = treeGeometryLow();
-    for (const [geo, far, list] of [[treeGeometry(), treeGeometryLow(), all.filter((o) => o.h < DEEP)], [low, low, all.filter((o) => o.h >= DEEP)]] as const) {
-      const im = new InstancedMesh(geo, flat, list.length);
-      list.forEach((o, i) => {
+    const all = m.obstaclesBetween(-1e5, 1e5).filter((o) => o.kind === 'tree');
+    let yLo = Infinity, yHi = -Infinity;
+    const ys = all.map((o) => { const y = m.height(o.x, o.z); yLo = Math.min(yLo, y); yHi = Math.max(yHi, y); return y; });
+    const alps = m.station.id === 'avoriaz';
+    const kinds: { list: number[]; near: BufferGeometry; far: BufferGeometry; snow: number }[] = [
+      { list: [], near: coniferNear(), far: coniferFar(), snow: 0.9 },
+      { list: [], near: bareNear(), far: bareFar(), snow: 0.55 },
+    ];
+    const species: Uint8Array = new Uint8Array(all.length); // 0 spruce, 1 fir, 2 beech, 3 larch
+    all.forEach((o, i) => {
+      const u = (ys[i] - yLo) / Math.max(1, yHi - yLo), h1 = (o.id * 0.754877) % 1;
+      species[i] = u < 0.16 && h1 < 0.2 ? 2 : alps && u > 0.5 && h1 < 0.2 + 0.6 * (u - 0.5) ? 3 : !alps && u < 0.55 && h1 < 0.38 ? 1 : 0;
+      kinds[species[i] >= 2 ? 1 : 0].list.push(i);
+    });
+    const key = (i: number) => ((all[i].id * 0.618) % 1) * (all[i].h < DEEP ? 0.5 : 1);
+    const tint = new Color();
+    kinds.forEach(({ list, near, far, snow }) => {
+      list.sort((a, b) => key(a) - key(b));
+      this.treeKeys.push(Float32Array.from(list, key));
+      const im = new InstancedMesh(near, treeMaterial(snow), list.length);
+      list.forEach((i, n) => {
+        const o = all[i], sp = species[i], h2 = (o.id * 0.56984) % 1, h3 = (o.id * 0.31831) % 1, u = (ys[i] - yLo) / Math.max(1, yHi - yLo);
         q.setFromAxisAngle(up, (o.id * 2.39) % (Math.PI * 2));
-        const s = o.h / 4.4;
-        im.setMatrixAt(i, m4.compose(p3.set(o.x, m.height(o.x, o.z) - 0.3, o.z), q, s3.set(s * 0.72, s, s * 0.72)));
+        // stunted near the top of the Alpine forest; firs broader, larches tall and slim, beeches round
+        const s = (o.h / 4.4) * (alps ? 1 - 0.3 * smoothstep(0.7, 1, u) : 1);
+        const wide = [0.66 + h2 * 0.14, 0.86 + h2 * 0.1, 1.05 + h2 * 0.2, 0.5 + h2 * 0.1][sp];
+        im.setMatrixAt(n, m4.compose(p3.set(o.x, ys[i] - 0.3, o.z), q, s3.set(s * wide, s * (sp === 2 ? 0.8 : 1), s * wide)));
+        // needle (or twig) colour per species, ±10 % per tree, a little warmer or bluer
+        tint.setHex([0x30592f, 0x24493a, 0x9c938a, 0xa08458][sp]).multiplyScalar(0.9 + h3 * 0.2);
+        tint.r *= 0.95 + h2 * 0.1;
+        im.setColorAt(n, tint);
       });
       const t = new Culled(im, far, 25);
       t.mesh.castShadow = true; // the near ones only: the shadow pass must not redraw the forest to the horizon
+      for (const x of t.meshes) x.visible = list.length > 0;
       this.trees.push(t);
       this.group.add(...t.meshes);
-    }
+    });
 
     // piste poles: both edges every 30 m, coloured by difficulty (none standing in another piste)
     const marks: [number, number, Color][] = [];
@@ -708,11 +736,16 @@ export class MountainView {
     this.every = q === 'high' ? 1 : 2; // the detail patch, bent onto the other mesh, is rebuilt at the next focus()
     // sapins simplifiés au-delà de 200 m (bas), 300 m (moyen), 450 m (élevé) : l'arcade le fait dès 170 m. Seuls les proches
     // projettent une ombre. Piquets coupés au-delà de 700 m au palier bas (moins d'un pixel)
-    for (const t of this.trees) {
-      t.total = Math.round(t.size * { low: 0.3, medium: 0.5, high: 1 }[q]);
+    // density: the woods 40 / 60 / 100 %, the trees along the pistes twice that (keys halved, see the constructor)
+    const dens = { low: 0.4, medium: 0.6, high: 1.01 }[q];
+    this.trees.forEach((t, k) => {
+      const keys = this.treeKeys[k];
+      let lo = 0, hi = keys.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (keys[mid] < dens) lo = mid + 1; else hi = mid; }
+      t.total = lo;
       t.near = { low: 200, medium: 300, high: 450 }[q];
       t.dirty = true;
-    }
+    });
     this.poles.near = q === 'low' ? 700 : Infinity;
     // shadow casters behind the camera, within the reach of a low sun's shadows (shadow maps on medium / high only)
     const keep = { low: 0, medium: 150, high: 260 }[q];
@@ -886,6 +919,7 @@ export class MountainView {
 
   update(dt: number, cam?: PerspectiveCamera): void {
     this.t += dt;
+    TREE_WIND.value = this.t;
     if (cam) {
       cam.updateMatrixWorld();
       frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));

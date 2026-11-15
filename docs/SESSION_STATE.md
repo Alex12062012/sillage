@@ -7,7 +7,7 @@ Branche `refonte-visuelle-2`, partie de `main`. Rien n'est poussé. Étapes : 1 
 Départ, palier bas, Pixel 7 émulé (triangles / draw calls) : Rousses 271 k / 49, Avoriaz 278 k / 31, village 255 k / 45. Captures de départ : `docs/captures/v2-avant/` (palier bas, profil mobile).
 
 - [x] 1. Lumière : clé d'ambiance de l'après-midi, horizon froid à l'opposé du soleil, brume teintée selon la direction et bleutée à mi-distance, aiguilles vertes. Après : Rousses 276 k / 50, Avoriaz 278 k / 31, village 260 k / 47 (même géométrie, la foule fait varier le total de 5 à 10 k). DECISIONS.md, point 96.
-- [ ] 2. Végétation
+- [x] 2. Végétation : conifère (épicéa, sapin) et arbre nu (feuillus, mélèzes), neige au pixel, vent, cônes lointains à 6 triangles, forêt plus dense au palier bas. Après : Rousses 269 k / 49, Avoriaz 280 k / 32, village 252 k / 48 ; moyen 514 k / 88 et élevé 790 k / 101 aux Rousses. DECISIONS.md, point 97.
 - [ ] 3. Bâtiments (Illico d'abord)
 - [ ] 4. Modèles
 - [ ] 5. Critique
