@@ -1,5 +1,6 @@
 import './style.css';
 import { NeutralToneMapping, WebGLRenderer } from 'three';
+import { autoTier as autoTierOf } from './core/tier';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
 import { applyRun, COSMETICS, emptySave, isUnlocked, loadSave, saveSave, totalStars, type Save, type Settings } from './sim/progress';
@@ -33,19 +34,18 @@ if (!storage.getItem('sillage.save.v1')) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) save.settings.comfort = true;
 }
 /**
- * The 'auto' tier, from the device: a weak or software GPU (or a small phone) gets low, other phones and tablets
- * medium, computers high. It then steps down by one if the frame rate stays low at the lowest resolution (loop).
+ * The 'auto' tier, from the device (src/core/tier.ts: prudent, high only on a clearly strong computer). It then steps
+ * down by one if the frame rate stays low at the lowest resolution (loop).
  */
 function detectTier(): 'low' | 'medium' | 'high' {
   const gl = document.createElement('canvas').getContext('webgl2');
   const ext = gl?.getExtension('WEBGL_debug_renderer_info');
   const gpu = String(gl && ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl?.getParameter(gl.RENDERER) ?? '');
   gl?.getExtension('WEBGL_lose_context')?.loseContext();
-  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
-  const touch = matchMedia('(pointer: coarse)').matches;
-  if (!gl || /SwiftShader|llvmpipe|Software|Mali-[GT]?[4-7]\d|Adreno \(TM\) [3-5]\d\d|PowerVR/i.test(gpu)) return 'low';
-  if (touch) return mem <= 4 || navigator.hardwareConcurrency <= 4 ? 'low' : 'medium';
-  return /Intel.*HD Graphics|Intel.*UHD Graphics [56]/i.test(gpu) ? 'medium' : 'high';
+  return autoTierOf({
+    webgl2: !!gl, gpu, touch: matchMedia('(pointer: coarse)').matches,
+    mem: (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8, cores: navigator.hardwareConcurrency ?? 4,
+  });
 }
 let autoTier = detectTier();
 let tier = save.settings.quality === 'auto' ? autoTier : save.settings.quality;
