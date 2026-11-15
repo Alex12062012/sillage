@@ -10,6 +10,16 @@ Branche `refonte-visuelle-3`, partie de `refonte-visuelle-2` (non fusionnée dan
 - [x] 4. Barrières : aucune barrière dans les données du dépôt ; filets seulement au bord d'une vraie falaise ou d'une route qui longe la piste, toujours avec une ouverture après chaque tronçon. Rousses 382 → 94, Avoriaz 761 → 205. Test du bot qui revient sur la piste. DECISIONS.md, point 108.
 - [x] 5. Modèles : bancs, râteliers, lampadaires (globe allumé le soir), cabanes de pisteurs, plans des pistes, cheminées ; placés par la simulation avec leur collider ; version lointaine par tuile, un seul draw call. Rousses 269 k / 52, Avoriaz 323 k / 32, village 248 k / 51. DECISIONS.md, point 109.
 
+- [x] Critique finale : avant 4/10, après 4,5/10, personnage 4/10. Corrigés : veste matelassée, cagoule, casque (faces inversées), ombre du joueur, croix des cabanes, lampadaires. DECISIONS.md, point 110.
+
+### Fin de session 4
+
+- Chiffres finaux, palier bas, Pixel 7 émulé, hors ligne (triangles / draw calls) : Rousses 271 k / 52, Avoriaz 325 k / 32, village 251 k / 51. Moyen Rousses 536 k / 90 (plafond), élevé 857 k / 103.
+- Personnage : construit en code, 6 360 / 9 716 / 15 520 triangles, 0 octet d'asset. Aucun candidat externe acceptable (point 106).
+- Reste : le personnage reste stylisé (pas photoréaliste) ; scène inchangée depuis la refonte 2 (critique : 4,5/10) ; plan des pistes sans texture ; pas d'écran de crédits (aucun asset CC-BY) ; Avoriaz en élevé à 30 FPS au p99.
+- Pièges : `perf.mjs` doit rester hors ligne (`&portal=http://127.0.0.1:9`), sinon les joueurs connectés faussent les chiffres. Les profils de `LatheGeometry` doivent monter (y croissant), sinon les faces sont inversées. Le palier moyen aux Rousses est à 90 draw calls : tout ajout passe par une couche existante. Les tests e2e réécrivent `docs/captures/e2e-*.jpg`.
+- Pas vérifié : un vrai téléphone ; les touches Z/S sur un vrai clavier AZERTY (lecture par `e.code`, même code physique que W en QWERTY : vérifié dans le code seulement) ; le personnage en mouvement à l'œil (captures à l'arrêt seulement).
+
 Usage : toujours aucun outil pour le mesurer.
 
 ## Session 3 (15/11/2026, autonomie) : refonte visuelle 2

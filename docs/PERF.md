@@ -1,5 +1,21 @@
 # PERF — mesures
 
+## Refonte visuelle 3 (15/11/2026, session autonome)
+
+Protocole inchangé (build de test, `scripts/perf.mjs`, scénarios fixes, M1, ANGLE Metal, profil Pixel 7 en paysage avec CPU ×4), avec un changement : les scènes restent hors ligne (portail injoignable). Avec de vrais joueurs connectés sur la station, la scène gagnait jusqu'à 10 k triangles et 3 draw calls, ce qui faussait les comparaisons d'une mesure à l'autre.
+
+| Scénario | Palier | Début de session (hors ligne) | Fin de session | Budget |
+|---|---|---|---|---|
+| Free ride Rousses | bas | 267 k / 52 | **269 k / 52** | 280 k / 60 |
+| Free ride Avoriaz (panorama) | bas | 322 k / 32 | **323 k / 32** | 450 k / 60 |
+| Vue village | bas | 242 k / 51 | **248 k / 51** | 280 k / 60 |
+| Free ride Rousses | moyen | 516 k / 90 | 533 k / 90 | — / 90 |
+| Free ride Rousses | élevé | 829 k / 103 | 851 k / 103 | — / 110 |
+
+- FPS : 60 de moyenne et 59,5 au p99 partout au palier bas. Avoriaz en élevé descend toujours à 30 au p99 (inchangé).
+- Personnage du joueur : 5 236 triangles en bas, 8 128 en moyen, 13 236 en élevé, 0 octet d'asset (construit en code). La foule garde le modèle de 5 016 triangles.
+- Le palier moyen aux Rousses reste pile au plafond de 90 draw calls : tout ce qui a été ajouté passe par des couches existantes.
+
 ## Refonte visuelle 2 : mesures (15/11/2026, session autonome)
 
 Même protocole que ci-dessous : build de test, `node scripts/perf.mjs --scenes=rousses,avoriaz,village`, scénarios fixes, MacBook M1, ANGLE Metal. Le GPU n'est pas bridé et le FPS reste plafonné à 60 : ces chiffres ne remplacent pas un vrai téléphone. La foule bouge, le total varie de 5 à 10 k d'une mesure à l'autre.

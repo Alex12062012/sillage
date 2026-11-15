@@ -185,6 +185,7 @@ export class SkierModel {
   /** `hero`: the player's detailed skier at that tier (skierHero.ts); the crowd keeps the light one. */
   constructor(colors: SkierColors = DEFAULT_COLORS, private hero: 'low' | 'medium' | 'high' | null = null) {
     this.look = colors;
+    if (hero) this.shadowMat.opacity = 0.42; // the player's shadow a little firmer: it carries the jumps
     const { geometry, slots } = hero ? buildHeroGeometry(hero) : buildSkierGeometry();
     this.slots = slots;
     this.colors = geometry.getAttribute('color') as BufferAttribute;

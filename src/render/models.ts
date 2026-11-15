@@ -201,11 +201,12 @@ export function skiRack(g: Geo, x: number, y: number, z: number, yaw: number, se
 export function lamp(g: Geo, x: number, y: number, z: number, yaw: number, far = false): void {
   const s = new Geo();
   if (far) { bar(s, [0, 0, 0], [0, 4.5, 0], 0.07, IRON); append(g, s, x, y, z, yaw); return; }
-  tube(s, 0, 0, 0, 4.4, 0.08, 0.05, 6, IRON);
-  bar(s, [0, 4.35, 0], [0, 4.45, 0.55], 0.03, IRON);
-  s.block(0, 4.25, 0.6, 0.32, 0.3, 0.32, IRON, SNOW);
-  for (const [a, b] of [[[-0.12, 4.08, 0.72], [0.12, 4.08, 0.72]], [[0.12, 4.08, 0.48], [-0.12, 4.08, 0.48]]] as const) {
-    s.quad([a[0], a[1], a[2]], [b[0], b[1], b[2]], [b[0], b[1] + 0.16, b[2]], [a[0], a[1] + 0.16, a[2]], WINDOW);
+  tube(s, 0, 0, 0, 4.4, 0.09, 0.06, 6, C(0x5b6576)); // a lighter grey: the black tube vanished against the trees
+  bar(s, [0, 4.35, 0], [0, 4.45, 0.55], 0.035, C(0x5b6576));
+  s.block(0, 4.25, 0.6, 0.42, 0.34, 0.42, C(0x5b6576), SNOW);
+  // the lantern under the head, its glass on four sides
+  for (const [a, b] of [[[-0.15, 3.86, 0.75], [0.15, 3.86, 0.75]], [[0.15, 3.86, 0.45], [-0.15, 3.86, 0.45]], [[0.15, 3.86, 0.75], [0.15, 3.86, 0.45]], [[-0.15, 3.86, 0.45], [-0.15, 3.86, 0.75]]] as const) {
+    s.quad([a[0], a[1], a[2]], [b[0], b[1], b[2]], [b[0], b[1] + 0.22, b[2]], [a[0], a[1] + 0.22, a[2]], WINDOW);
   }
   append(g, s, x, y, z, yaw);
 }
@@ -218,6 +219,10 @@ export function hut(g: Geo, x: number, y: number, z: number, yaw: number, far = 
   if (!far) {
     s.quad([0.3, 0, 1.26], [1.1, 0, 1.26], [1.1, 1.9, 1.26], [0.3, 1.9, 1.26], C(0xc8312b));
     s.quad([-1.1, 1.0, 1.26], [-0.3, 1.0, 1.26], [-0.3, 1.7, 1.26], [-1.1, 1.7, 1.26], WINDOW);
+    // the rescue sign on the gable: a white cross on red
+    s.quad([-0.45, 2.45, 1.27], [0.45, 2.45, 1.27], [0.45, 3.1, 1.27], [-0.45, 3.1, 1.27], C(0xc8312b));
+    s.quad([-0.08, 2.53, 1.28], [0.08, 2.53, 1.28], [0.08, 3.02, 1.28], [-0.08, 3.02, 1.28], WHITE);
+    s.quad([-0.28, 2.7, 1.28], [0.28, 2.7, 1.28], [0.28, 2.86, 1.28], [-0.28, 2.86, 1.28], WHITE);
   }
   append(g, s, x, y, z, yaw);
 }
