@@ -20,7 +20,7 @@ export function paint(g: BufferGeometry, fn: (x: number, y: number, z: number) =
 }
 
 const BARK = new Color(0x5a4636);
-const NEEDLE = new Color(0x2e5b52);
+const NEEDLE = new Color(0x40623f); // spruce green, not slate: the old teal read blue-black under the sky light
 const SNOW = new Color(0xeef3fa);
 
 /** One low-poly fir: trunk + three snow-capped tiers, 4.4 m tall, lower canopy radius 1.0 m. */

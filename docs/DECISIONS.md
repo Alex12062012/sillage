@@ -204,3 +204,19 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
     - Au tactile, les saltos sont inversés : pouces tirés vers l'arrière = salto arrière, poussés vers l'avant = salto avant. Le clavier est inchangé (↑ arrière, ↓ avant).
     - Depuis la pause, un toucher sur la mini-carte ouvre la carte des pistes ; la fermer ramène au menu pause.
 
+
+## Refonte visuelle 2 (branche `refonte-visuelle-2`, session autonome du 15/11/2026)
+
+95. **Décisions du commanditaire, prises avant la session.**
+    - Budget de triangles du palier bas : environ 280 k en jeu normal (piste, village), environ 450 k pour le panorama du sommet d'Avoriaz. C'est la deuxième voie proposée au point 91.
+    - Draw calls : 60 au plus au palier bas, 90 en moyen, 110 en élevé.
+    - Le Chalet du Lac n'est pas dans le jeu. Son style (`docs/restos/chalet-du-lac.md` et ses photos) sert de modèle à un archétype « chalet en rondins / restaurant bois » utilisé ailleurs.
+    - Illico Resto est dans le jeu : il est refait d'après `docs/restos/illico-resto.md` (ferme crépie, arche en pierre) et les 8 vues `sv_yaw*.jpg`.
+    - Les photos de `docs/restos/` servent à regarder. Elles n'entrent ni dans une texture ni dans le build.
+96. **Ciel et brume (étape 1).** Mesures de départ, palier bas, Pixel 7 émulé : Rousses 271 k / 49, Avoriaz 278 k / 31, village 255 k / 45. Comparaison faite avec 4 photos de Wikimedia Commons (Haut-Jura en hiver, Chasseral en hiver, épicéas enneigés, Avoriaz en décembre), gardées hors du dépôt.
+    - Nouvelle clé d'ambiance à t = 0,68 (15 h 10 en free ride) : zénith `#3f74c4`, horizon `#e6e4dc` presque neutre. Avant, 15 h 30 tombait entre midi et la golden hour, et tout le ciel virait au saumon. La golden hour garde un zénith bleu (`#3d66b4` au lieu de `#45559d`, qui tirait sur le violet) et prend l'horizon de la palette (`#f6b98a`).
+    - Dôme : l'horizon prend `uHorizon` vers le soleil et une teinte plus pâle et plus froide à l'opposé (`fogAway`). Le dégradé passe de l'horizon à un bleu pâle dans une bande fine (plus large vers un soleil bas), puis fonce jusqu'au zénith. Mélanger directement l'horizon chaud et le bleu donnait un ciel mauve.
+    - Brume : même loi que le dôme, selon la direction du regard, pour que le relief lointain se fonde dans l'horizon de sa propre direction. Tant qu'elle est fine, la brume est plus bleue (`fogHaze`, entre le zénith et l'horizon) : les versants lointains bleuissent d'abord, puis pâlissent. Aucune passe, quelques opérations par pixel dans le chunk de brouillard déjà patché. Sans ciel (`fogSun` nul), la brume reste la couleur unique d'avant.
+    - Piège rencontré : le produit scalaire normalisé dépassait parfois [-1, 1] d'un cheveu, et `sqrt` d'un nombre négatif rendait des pixels noirs (les sièges d'un télésiège lointain dans le ciel). `toward` est maintenant borné à [0, 1].
+    - Aiguilles des sapins : `#2e5b52` (bleu canard, presque noir sous la lumière du ciel) devient `#40623f`, un vert d'épicéa. L'étape 2 refait les arbres.
+    - Aucun triangle ni draw call en plus.

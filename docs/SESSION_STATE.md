@@ -1,5 +1,19 @@
 # État de session : refonte visuelle
 
+## Session 3 (15/11/2026, autonomie) : refonte visuelle 2
+
+Branche `refonte-visuelle-2`, partie de `main`. Rien n'est poussé. Étapes : 1 lumière, 2 végétation, 3 bâtiments, 4 modèles, 5 critique.
+
+Départ, palier bas, Pixel 7 émulé (triangles / draw calls) : Rousses 271 k / 49, Avoriaz 278 k / 31, village 255 k / 45. Captures de départ : `docs/captures/v2-avant/` (palier bas, profil mobile).
+
+- [x] 1. Lumière : clé d'ambiance de l'après-midi, horizon froid à l'opposé du soleil, brume teintée selon la direction et bleutée à mi-distance, aiguilles vertes. Après : Rousses 276 k / 50, Avoriaz 278 k / 31, village 260 k / 47 (même géométrie, la foule fait varier le total de 5 à 10 k). DECISIONS.md, point 96.
+- [ ] 2. Végétation
+- [ ] 3. Bâtiments (Illico d'abord)
+- [ ] 4. Modèles
+- [ ] 5. Critique
+
+Usage : aucun outil de la session n'en donne le pourcentage (vérifié au début : rien dans `~/.claude`).
+
 ## Session 2 (15/11/2026, autonomie) : couche lumière
 
 Étapes : 1 draw calls, 2 paliers, 3 lumière de base, 4 ombres, 5 neige, 6 remesure, 7 critique.
