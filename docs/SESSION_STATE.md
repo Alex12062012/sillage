@@ -12,6 +12,10 @@ Départ, palier bas, Pixel 7 émulé (triangles / draw calls) : Rousses 271 k / 
 - [x] 4. Modèles : sièges, pylônes, gares, piquets refaits ; panneaux, filets, canons à neige, dameuses garées et protections de pylônes ajoutés, dans une seule couche à tuiles. Après : Rousses 259 k / 52, Avoriaz 300 k / 32, village 237 k / 51 ; moyen Rousses 471 k / 90 ; élevé Avoriaz 2 377 k / 57. DECISIONS.md, point 99. `docs/CREDITS.md` créé (aucun asset externe).
 - [x] 5. Critique (un sous-agent) : avant 5/10, après 5,5/10. Corrigés : ambiance plus chaude, forêt plus dense, canon lisible, bande d'horizon adoucie. Non corrigés : neige plate (pas d'ombres portées au palier bas), Illico jugé trop sobre (gardé fidèle à la fiche). DECISIONS.md, point 100.
 
+### Suite (points restants)
+
+- [x] Ombres des lisières dans les ombres du relief (DECISIONS.md, point 101). Palier bas inchangé en triangles : Rousses 267 k / 52, Avoriaz 322 k / 32, village 242 k / 51.
+
 ### Fin de session 3
 
 - Chiffres finaux, profil mobile, triangles / draw calls : bas Rousses 267 k / 52, Avoriaz 322 k / 32, village 242 k / 51 ; moyen 516 k / 90, 1 422 k / 44, 354 k / 61 ; élevé 829 k / 103, 2 442 k / 57, 597 k / 74. Tableau complet : PERF.md.

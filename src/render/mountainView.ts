@@ -379,6 +379,8 @@ export class MountainView {
   private relief: { data: Uint8Array; nx: number; nz: number; tex: DataTexture; dir: Vector3; next: Vector3 | null; row: number };
   /** Time (ms) of the first, whole relief bake (at the first frame). */
   reliefMs = 0;
+  /** Tree tops over the 10 m grid (m above the ground, 0 without a tree): the forest edges cast their shadows too. */
+  private canopy: Float32Array = new Float32Array(0);
   /** Time (ms) to find the pistes' directions for the corduroy (at load). */
   groomMs = 0;
   private lastDir = new Vector3();
@@ -467,6 +469,15 @@ export class MountainView {
     let yLo = Infinity, yHi = -Infinity;
     const ys = all.map((o) => { const y = m.height(o.x, o.z); yLo = Math.min(yLo, y); yHi = Math.max(yHi, y); return y; });
     const alps = m.station.id === 'avoriaz';
+    {
+      // the trees' tops for the relief's shadows (bakeRelief): long shadows of the forest edges across the pistes
+      const G = m.grid;
+      this.canopy = new Float32Array(G.nx * G.nz);
+      for (const o of all) {
+        const i = Math.round((o.x - G.x0) / G.step), j = Math.round((o.z - G.z0) / G.step);
+        if (i >= 0 && j >= 0 && i < G.nx && j < G.nz) this.canopy[j * G.nx + i] = Math.max(this.canopy[j * G.nx + i], o.h * 0.85);
+      }
+    }
     const kinds: { list: number[]; near: BufferGeometry; far: BufferGeometry; snow: number }[] = [
       { list: [], near: coniferNear(), far: coniferFar(), snow: 0.9 },
       { list: [], near: bareNear(), far: bareFar(), snow: 0.55 },
@@ -842,18 +853,21 @@ export class MountainView {
   }
 
   private bakeRelief(rows: number): void {
-    const r = this.relief, G = this.m.grid, d = r.next!, h = G.h;
+    const r = this.relief, G = this.m.grid, d = r.next!, h = G.h, cp = this.canopy;
     const len = Math.hypot(d.x, d.z) || 1, dx = d.x / len / G.step, dz = d.z / len / G.step, tanE = d.y / len;
     for (const end = Math.min(r.nz, r.row + rows); r.row < end; r.row++) {
       const gj = r.row * 2;
       for (let i = 0; i < r.nx; i++) {
-        const gi = i * 2, h0 = h[gj * G.nx + gi];
+        const gi = i * 2, h0 = h[gj * G.nx + gi], k0 = gj * G.nx + gi;
+        // under the trees (a tree on the node or next to it), only the ground shades: the crowns stand in the sun
+        const open = !(cp[k0] || cp[k0 - 1] || cp[k0 + 1] || cp[k0 - G.nx] || cp[k0 + G.nx]);
         let worst = -1;
         // march towards the sun, 15 m to 3 km, steps growing by 20 %: the steepest rise seen is the horizon
+        // (the ground and the tree tops on it: a forest edge 20 m high shades ~65 m of snow at 17° of sun)
         for (let s = 15; s < 3000; s *= 1.2) {
           const x = Math.round(gi + dx * s), z = Math.round(gj + dz * s);
           if (x < 0 || z < 0 || x >= G.nx || z >= G.nz) break;
-          const rise = (h[z * G.nx + x] - h0) / s;
+          const k = z * G.nx + x, rise = (h[k] + (open ? cp[k] : 0) - h0) / s;
           if (rise > worst) worst = rise;
         }
         r.data[r.row * r.nx + i] = Math.round(255 * Math.min(1, Math.max(0, (tanE - worst) / 0.08 + 0.5))); // soft edge
