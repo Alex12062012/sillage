@@ -107,7 +107,7 @@ export class Game {
   skier!: SkierState;
   run!: RunState;
   flow: FlowState = createFlow();
-  private model = new SkierModel();
+  private model = new SkierModel(undefined, 'low'); // the player's detailed skier, set to the graphics level in setQuality
   private fx = new SnowFx();
   private flakes = new Flakes(T.flakeCount);
   private trails = new SkiTrails();
@@ -690,6 +690,7 @@ export class Game {
 
   /** Graphics level: view distance + fog, falling snow density, snow fx budget. */
   setQuality(q: 'low' | 'medium' | 'high'): void {
+    this.model.setDetail(q);
     const view = { low: 300, medium: 390, high: 470 }[q];
     if (this.terrain) this.terrain.viewDistance = view;
     this.viewDistance = view;

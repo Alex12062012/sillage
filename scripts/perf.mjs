@@ -21,10 +21,11 @@ const PROFILES = {
 const SCENES = {
   // Les Rousses, down the Jouvenceaux pistes into the village: forest, lifts, crowd, buildings
   // Fixed scenes (same spot, same camera, skier braking on the spot): the triangle count is comparable run to run.
-  rousses: { q: '?station=rousses', run: () => { const a = window.__sillage, g = a.raw(); g.unload(g.mountain.unload(9)); g.phase = 'running'; a.drive({ brake: true }); } },
+  // An unreachable portal keeps them offline: real players on the station would add skiers to the scene.
+  rousses: { q: '?station=rousses&portal=http://127.0.0.1:9', run: () => { const a = window.__sillage, g = a.raw(); g.unload(g.mountain.unload(9)); g.phase = 'running'; a.drive({ brake: true }); } },
   // standing in the village at the foot of the lifts, looking at it (the densest view of buildings and people)
-  village: { q: '?station=rousses', run: () => { const a = window.__sillage; a.spot(-1549.5, -1710.5, 2.36); a.drive({ brake: true }); } },
-  avoriaz: { q: '?station=avoriaz', run: () => { const a = window.__sillage, g = a.raw(); g.toSummit(); a.drive({ brake: true }); } },
+  village: { q: '?station=rousses&portal=http://127.0.0.1:9', run: () => { const a = window.__sillage; a.spot(-1549.5, -1710.5, 2.36); a.drive({ brake: true }); } },
+  avoriaz: { q: '?station=avoriaz&portal=http://127.0.0.1:9', run: () => { const a = window.__sillage, g = a.raw(); g.toSummit(); a.drive({ brake: true }); } },
   arcade: { q: '', run: () => { const a = window.__sillage; a.play('couloir-noir'); a.autopilot(65); } },
 };
 const profiles = opt('profiles', 'desktop,mobile').split(',').map((p) => PROFILES[p]);

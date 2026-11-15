@@ -9,6 +9,7 @@ import {
   ANKLE, B, BONES, buildSkierGeometry, FOREARM, GRIP, HIP_W, NECK, POLE, S, SHIN, SHOULDER, SLOTS, SPINE_LOW, SPINE_MID, THIGH,
   UPPER_ARM,
 } from './skierMesh';
+import { buildHeroGeometry, heroMaterial } from './skierHero';
 
 export interface SkierColors { jacket: number; pants: number; helmet: number; skis: number }
 export const DEFAULT_COLORS: SkierColors = { jacket: 0xff6b4a, pants: 0x2b3a55, helmet: 0xf4f6fa, skis: 0x3a7bd5 };
@@ -179,8 +180,12 @@ export class SkierModel {
   private qU = new Quaternion();
   private qH = new Quaternion();
 
-  constructor(colors: SkierColors = DEFAULT_COLORS) {
-    const { geometry, slots } = buildSkierGeometry();
+  private look: SkierColors;
+
+  /** `hero`: the player's detailed skier at that tier (skierHero.ts); the crowd keeps the light one. */
+  constructor(colors: SkierColors = DEFAULT_COLORS, private hero: 'low' | 'medium' | 'high' | null = null) {
+    this.look = colors;
+    const { geometry, slots } = hero ? buildHeroGeometry(hero) : buildSkierGeometry();
     this.slots = slots;
     this.colors = geometry.getAttribute('color') as BufferAttribute;
     for (let i = 0; i < BONES; i++) {
@@ -189,7 +194,7 @@ export class SkierModel {
       this.bones.push(b);
     }
     const skeleton = new Skeleton(this.bones, this.bones.map(() => new Matrix4()));
-    this.mesh = new SkinnedMesh(geometry, [new MeshLambertMaterial({ vertexColors: true }), new MeshBasicMaterial({ vertexColors: true })]);
+    this.mesh = new SkinnedMesh(geometry, [hero ? heroMaterial() : new MeshLambertMaterial({ vertexColors: true }), new MeshBasicMaterial({ vertexColors: true })]);
     this.mesh.add(...this.bones);
     this.mesh.bind(skeleton, new Matrix4());
     this.mesh.frustumCulled = false;
@@ -209,7 +214,20 @@ export class SkierModel {
     this.setColors(colors);
   }
 
+  /** The hero's tier (graphics level): the same skeleton, a lighter or finer body. */
+  setDetail(tier: 'low' | 'medium' | 'high'): void {
+    if (!this.hero || tier === this.hero) return;
+    this.hero = tier;
+    const { geometry, slots } = buildHeroGeometry(tier), old = this.mesh.geometry;
+    this.mesh.geometry = this.shadow.geometry = geometry;
+    this.slots = slots;
+    this.colors = geometry.getAttribute('color') as BufferAttribute;
+    this.setColors(this.look);
+    old.dispose();
+  }
+
   setColors(c: SkierColors): void {
+    this.look = c;
     const p = this.palette;
     p[S.jacket].setHex(c.jacket);
     p[S.pants].setHex(c.pants);

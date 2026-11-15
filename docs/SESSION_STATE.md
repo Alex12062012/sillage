@@ -5,7 +5,7 @@
 Branche `refonte-visuelle-3`, partie de `refonte-visuelle-2` (non fusionnée dans `main`). On peut pousser la branche de travail (prévisualisation Vercel), jamais `main`. Points : 1 touches PC, 2 personnage réaliste, 3 collisions, 4 barrières, 5 modèles variés.
 
 - [x] 1. Touches PC : Z/W = salto avant, S = salto arrière en l'air (sol inchangé), flèches inchangées, tutoriel PC mis à jour ; bouton Ride agrandi à droite, mi-hauteur, sur ordinateur seulement. DECISIONS.md, point 105.
-- [ ] 2. Personnage réaliste
+- [x] 2. Personnage : aucun candidat externe acceptable (compte Sketchfab requis, modèles stylisés ou scan d'une personne réelle, Mixamo non CC) ; personnage refait en code sur le même squelette, matières PBR, 5,2 k / 8,1 k / 13,2 k triangles selon le palier. Gain modeste, pas photoréaliste. `perf.mjs` hors ligne. DECISIONS.md, point 106.
 - [ ] 3. Collisions (dameuse de départ à déplacer : elle est garée dans la file du Jouvenceaux)
 - [ ] 4. Barrières et filets
 - [ ] 5. Modèles variés
