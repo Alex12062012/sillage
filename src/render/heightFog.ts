@@ -26,11 +26,7 @@ export function addHeightFog(sh: { uniforms: Record<string, unknown>; vertexShad
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec2 vReliefW;')
     .replace('#include <project_vertex>', `#include <project_vertex>
-    #ifdef USE_INSTANCING
-      vReliefW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xz;
-    #else
-      vReliefW = (modelMatrix * vec4(transformed, 1.0)).xz;
-    #endif`);
+    vReliefW = (vec4(mvPosition.xyz, 0.0) * viewMatrix).xz + cameraPosition.xz; // world xz (see fog_vertex)`);
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', '#include <common>\nvarying vec2 vReliefW;\nuniform sampler2D uRelief;\nuniform vec4 uReliefRect;\nuniform float uReliefOn;')
     .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
@@ -49,11 +45,9 @@ ShaderChunk.fog_pars_vertex = /* glsl */ `
 ShaderChunk.fog_vertex = /* glsl */ `
 #ifdef USE_FOG
   vFogDepth = - mvPosition.z;
-  #ifdef USE_INSTANCING
-    vFogY = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).y;
-  #else
-    vFogY = (modelMatrix * vec4(transformed, 1.0)).y;
-  #endif
+  // world height from the view-space position (every shader has mvPosition, sprites have no 'transformed'):
+  // world = transpose(view rotation) × view position + camera position; instancing is already in mvPosition
+  vFogY = ( vec4( mvPosition.xyz, 0.0 ) * viewMatrix ).y + cameraPosition.y;
 #endif`;
 ShaderChunk.fog_pars_fragment = /* glsl */ `
 #ifdef USE_FOG
