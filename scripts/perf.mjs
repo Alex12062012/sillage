@@ -1,6 +1,6 @@
 // FPS / draw calls / triangles / JS heap / GPU objects on the production build, per graphics tier, for PERF.md.
 // Usage: node scripts/perf.mjs [--url=http://localhost:4180/] [--tiers=low,medium,high] [--profiles=desktop,mobile,lowend]
-//        [--scenes=rousses,village,avoriaz,arcade] [--seconds=10] [--json=out.json]
+//        [--scenes=rousses,village,avoriaz,arcade] [--seconds=10] [--json=out.json] [--breakdown]
 // Needs `npm run build:test && npm run preview`. "mobile" = Pixel 7 viewport and DPR, CPU throttled ×4 (Lighthouse's mid-range phone);
 // "lowend" = the same at ×6. The GPU is NOT throttled: see docs/PERF.md for what that leaves unverified.
 import { chromium, devices } from '@playwright/test';
@@ -20,10 +20,11 @@ const PROFILES = {
 /** Each scene: the page to open and what the bot does there. */
 const SCENES = {
   // Les Rousses, down the Jouvenceaux pistes into the village: forest, lifts, crowd, buildings
-  rousses: { q: '?station=rousses', run: () => { const a = window.__sillage, g = a.raw(); g.unload(g.mountain.unload(9)); g.phase = 'running'; a.autopilot(60); } },
+  // Fixed scenes (same spot, same camera, skier braking on the spot): the triangle count is comparable run to run.
+  rousses: { q: '?station=rousses', run: () => { const a = window.__sillage, g = a.raw(); g.unload(g.mountain.unload(9)); g.phase = 'running'; a.drive({ brake: true }); } },
   // standing in the village at the foot of the lifts, looking at it (the densest view of buildings and people)
   village: { q: '?station=rousses', run: () => { const a = window.__sillage; a.spot(-1549.5, -1710.5, 2.36); a.drive({ brake: true }); } },
-  avoriaz: { q: '?station=avoriaz', run: () => { const a = window.__sillage, g = a.raw(); g.toSummit(); a.autopilot(60); } },
+  avoriaz: { q: '?station=avoriaz', run: () => { const a = window.__sillage, g = a.raw(); g.toSummit(); a.drive({ brake: true }); } },
   arcade: { q: '', run: () => { const a = window.__sillage; a.play('couloir-noir'); a.autopilot(65); } },
 };
 const profiles = opt('profiles', 'desktop,mobile').split(',').map((p) => PROFILES[p]);
@@ -52,7 +53,7 @@ for (const p of profiles) {
           if (p.cpu > 1) await (await context.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: p.cpu });
           await page.evaluate(SCENES[sc].run);
           await page.waitForTimeout(3000); // settle: shaders compiled, patches built, adaptive resolution found its level
-          const m = await page.evaluate(async (secs) => {
+          const m = await page.evaluate(async ([secs, breakdown]) => {
             const times = [];
             let last = performance.now();
             await new Promise((resolve) => {
@@ -73,10 +74,29 @@ for (const p of profiles) {
               calls: st.calls, tris: st.tris, dpr: st.dpr, heap: performance.memory ? performance.memory.usedJSHeapSize / 1048576 : 0,
               geometries: info.memory.geometries, textures: info.memory.textures, programs: info.programs?.length ?? 0,
               resolved: window.__sillage.tier?.() ?? null,
+              parts: breakdown ? (() => {
+                // triangles per top-level object: hide it, render, take the difference
+                const g = window.__sillage.raw(), r = g.renderer, out = [];
+                const tri = () => { r.render(g.scene, g.cam.camera); return r.info.render.triangles; };
+                const all = tri();
+                const walk = (o, depth) => {
+                  for (const c of o.children) {
+                    if (!c.visible) continue;
+                    c.visible = false; const d = all - tri(); c.visible = true;
+                    if (d < 2000) continue;
+                    out.push({ name: '  '.repeat(depth) + (c.name || c.type) + (c.isInstancedMesh ? `[${c.count}]` : '') + (c.children.length ? ` (${c.children.length})` : ''), tris: d });
+                    if (depth < 2 && c.children.length) walk(c, depth + 1);
+                  }
+                };
+                walk(g.scene, 0);
+                return out;
+              })() : null,
             };
-          }, seconds);
+          }, [seconds, args.includes('--breakdown')]);
           rows.push({ profile: p.name, tier, scene: sc, loadMs, ...m, errors: errors.length });
-          console.log(JSON.stringify(rows[rows.length - 1], (k, v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v)));
+          const { parts, ...shown } = rows[rows.length - 1];
+          console.log(JSON.stringify(shown, (k, v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v)));
+          if (parts) for (const x of parts) console.log(`    ${x.name}: ${Math.round(x.tris / 1000)} k`);
           if (errors.length) console.log('  PAGE ERRORS:', errors.slice(0, 3).join(' | '));
           attempt = 2;
         } catch (e) {

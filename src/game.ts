@@ -649,6 +649,11 @@ export class Game {
     this.flakes.points.geometry.setDrawRange(0, Math.round(T.flakeCount * { low: 0.4, medium: 0.7, high: 1 }[q]));
     this.quality = q;
     this.view?.setQuality(q);
+    if (this.crowd) {
+      // palier bas : 12 corps au plus (les plus proches), ombre portée seulement à moins de 80 m
+      this.crowd.bodies = q === 'low' ? 12 : 24;
+      this.crowd.shadowReach = q === 'low' ? 80 : Infinity;
+    }
     this.fx.setQuality(q);
     this.sparkle?.setQuality(q);
   }
@@ -691,7 +696,7 @@ export class Game {
       if (p.fov && c.fov !== p.fov) { c.fov = p.fov; c.updateProjectionMatrix(); }
     }
     this.terrain?.update(this.cam.camera.position.z, 1);
-    this.view?.update(gdt);
+    this.view?.update(gdt, this.cam.camera);
     this.crowd?.update(gdt, this.sky.sunDirection, this.cam.camera.position);
     this.others?.update(gdt, this.sky.sunDirection);
     if (this.online) {

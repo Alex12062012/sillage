@@ -1,6 +1,7 @@
 import {
-  BoxGeometry, BufferAttribute, BufferGeometry, Color, CylinderGeometry, Float32BufferAttribute, Group,
-  IcosahedronGeometry, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial, Quaternion, Vector3, Vector4,
+  Box3, BoxGeometry, BufferAttribute, BufferGeometry, Color, CylinderGeometry, DynamicDrawUsage, Float32BufferAttribute, Frustum, Group,
+  IcosahedronGeometry, InstancedBufferAttribute, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshLambertMaterial,
+  PerspectiveCamera, Quaternion, Sphere, Vector3, Vector4,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { fbm } from '../core/rng';
@@ -70,6 +71,109 @@ function gridMesh(nx: number, nz: number, pos: Float32Array, col: Float32Array, 
   g.setIndex(new BufferAttribute(idx, 1));
   g.computeVertexNormals();
   return new Mesh(g, mat);
+}
+
+/**
+ * The same grid as several meshes sharing its vertices, `cells` × `cells` cells each, so that the camera
+ * culls the tiles behind it (the whole massif in one mesh was always drawn, even behind the skier).
+ * Each tile also has a far version on every other vertex (a quarter of the triangles): userData.lod = [near, far].
+ */
+function tileGrid(src: Mesh, nx: number, nz: number, cells: number): Group {
+  const quads = (i0: number, i1: number, j0: number, j1: number, step: number): Uint32Array => {
+    const out: number[] = [];
+    for (let j = j0; j < j1; j += step) {
+      for (let i = i0; i < i1; i += step) {
+        const jn = Math.min(j + step, j1), inx = Math.min(i + step, i1);
+        const a = j * nx + i, b = jn * nx + i, c = j * nx + inx, d = jn * nx + inx;
+        out.push(a, b, c, c, b, d);
+      }
+    }
+    return new Uint32Array(out);
+  };
+  const out = new Group(), attrs = src.geometry.attributes, p = attrs.position, box = new Box3(), v = new Vector3();
+  for (let j0 = 0; j0 < nz - 1; j0 += cells) {
+    for (let i0 = 0; i0 < nx - 1; i0 += cells) {
+      const j1 = Math.min(j0 + cells, nz - 1), i1 = Math.min(i0 + cells, nx - 1);
+      box.makeEmpty();
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) box.expandByPoint(v.fromBufferAttribute(p, j * nx + i));
+      const sphere = box.expandByScalar(60).getBoundingSphere(new Sphere()); // margin: the detail patch bends the heights a little
+      const lod = [1, 2].map((step) => {
+        const g = new BufferGeometry();
+        for (const name in attrs) g.setAttribute(name, attrs[name]);
+        g.setIndex(new BufferAttribute(quads(i0, i1, j0, j1, step), 1));
+        g.boundingSphere = sphere;
+        return g;
+      });
+      const tile = new Mesh(lod[0], src.material);
+      tile.userData.lod = lod;
+      out.add(tile);
+    }
+  }
+  return out;
+}
+
+const sph = new Sphere();
+const viewProj = new Matrix4();
+/** The camera's frustum, every frame (lift cabins), and a wider one refreshed now and then (trees, poles). */
+const frustum = new Frustum();
+const wide = new Frustum();
+const wideCam = new PerspectiveCamera();
+
+/**
+ * Static instances (trees, piste poles) refilled with only those in the (wide) frustum, through two meshes:
+ * the detailed geometry up to `near` m, the simple one beyond (or nothing, without one). Two draw calls whatever
+ * the size of the mountain: one instanced mesh over the whole massif was always drawn whole, behind the skier too.
+ */
+class Culled {
+  readonly far: InstancedMesh | null;
+  /** How many instances are drawn at all: a prefix of the list, which is shuffled, so it thins evenly. */
+  total: number;
+  readonly size: number;
+  near = Infinity;
+  dirty = true;
+  private mats: Float32Array;
+  private cols: Float32Array | null;
+
+  /** `radius`: of a sphere around each instance's origin that holds it. */
+  constructor(readonly mesh: InstancedMesh, farGeo: BufferGeometry | null, private radius: number) {
+    this.size = this.total = mesh.count;
+    this.mats = mesh.instanceMatrix.array.slice() as Float32Array;
+    this.cols = (mesh.instanceColor?.array.slice() as Float32Array | undefined) ?? null;
+    this.far = farGeo ? new InstancedMesh(farGeo, mesh.material, this.size) : null;
+    for (const im of this.meshes) {
+      im.frustumCulled = false;
+      im.instanceMatrix.setUsage(DynamicDrawUsage);
+      if (this.cols && !im.instanceColor) im.instanceColor = new InstancedBufferAttribute(new Float32Array(this.size * 3), 3);
+    }
+  }
+
+  get meshes(): InstancedMesh[] {
+    return this.far ? [this.mesh, this.far] : [this.mesh];
+  }
+
+  update(cam: Vector3): void {
+    this.dirty = false;
+    const r = this.radius, near2 = this.near * this.near, M = this.mats, C = this.cols;
+    const out = [this.mesh, this.far];
+    const n = [0, 0];
+    for (let i = 0; i < this.total; i++) {
+      const o = i * 16, x = M[o + 12], y = M[o + 13], z = M[o + 14];
+      if (!wide.intersectsSphere(sph.set(p3.set(x, y, z), r))) continue;
+      const k = (x - cam.x) ** 2 + (z - cam.z) ** 2 > near2 ? 1 : 0;
+      const im = out[k];
+      if (!im) continue;
+      (im.instanceMatrix.array as Float32Array).set(M.subarray(o, o + 16), n[k] * 16);
+      if (C) (im.instanceColor!.array as Float32Array).set(C.subarray(i * 3, i * 3 + 3), n[k] * 3);
+      n[k]++;
+    }
+    for (let k = 0; k < 2; k++) {
+      const im = out[k];
+      if (!im) continue;
+      im.count = n[k];
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    }
+  }
 }
 
 /**
@@ -220,7 +324,14 @@ export class MountainView {
   private details: [Detail, Detail];
   private shown: Detail | null = null;
   private building: Detail | null = null;
-  private trees: InstancedMesh[] = [];
+  private trees: Culled[] = [];
+  private poles: Culled;
+  private fineTiles: Group;
+  private coarseTiles: Group;
+  /** Palier bas : les tuiles du massif plus loin que ça prennent leur version lointaine. */
+  private terrainFar = Infinity;
+  private lastCam = new Vector3(Infinity, 0, 0);
+  private lastDir = new Vector3();
   private riderChair: Mesh;
   private riderCabin: Mesh;
   private riderPerch: Mesh;
@@ -241,8 +352,12 @@ export class MountainView {
     };
     this.fine = terrainMesh(m, 1, this.massif);
     this.coarse = terrainMesh(m, 2, this.massif); // phones: a quarter of the triangles
-    this.coarse.visible = false;
-    this.group.add(this.fine, this.coarse, aroundMesh(m, this.material));
+    // drawn as tiles sharing their vertices; the whole meshes stay for the heights and colours (massifAt)
+    const G = m.grid, A = m.around;
+    this.fineTiles = tileGrid(this.fine, G.nx, G.nz, 128); // 1.3 km tiles: few draw calls
+    this.coarseTiles = tileGrid(this.coarse, Math.floor((G.nx - 1) / 2) + 1, Math.floor((G.nz - 1) / 2) + 1, 64);
+    this.coarseTiles.visible = false;
+    this.group.add(this.fineTiles, this.coarseTiles, tileGrid(aroundMesh(m, this.material), A.nx, A.nz, Math.ceil(Math.max(A.nx, A.nz) / 6)));
     const detail = (): Detail => {
       const pos = new Float32Array(DETAIL_N * DETAIL_N * 3), col = new Float32Array(DETAIL_N * DETAIL_N * 3);
       const mesh = gridMesh(DETAIL_N, DETAIL_N, pos, col, this.material);
@@ -255,16 +370,16 @@ export class MountainView {
     // spruces: shuffled, so any prefix (lower quality) is an even thinning; tall and slim
     const flat = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
     const all = m.obstaclesBetween(-1e5, 1e5).filter((o) => o.kind === 'tree').sort((a, b) => ((a.id * 0.618) % 1) - ((b.id * 0.618) % 1));
-    for (const [geo, list] of [[treeGeometry(), all.filter((o) => o.h < DEEP)], [treeGeometryLow(), all.filter((o) => o.h >= DEEP)]] as const) {
+    for (const [geo, far, list] of [[treeGeometry(), treeGeometryLow(), all.filter((o) => o.h < DEEP)], [treeGeometryLow(), null, all.filter((o) => o.h >= DEEP)]] as const) {
       const im = new InstancedMesh(geo, flat, list.length);
       list.forEach((o, i) => {
         q.setFromAxisAngle(up, (o.id * 2.39) % (Math.PI * 2));
         const s = o.h / 4.4;
         im.setMatrixAt(i, m4.compose(p3.set(o.x, m.height(o.x, o.z) - 0.3, o.z), q, s3.set(s * 0.72, s, s * 0.72)));
       });
-      im.computeBoundingSphere();
-      this.trees.push(im);
-      this.group.add(im);
+      const t = new Culled(im, far, 25);
+      this.trees.push(t);
+      this.group.add(...t.meshes);
     }
 
     // piste poles: both edges every 30 m, coloured by difficulty (none standing in another piste)
@@ -284,6 +399,7 @@ export class MountainView {
       poles.setMatrixAt(i, m4.compose(p3.set(x, m.height(x, z), z), q.identity(), s3.set(1, 1, 1)));
       poles.setColorAt(i, c);
     });
+    this.poles = new Culled(poles, null, 3);
     this.group.add(poles);
 
     // lifts: a tower at every OSM pylon (and every 120 / 80 / 220 m between), cables, stations
@@ -463,10 +579,18 @@ export class MountainView {
 
   /** Phones: coarser terrain and a thinner forest. */
   setQuality(q: 'low' | 'medium' | 'high'): void {
-    this.fine.visible = q === 'high';
-    this.coarse.visible = q !== 'high';
+    this.fineTiles.visible = q === 'high';
+    this.coarseTiles.visible = q !== 'high';
+    this.terrainFar = q === 'low' ? 1000 : Infinity;
     this.every = q === 'high' ? 1 : 2; // the detail patch, bent onto the other mesh, is rebuilt at the next focus()
-    for (const t of this.trees) t.count = Math.round(t.instanceMatrix.count * { low: 0.3, medium: 0.5, high: 1 }[q]);
+    // palier bas : sapins simplifiés au-delà de 200 m (comme le mode arcade), piquets au-delà de 700 m (moins d'un pixel)
+    for (const t of this.trees) {
+      t.total = Math.round(t.size * { low: 0.3, medium: 0.5, high: 1 }[q]);
+      t.near = q === 'low' ? 200 : Infinity;
+      t.dirty = true;
+    }
+    this.poles.near = q === 'low' ? 700 : Infinity;
+    this.poles.dirty = true;
   }
 
   /** Height of the snow as drawn at (x, z): the detail patch near the skier, the massif's triangles beyond. */
@@ -588,8 +712,29 @@ export class MountainView {
     this.riderChair.visible = this.riderCabin.visible = this.riderPerch.visible = false;
   }
 
-  update(dt: number): void {
+  update(dt: number, cam?: PerspectiveCamera): void {
     this.t += dt;
+    if (cam) {
+      cam.updateMatrixWorld();
+      frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+      for (const t of this.coarseTiles.children as Mesh[]) {
+        const s = t.geometry.boundingSphere!, lod = t.userData.lod as BufferGeometry[];
+        t.geometry = lod[s.center.distanceTo(cam.position) - s.radius > this.terrainFar ? 1 : 0];
+      }
+      // trees and poles: refilled when the camera has moved 10 m or turned 8°, against a frustum 24° wider
+      cam.getWorldDirection(tmp);
+      const moved = cam.position.distanceToSquared(this.lastCam) > 100 || tmp.dot(this.lastDir) < 0.99;
+      if (moved || this.poles.dirty || this.trees.some((t) => t.dirty)) {
+        this.lastCam.copy(cam.position);
+        this.lastDir.copy(tmp);
+        wideCam.copy(cam);
+        wideCam.fov = Math.min(150, cam.fov + 24);
+        wideCam.updateProjectionMatrix();
+        wide.setFromProjectionMatrix(viewProj.multiplyMatrices(wideCam.projectionMatrix, cam.matrixWorldInverse));
+        for (const t of this.trees) t.update(cam.position);
+        this.poles.update(cam.position);
+      }
+    }
     let c = 0, d = 0, g = 0;
     for (const v of this.lifts) {
       const kind = v.lift.kind;
@@ -601,12 +746,16 @@ export class MountainView {
         const goingUp = s < v.lift.len;
         const f = goingUp ? s / v.lift.len : 2 - s / v.lift.len;
         this.cablePoint(v, f, goingUp ? 1 : -1, p3);
+        if (cam && !frustum.intersectsSphere(sph.set(p3, 8))) continue; // out of sight: not drawn
         q.setFromAxisAngle(up, this.yawAt(v, f) + (goingUp ? 0 : Math.PI));
         if (kind === 'chair') this.chairs.setMatrixAt(c++, m4.compose(p3, q, s3.set(Math.max(1, v.lift.seats / 3), 1, 1)));
         else if (kind === 'gondola') this.cabins.setMatrixAt(g++, m4.compose(p3, q, s3.setScalar(v.spec.cabin)));
         else this.perches.setMatrixAt(d++, m4.compose(p3, q, s3.set(1, goingUp ? 0.85 : 0.35, 1))); // empty perches ride back retracted
       }
     }
+    this.chairs.count = c;
+    this.cabins.count = g;
+    this.perches.count = d;
     this.chairs.instanceMatrix.needsUpdate = this.cabins.instanceMatrix.needsUpdate = this.perches.instanceMatrix.needsUpdate = true;
   }
 

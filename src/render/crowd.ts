@@ -32,6 +32,9 @@ const DENSITY: Record<CrowdLevel, number> = { busy: 1, some: 0.4, none: 0 };
  */
 export class Crowd {
   readonly group = new Group();
+  /** Bodies drawn at most (the nearest skiers), and how near one must be to cast its shadow: lower on the low tier. */
+  bodies = POOL;
+  shadowReach = Infinity;
   private riders: Rider[] = [];
   private runs: Piste[];
   /** Where the riders start (length × colour: how many are on a piste at once), and where they go back up to
@@ -119,7 +122,7 @@ export class Crowd {
       r.dist = Math.hypot(p1.x - cam.x, p1.z - cam.z);
     }
     // the nearest ones keep (or get) a body
-    const near = this.riders.filter((r) => r.dist < VIEW).sort((x, y) => x.dist - y.dist).slice(0, POOL);
+    const near = this.riders.filter((r) => r.dist < VIEW).sort((x, y) => x.dist - y.dist).slice(0, this.bodies);
     const keep = new Set(near);
     for (const r of this.riders) if (r.model && !keep.has(r)) r.model = null;
     const free = this.pool.filter((md) => !near.some((r) => r.model === md));
@@ -140,7 +143,8 @@ export class Crowd {
       s.edge = Math.max(-1, Math.min(1, turn * r.speed * r.speed * 0.6)); // lateral accel / grip, roughly
       s.surface = this.m.surface(p1.x, p1.z);
       this.m.normal(p1.x, p1.z, s.normal);
-      r.model.root.visible = r.model.shadow.visible = true;
+      r.model.root.visible = true;
+      r.model.shadow.visible = r.dist < this.shadowReach;
       r.model.update(s, s.pos, s.heading, this.ground, dt, sunDir);
     }
   }
