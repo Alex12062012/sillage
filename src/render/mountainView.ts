@@ -330,6 +330,11 @@ export class MountainView {
   private coarseTiles: Group;
   /** Palier bas : les tuiles du massif plus loin que ça prennent leur version lointaine. */
   private terrainFar = Infinity;
+  /** Palier bas : bâtiments sans fenêtres au-delà de ça (moins d'un pixel), sièges et perches coupés au-delà, cabines au-delà. */
+  private buildingFar = Infinity;
+  private chairReach = Infinity;
+  private cabinReach = Infinity;
+  private buildingTiles = new Group();
   private lastCam = new Vector3(Infinity, 0, 0);
   private lastDir = new Vector3();
   private riderChair: Mesh;
@@ -464,10 +469,25 @@ export class MountainView {
 
     // the real buildings (OSM / IGN footprints), the roads, the radar dome on La Dôle
     const ends = m.lifts.flatMap((l) => [[l.pts[0], l.pts[1]], [l.pts[l.pts.length - 2], l.pts[l.pts.length - 1]]]);
+    // by 2 km tiles (culled by the camera), each with a far version without the window bands: userData.lod = [near, far]
+    const blocks = new Map<string, [BufferGeometry[], BufferGeometry[]]>();
     for (const [x, z, w, d, yaw, levels] of m.scenery.buildings) {
       if (ends.some(([ex, ez]) => Math.hypot(ex - x, ez - z) < Math.max(w, d) / 2 + 3)) continue; // a station: drawn as one
-      built.push(building(x, m.height(x, z) - 0.4, z, w, d, yaw, levels));
+      const key = `${Math.floor(x / 2000)},${Math.floor(z / 2000)}`;
+      if (!blocks.has(key)) blocks.set(key, [[], []]);
+      const [near, far] = blocks.get(key)!, y = m.height(x, z) - 0.4;
+      near.push(building(x, y, z, w, d, yaw, levels));
+      far.push(building(x, y, z, w, d, yaw, levels, false));
     }
+    for (const [near, far] of blocks.values()) {
+      const lod = [mergeGeometries(near), mergeGeometries(far)];
+      lod[0].computeBoundingSphere();
+      lod[1].boundingSphere = lod[0].boundingSphere;
+      const tile = new Mesh(lod[0], flat);
+      tile.userData.lod = lod;
+      this.buildingTiles.add(tile);
+    }
+    this.group.add(this.buildingTiles);
     built.push(roads(m));
     if (m.scenery.radar) {
       const [x, z] = m.scenery.radar, y = m.height(x, z);
@@ -582,6 +602,9 @@ export class MountainView {
     this.fineTiles.visible = q === 'high';
     this.coarseTiles.visible = q !== 'high';
     this.terrainFar = q === 'low' ? 1000 : Infinity;
+    this.buildingFar = q === 'low' ? 800 : Infinity;
+    this.chairReach = q === 'low' ? 700 : Infinity;
+    this.cabinReach = q === 'low' ? 1500 : Infinity;
     this.every = q === 'high' ? 1 : 2; // the detail patch, bent onto the other mesh, is rebuilt at the next focus()
     // palier bas : sapins simplifiés au-delà de 200 m (comme le mode arcade), piquets au-delà de 700 m (moins d'un pixel)
     for (const t of this.trees) {
@@ -717,9 +740,11 @@ export class MountainView {
     if (cam) {
       cam.updateMatrixWorld();
       frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
-      for (const t of this.coarseTiles.children as Mesh[]) {
-        const s = t.geometry.boundingSphere!, lod = t.userData.lod as BufferGeometry[];
-        t.geometry = lod[s.center.distanceTo(cam.position) - s.radius > this.terrainFar ? 1 : 0];
+      for (const [tiles, far] of [[this.coarseTiles, this.terrainFar], [this.buildingTiles, this.buildingFar]] as const) {
+        for (const t of tiles.children as Mesh[]) {
+          const s = t.geometry.boundingSphere!, lod = t.userData.lod as BufferGeometry[];
+          t.geometry = lod[s.center.distanceTo(cam.position) - s.radius > far ? 1 : 0];
+        }
       }
       // trees and poles: refilled when the camera has moved 10 m or turned 8°, against a frustum 24° wider
       cam.getWorldDirection(tmp);
@@ -746,7 +771,7 @@ export class MountainView {
         const goingUp = s < v.lift.len;
         const f = goingUp ? s / v.lift.len : 2 - s / v.lift.len;
         this.cablePoint(v, f, goingUp ? 1 : -1, p3);
-        if (cam && !frustum.intersectsSphere(sph.set(p3, 8))) continue; // out of sight: not drawn
+        if (cam && (!frustum.intersectsSphere(sph.set(p3, 8)) || p3.distanceTo(cam.position) > (kind === 'gondola' ? this.cabinReach : this.chairReach))) continue; // out of sight: not drawn
         q.setFromAxisAngle(up, this.yawAt(v, f) + (goingUp ? 0 : Math.PI));
         if (kind === 'chair') this.chairs.setMatrixAt(c++, m4.compose(p3, q, s3.set(Math.max(1, v.lift.seats / 3), 1, 1)));
         else if (kind === 'gondola') this.cabins.setMatrixAt(g++, m4.compose(p3, q, s3.setScalar(v.spec.cabin)));

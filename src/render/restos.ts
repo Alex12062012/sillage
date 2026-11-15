@@ -16,14 +16,15 @@ const DECK = new Color(0x9a7650);
 const PARASOLS = [0xd23b3b, 0xf2c14e];
 
 /** Building: walls (timber, or render for the big ones), a snowy hipped roof, warm windows per floor. */
-export function building(x: number, y: number, z: number, w: number, d: number, yaw: number, levels: number): BufferGeometry {
+/** `windows` false: without the lit window bands (12 triangles a floor), for buildings seen from afar. */
+export function building(x: number, y: number, z: number, w: number, d: number, yaw: number, levels: number, windows = true): BufferGeometry {
   const wall = levels * 2.9 + 0.4;
   const parts = [
     paint(new BoxGeometry(w, wall, d).translate(0, wall / 2, 0).toNonIndexed(), () => new Color(levels > 2 ? 0xd8ccb4 : 0x7d5538)),
     paint(new ConeGeometry(Math.hypot(w, d) * 0.62, Math.min(w, d) * 0.42 + 1, 4).rotateY(Math.PI / 4)
       .scale((w / Math.hypot(w, d)) * 1.45, 1, (d / Math.hypot(w, d)) * 1.45).translate(0, wall + Math.min(w, d) * 0.21 + 0.5, 0).toNonIndexed(), () => new Color(0xf4f7fb)),
   ];
-  for (let l = 0; l < levels; l++) parts.push(paint(new BoxGeometry(w * 0.7, 0.8, d + 0.06).translate(0, 1.7 + l * 2.9, 0).toNonIndexed(), () => new Color(0xffc56b)));
+  for (let l = 0; windows && l < levels; l++) parts.push(paint(new BoxGeometry(w * 0.7, 0.8, d + 0.06).translate(0, 1.7 + l * 2.9, 0).toNonIndexed(), () => new Color(0xffc56b)));
   return mergeGeometries(parts.map(noUv)).rotateY(yaw).translate(x, y, z);
 }
 
