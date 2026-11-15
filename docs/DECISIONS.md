@@ -302,3 +302,13 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
     - Mode debug, build de test seulement : `window.__sillage.colliders({ x, z, radius })` dessine les colliders en rouge (absent du build de production, vérifié). `scripts/collider-shots.mjs` fait 6 captures dans `docs/captures/colliders/` (arbre, bâtiment, gare, restaurant, filet, dameuse) : contours et modèles alignés.
     - Tests ajoutés (`tests/unit/collisions.test.ts`) : distance à un rectangle (dedans, dehors, après un coin) ; le skieur poussé à 10 m/s contre un bâtiment est arrêté, et n'entre jamais dans un bâtiment, un arbre ou un pylône ; il file droit là où rien ne se trouve ; chaque collider correspond à la forme dessinée ; les dameuses sont hors piste et loin du départ.
     - Effet sur le jeu : les hêtres, les mélèzes et la plupart des grands épicéas sont plus étroits qu'avant (0,7 à 0,9 m au lieu de 1,1 à 1,7 m). Les petits épicéas aux branches basses sont plus larges. Les façades et les terrasses sont pleines.
+108. **Barrières et filets : peu, et seulement où c'est sûr.**
+    - Audit. Les données du dépôt (export OSM des stations) ne contiennent aucune barrière ni clôture : rien ne peut venir de données réelles. Le jeu n'en posait qu'à un endroit, les filets ajoutés en refonte 2 (point 99), partout où le terrain tombait de plus de 4,5 m à 10 m du bord, dans la limite de 900. Les pistes étant taillées en banquette (point 74), ce talus se trouve le long de presque chaque piste en traversée : 382 filets aux Rousses, 761 à Avoriaz, la plupart là où une station réelle n'en met pas.
+    - Retiré : tous les filets de talus ordinaire.
+    - Gardé ou ajouté, seulement pour un danger évident :
+      - une vraie rupture de pente au bord de la piste, soit plus de 12 m de chute dans les 15 m et plus de 4 m dans les 6 premiers mètres ;
+      - une route qui longe la piste à moins de 10 m de son bord (masque des routes OSM du dépôt), pas là où la piste la traverse.
+      - Les gares et les canons à neige ont déjà leur collider (point 107) et ne reçoivent pas de barrière en plus.
+    - Jamais deux filets à la suite sur un même bord : après un tronçon de 20 m vient toujours une ouverture d'au moins 20 m. Aucune zone n'est fermée.
+    - Résultat : 94 filets aux Rousses, 205 à Avoriaz.
+    - Tests (`tests/unit/barriers.test.ts`) : aucun filet n'en suit un autre ; un bot lâché hors piste (derrière les filets de route, et 15 m au-dessus du bord amont de pistes) revient sur une piste en moins de 45 s. Les positions sous une falaise sont exclues du test : à skis, personne ne remonte une falaise, avec ou sans filet. Le bot ne pousse pas à l'arrêt sur le plat, il part donc à 5 m/s.

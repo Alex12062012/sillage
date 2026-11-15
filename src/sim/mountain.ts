@@ -467,6 +467,23 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
   };
   for (const l of lifts) stampLine(l.pts, 8);
   for (const r of R.roads) stampLine(r, 6);
+  // within 10 m of a road (nets between a piste and a road beside it, DECISIONS.md point 108)
+  const roadMask = new Uint8Array(nx * nz);
+  for (const r of R.roads) {
+    for (let k = 2; k < r.length; k += 2) {
+      const l = Math.hypot(r[k] - r[k - 2], r[k + 1] - r[k - 1]);
+      for (let t = 0; t <= l; t += 5) {
+        const x = r[k - 2] + ((r[k] - r[k - 2]) * t) / l, z = r[k - 1] + ((r[k + 1] - r[k - 1]) * t) / l;
+        for (let j = Math.floor((z - 10 - bounds.z0) / STEP); j <= Math.ceil((z + 10 - bounds.z0) / STEP); j++) {
+          for (let i = Math.floor((x - 10 - bounds.x0) / STEP); i <= Math.ceil((x + 10 - bounds.x0) / STEP); i++) if (i >= 0 && j >= 0 && i < nx && j < nz) roadMask[j * nx + i] = 1;
+        }
+      }
+    }
+  }
+  const nearRoad = (x: number, z: number) => {
+    const i = Math.round((x - bounds.x0) / STEP), j = Math.round((z - bounds.z0) / STEP);
+    return i >= 0 && j >= 0 && i < nx && j < nz && roadMask[j * nx + i] === 1;
+  };
   for (const b of R.buildings) stamp(b[0], b[1], Math.max(b[2], b[3]) / 2 + 4);
   for (const r of restos) stamp(r.x, r.z, Math.max(r.w, r.d) / 2 + 6);
   if (R.radar) stamp(R.radar[0], R.radar[1], 16);
@@ -566,7 +583,7 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
     }
     const starts = runs.map((p) => (along(p, 0, pt), height(pt.x, pt.z)));
     const gunLine = Math.min(...starts) + 0.6 * (Math.max(...starts) - Math.min(...starts));
-    let nets = 0;
+    const nets = [0, 0], lastNet = new Map<number, number>(); // nets by cause (drop-off, road); the last on each edge
     runs.forEach((p, i) => {
       const hw = p.halfWidth;
       along(p, Math.min(10, p.len / 2), pt);
@@ -585,11 +602,17 @@ export function makeMountain(st: Station, R: StationData, cfg: StationConfig = s
         for (const side of [-1, 1]) {
           const ex = ax + dz * side * (hw + 1.5), ez = az - dx * side * (hw + 1.5);
           if (pisteAt(ex, ez)) continue;
-          const ox = ax + dz * side * (hw + 10), oz = az - dx * side * (hw + 10);
-          if (nets < 900 && height(ex, ez) - height(ox, oz) > 4.5) {
+          // a net only where one surely stands (DECISIONS.md, point 108): a real drop-off (over 12 m within 15 m of
+          // the edge, over 4 m within the first 6) or a road along the piste; never two in a row (a gap every 20 m)
+          const at = (k: number): [number, number] => [ax + dz * side * (hw + k), az - dx * side * (hw + k)];
+          const [mx, mz] = at(7.5), [ox, oz] = at(16.5), [rx, rz] = at(4);
+          const cliff = height(ex, ez) - height(ox, oz) > 12 && height(ex, ez) - height(mx, mz) > 4;
+          const road = !cliff && nearRoad(rx, rz) && !pisteAt(rx, rz);
+          const key = i * 2 + (side > 0 ? 1 : 0);
+          if ((cliff || road) && lastNet.get(key) !== s - 20) {
             along(p, s + 20, pt);
             const fx = pt.x + pt.dz * side * (hw + 1.5), fz = pt.z - pt.dx * side * (hw + 1.5);
-            if (!pisteAt(fx, fz)) { out.push({ kind: 'net', x: ex, z: ez, x2: fx, z2: fz }); nets++; }
+            if (!pisteAt(fx, fz)) { out.push({ kind: 'net', x: ex, z: ez, x2: fx, z2: fz }); nets[cliff ? 0 : 1]++; lastNet.set(key, s); }
           }
           if (starts[i] < gunLine && s % 100 === 0 && (s / 100) % 2 === (side > 0 ? 0 : 1)) {
             const gx = ax + dz * side * (hw + 2), gz = az - dx * side * (hw + 2);
