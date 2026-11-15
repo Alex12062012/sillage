@@ -11,7 +11,8 @@ import { paint, poleGeometry } from './props';
 import { bareFar, bareNear, coniferFar, coniferNear, TREE_WIND, treeMaterial } from './trees';
 import { addHeightFog, RELIEF } from './heightFog';
 import { addSnowSurface, SNOW } from './snow';
-import { building, RestoView } from './restos';
+import { RestoView } from './restos';
+import { archetypeBuilding, withWindows } from './buildings';
 
 const C_GROOMED = new Color(0xe9eff7);
 const C_POWDER = new Color(0xf8fafd);
@@ -463,7 +464,7 @@ export class MountainView {
     // trees (DECISIONS.md, point 97): spruces and firs share the conifer shape, beeches low down and larches high in the
     // Alps the bare one. Each list is sorted so that any prefix (lower quality) thins evenly, the trees along the pistes
     // (h < DEEP) twice as slowly as those deep in the woods: treeKeys[k] holds the sorted keys, setQuality cuts them.
-    const flat = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    const flat = withWindows(new MeshLambertMaterial({ vertexColors: true, flatShading: true })); // (windows: the buildings)
     const all = m.obstaclesBetween(-1e5, 1e5).filter((o) => o.kind === 'tree');
     let yLo = Infinity, yHi = -Infinity;
     const ys = all.map((o) => { const y = m.height(o.x, o.z); yLo = Math.min(yLo, y); yHi = Math.max(yHi, y); return y; });
@@ -593,8 +594,10 @@ export class MountainView {
       const key = `${Math.floor(x / 2000)},${Math.floor(z / 2000)}`;
       if (!blocks.has(key)) blocks.set(key, [[], []]);
       const [near, far] = blocks.get(key)!, y = m.height(x, z) - 0.4;
-      near.push(building(x, y, z, w, d, yaw, levels));
-      far.push(building(x, y, z, w, d, yaw, levels, false));
+      // an archetype per footprint (buildings.ts), its variant from a seed of its position: never twice the same
+      const seed = Math.round(x * 7.31 + z * 3.17);
+      near.push(archetypeBuilding(x, y, z, w, d, yaw, levels, true, alps, seed));
+      far.push(archetypeBuilding(x, y, z, w, d, yaw, levels, false, alps, seed));
     }
     // all in one geometry (each tile's near version, then its far one), drawn through one index buffer (Tiled)
     const parts: BufferGeometry[] = [], tiles: Tile[] = [];
@@ -624,7 +627,7 @@ export class MountainView {
     }
     this.group.add(new Mesh(mergeGeometries(built), flat));
     this.restos = new RestoView(m, true);
-    this.restos.group.traverse((o) => { o.castShadow = o.receiveShadow = true; });
+    this.restos.group.traverse((o) => { if (o instanceof Mesh && o.material instanceof MeshLambertMaterial) o.castShadow = o.receiveShadow = true; }); // not the names
     this.group.add(this.restos.group);
 
     // chairs (seat, back, hanger; wide as their seats) and drag perches (a rod and its disc)
@@ -730,7 +733,7 @@ export class MountainView {
     this.fineTiles.mesh.visible = q === 'high';
     this.coarseTiles.mesh.visible = q !== 'high';
     this.coarseTiles.far = q === 'low' ? 1000 : Infinity;
-    this.buildingTiles.far = q === 'low' ? 800 : Infinity;
+    this.buildingTiles.far = { low: 800, medium: 1500, high: 3000 }[q]; // windows and balconies: not seen beyond
     this.chairReach = q === 'low' ? 700 : Infinity;
     this.cabinReach = q === 'low' ? 1500 : Infinity;
     this.every = q === 'high' ? 1 : 2; // the detail patch, bent onto the other mesh, is rebuilt at the next focus()

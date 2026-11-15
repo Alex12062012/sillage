@@ -25,6 +25,8 @@ export interface RestoDef {
   /** Shutters, frames, balconies. */
   trim: number;
   terrace: boolean;
+  /** Drawn in detail after its photos: 'farm' = a rendered Jura farm with a stone arch (Illico Resto). */
+  style?: 'farm';
   /** Which way the sign faces (rad); by default towards the nearest piste. */
   signYaw?: number;
   /** Where the heights come from. */

@@ -4,6 +4,7 @@ import {
 } from 'three';
 import { fbm } from '../core/rng';
 import { FOG_SKY } from './heightFog';
+import { WINDOW_LIGHT } from './buildings';
 
 interface Mood {
   t: number;
@@ -137,6 +138,8 @@ export class Sky {
     }
     u.uSunDir.value.copy(this.sunDir);
     FOG_SKY.fogSun.value.set(this.sunDir.x, this.sunDir.z).normalize();
+    // the windows light up as the sun goes down: a few rooms from 12° (the free ride's day ends near 9°), all by 3°
+    WINDOW_LIGHT.value = Math.min(1, Math.max(0, (0.2 - this.sunDir.y) / 0.15));
     this.skyTint();
   }
 

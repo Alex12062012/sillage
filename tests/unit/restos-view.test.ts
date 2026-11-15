@@ -1,6 +1,6 @@
 import { Box3, Mesh } from 'three';
 import { describe, expect, it } from 'vitest';
-import { RestoView, restoGeometry } from '../../src/render/restos';
+import { RESTO_CELL, RestoView, restoGeometry } from '../../src/render/restos';
 import { makeMountain } from '../../src/sim/mountain';
 import { ROUSSES } from '../../src/sim/rousses-data';
 import { STATIONS } from '../../src/sim/stations';
@@ -26,14 +26,20 @@ describe('the restaurants as drawn', () => {
     expect(b.max.y - r.floor).toBeLessThan(levels * 2.9 + Math.min(r.w, r.d) * 0.42 + 2.5);
   });
 
-  it('costs at most 3 draw calls', () => {
-    const v = new RestoView(m, true);
-    let n = 0;
-    v.group.traverse((o) => { if (o instanceof Mesh) n++; });
-    expect(n).toBeLessThanOrEqual(3);
-    v.setReal(false);
-    n = 0;
-    v.group.traverse((o) => { if (o instanceof Mesh) n++; });
-    expect(n).toBeLessThanOrEqual(3);
+  // one mesh per 2 km square holding restaurants (culled by the camera when out of view) plus the names: it was
+  // 3 meshes in all, drawn whole even behind the camera (DECISIONS.md, point 98)
+  it('costs one draw call per 2 km square of restaurants in view, plus the names', () => {
+    const cells = new Set(m.restos.map((r) => `${Math.floor(r.x / RESTO_CELL)},${Math.floor(r.z / RESTO_CELL)}`));
+    for (const real of [true, false]) {
+      const v = new RestoView(m, real);
+      const meshes: Mesh[] = [];
+      v.group.traverse((o) => { if (o instanceof Mesh) meshes.push(o); });
+      expect(meshes.length).toBeLessThanOrEqual(cells.size + 1);
+      for (const mesh of meshes.slice(0, -1)) {
+        mesh.geometry.computeBoundingSphere();
+        expect(mesh.frustumCulled).toBe(true);
+        expect(mesh.geometry.boundingSphere!.radius).toBeLessThan(RESTO_CELL * Math.SQRT1_2 + 60);
+      }
+    }
   });
 });
