@@ -105,7 +105,9 @@ if (matchMedia('(pointer: coarse)').matches && !embedded) {
 const trailMap = new TrailMap(ui, () => game.mapMarkers(), (i) => { leaveMap(); game.toLift(i); }, () => closeMap(), (i) => { leaveMap(); game.toResto(i); });
 const miniMap = new MiniMap(ui, () => game.mapMarkers(), () => openMap()); // top right; a tap opens the full map
 // the tutorial of the first free ride (done or skipped once: never again in this browser)
-const tutorialDone = () => { try { return localStorage.getItem('sillage.tutorial') === 'done'; } catch { return true; } };
+// TUTORIAL_VERSION: raise it to show the tutorial again to everyone, even those who finished or skipped it
+const TUTORIAL_VERSION = '2';
+const tutorialDone = () => { try { return localStorage.getItem('sillage.tutorial') === `done-${TUTORIAL_VERSION}`; } catch { return true; } };
 const tutorial = new Tutorial(ui, game, {
   startRun: (id) => startRun(id),
   goStation: (id, lift) => {
@@ -113,7 +115,7 @@ const tutorial = new Tutorial(ui, game, {
       if (lift >= 0 && game.mountain) { game.unload(game.mountain.unload(lift)); game.phase = 'running'; }
     });
   },
-}, () => { try { localStorage.setItem('sillage.tutorial', 'done'); } catch { /* private mode */ } });
+}, () => { try { localStorage.setItem('sillage.tutorial', `done-${TUTORIAL_VERSION}`); } catch { /* private mode */ } });
 // ?setup: the station settings screen of a sales demo (visitors never see it); the URL keeps the choices
 const setupHost = document.createElement('div');
 setupHost.className = 'setup-host';
