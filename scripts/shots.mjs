@@ -1,6 +1,6 @@
 // The art-direction captures: the same viewpoints before and after each visual layer (docs/captures/avant, apres-*).
 // Usage: node scripts/shots.mjs <outDir> [--url=http://localhost:4180/] [--quality=high] [--mobile] [--only=jour,nuit]
-// Needs `npm run preview` (the production build). Fails on a console error.
+// Needs `npm run build:test && npm run preview` Fails on a console error.
 import { chromium, devices } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 

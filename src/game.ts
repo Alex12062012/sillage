@@ -684,7 +684,7 @@ export class Game {
     }
     this.model.update(s, this.renderPos, heading, this.snow, realDt, this.sky.sunDirection);
     this.cam.update(this.renderPos, s, realDt, this.track.height);
-    if (this.photo) {
+    if (import.meta.env.MODE !== 'production' && this.photo) {
       const p = this.photo, c = this.cam.camera, yaw = MathUtils.degToRad(p.yaw), pitch = MathUtils.degToRad(p.pitch);
       c.position.set(p.x, this.track.height(p.x, p.z) + p.up, p.z);
       c.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ'); // yaw 0 looks down +z (south on a station), like a heading

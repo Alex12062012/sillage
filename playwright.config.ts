@@ -14,7 +14,7 @@ export default defineConfig({
   },
   webServer: process.env.E2E_URL
     ? undefined
-    : { command: 'npm run build && npm run preview', url: 'http://localhost:4180', reuseExistingServer: !process.env.CI, timeout: 180_000 },
+    : { command: 'npm run build:test && npm run preview', url: 'http://localhost:4180', reuseExistingServer: !process.env.CI, timeout: 180_000 },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } } },
     { name: 'mobile', use: { ...devices['Pixel 7'] } },

@@ -7,3 +7,4 @@ playwright-report/
 .vercel
 .superpowers/
 scripts/raw/
+docs/restos/*/

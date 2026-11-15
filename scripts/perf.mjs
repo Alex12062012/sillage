@@ -1,7 +1,7 @@
 // FPS / draw calls / triangles / JS heap / GPU objects on the production build, per graphics tier, for PERF.md.
 // Usage: node scripts/perf.mjs [--url=http://localhost:4180/] [--tiers=low,medium,high] [--profiles=desktop,mobile,lowend]
 //        [--scenes=rousses,village,avoriaz,arcade] [--seconds=10] [--json=out.json]
-// Needs `npm run preview`. "mobile" = Pixel 7 viewport and DPR, CPU throttled ×4 (Lighthouse's mid-range phone);
+// Needs `npm run build:test && npm run preview`. "mobile" = Pixel 7 viewport and DPR, CPU throttled ×4 (Lighthouse's mid-range phone);
 // "lowend" = the same at ×6. The GPU is NOT throttled: see docs/PERF.md for what that leaves unverified.
 import { chromium, devices } from '@playwright/test';
 import { writeFileSync } from 'node:fs';

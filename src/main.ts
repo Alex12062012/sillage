@@ -353,11 +353,12 @@ requestAnimationFrame((t) => {
   requestAnimationFrame(loop);
 });
 
-// ── debug / test API (used by Playwright)
+// ── debug / test API (used by Playwright). Kept out of the production build (Vercel runs `vite build`,
+// mode "production"): tests and measurement scripts use `npm run build:test` (mode "test").
 declare global {
   interface Window { __sillage: unknown }
 }
-window.__sillage = {
+if (import.meta.env.MODE !== 'production') window.__sillage = {
   state: () => {
     const s = game.skier;
     return {

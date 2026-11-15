@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "vite --port 5180 --strictPort",
     "build": "tsc --noEmit && vite build",
+    "build:test": "tsc --noEmit && vite build --mode test",
     "preview": "vite preview --port 4180 --strictPort",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
