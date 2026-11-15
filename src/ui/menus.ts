@@ -178,13 +178,12 @@ export class Menus {
         <h2>Paused</h2>
         <div class="stack">
           <button class="primary big" data-go="resume">Resume</button>
-          <button data-go="restart">Restart <kbd>R</kbd></button>
           <button data-go="settings">Settings</button>
           ${on.quit ? '<button data-go="quit">Quit to menu</button>' : ''}
         </div>
       </div>`);
     this.on('[data-go="resume"]', on.resume);
-    this.on('[data-go="restart"]', on.restart);
+    // no Restart button any more: R restarts on a computer (main.ts)
     this.on('[data-go="settings"]', () => this.settings(() => this.pause(on)));
     if (on.quit) this.on('[data-go="quit"]', on.quit);
   }
