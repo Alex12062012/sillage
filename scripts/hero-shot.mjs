@@ -1,12 +1,13 @@
 // Close-up of the player's skier, from the front: node scripts/hero-shot.mjs <out.jpg> <low|medium|high> (needs build:test + preview)
 import { chromium } from '@playwright/test';
-const [out, quality, framing] = process.argv.slice(2); // framing 'head': a portrait of the head
+const [out, quality, framing, outfit = 'ember'] = process.argv.slice(2); // framing 'head': a portrait; outfit: an id of COSMETICS
 const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
 const ctx = await b.newContext({ viewport: { width: 1200, height: 900 } });
 await ctx.addInitScript((h) => { window.__heroHead = h; }, framing === 'head');
+await ctx.addInitScript((o) => { window.__heroOutfit = o; }, outfit);
 await ctx.addInitScript((q) => {
   localStorage.setItem('sillage.tutorial', 'done-2');
-  localStorage.setItem('sillage.save.v1', JSON.stringify({ version: 1, medals: {}, records: {}, outfit: 'ember', seenHint: true, settings: { quality: q, volume: 0, music: false } }));
+  localStorage.setItem('sillage.save.v1', JSON.stringify({ version: 1, medals: {}, records: {}, outfit: window.__heroOutfit ?? 'ember', seenHint: true, settings: { quality: q, volume: 0, music: false } }));
 }, quality);
 const p = await ctx.newPage();
 await p.goto('http://localhost:4180/?station=rousses');

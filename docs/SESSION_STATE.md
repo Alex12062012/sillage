@@ -1,5 +1,12 @@
 # État de session : refonte visuelle
 
+## Session 5 (20/11/2026) : skieur réaliste
+
+Branche `skieuse` (partie de `neige-son-tete`, déjà en production). « Skiing Lady » (CC BY 4.0) intégrée comme skieur du joueur, pilotée par notre squelette, 8 tenues. Fichiers : `public/models/skier-{high,low}.glb` (refaits par `node scripts/build-avatar.mjs`, source dans `scripts/raw/skiing_lady.glb`, hors git). DECISIONS.md, point 113.
+
+- Palier bas, Pixel 7 émulé : Rousses 274 k / 51, Avoriaz 328 k / 31, village 248 k / 48. 144 tests unitaires, 20 e2e.
+- Pièges : `scripts/hero-shot.mjs <sortie> <palier> [body|head] [tenue]` pour juger le personnage ; la capture « vue-piste » peut tomber sur une chute du bot. La résolution adaptative ne remonte jamais à 60 Hz (seuil de 14,5 ms) : toute saccade la fait baisser pour la session.
+
 ## Session 4 (15/11/2026, autonomie) : refonte visuelle 3
 
 Branche `refonte-visuelle-3`, partie de `refonte-visuelle-2` (non fusionnée dans `main`). On peut pousser la branche de travail (prévisualisation Vercel), jamais `main`. Points : 1 touches PC, 2 personnage réaliste, 3 collisions, 4 barrières, 5 modèles variés.

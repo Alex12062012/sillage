@@ -689,6 +689,11 @@ export class Game {
   }
 
   /** Graphics level: view distance + fog, falling snow density, snow fx budget. */
+  /** Assets still being prepared in the background (the realistic skier): their frames are not a sign of a slow device. */
+  assetsLoading(): boolean {
+    return this.model.loadingAvatar;
+  }
+
   setQuality(q: 'low' | 'medium' | 'high'): void {
     this.model.setDetail(q);
     const view = { low: 300, medium: 390, high: 470 }[q];

@@ -393,6 +393,7 @@ function loop(now: number): void {
   miniMap.update(dt);
   if (mode === 'run' || mode === 'attract') {
     if (dt > 0.022) { slow += dt > 0.033 ? 2 : 1; fast = 0; } else if (dt < 0.0145) { fast++; slow = Math.max(0, slow - 1); }
+    if (game.assetsLoading()) slow = 0; // the realistic skier being prepared: not the device being slow
     // Auto: still slow at half resolution, one tier down (a chosen tier is kept)
     if (slow > 60 && qualityScale <= 0.5 && save.settings.quality === 'auto' && tier !== 'low') { autoTier = tier === 'high' ? 'medium' : 'low'; qualityScale = 0.8; slow = 0; applySettings(); }
     if (slow > 60 && qualityScale > 0.5) { qualityScale = Math.max(0.5, qualityScale - (dt > 0.033 ? 0.15 : 0.1)); slow = 0; applySettings(); }

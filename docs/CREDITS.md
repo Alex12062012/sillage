@@ -2,13 +2,15 @@
 
 ## Assets dans le build
 
-Aucun asset externe. Arbres, bâtiments, remontées, mobilier de piste, ciel et neige sont générés en code (`src/render/`). Les textures du jeu sont dessinées au chargement (canvas) : bannières et noms des restaurants.
+Un seul asset externe : le modèle du skieur du joueur (ci-dessous). Arbres, bâtiments, remontées, mobilier de piste, ciel et neige sont générés en code (`src/render/`). Les textures du jeu sont dessinées au chargement (canvas) : bannières et noms des restaurants.
 
 Règle pour la suite : un asset externe n'entre que sous licence CC0 ou CC-BY (Poly Haven, Quaternius, Kenney), avec une ligne ici : source, auteur, licence, URL, fichier.
 
 | Fichier | Source | Auteur | Licence | URL |
 |---|---|---|---|---|
-| (aucun) | | | | |
+| `public/models/skier-high.glb`, `public/models/skier-low.glb` (le skieur du joueur) | « Skiing Lady », Sketchfab | lancehuang526 | CC BY 4.0 | https://sketchfab.com/3d-models/skiing-lady-52aabb1e0773487b93a6e56d0f0b875b |
+
+Modifications (`scripts/build-avatar.mjs`, `src/render/avatar.ts`) : sol retiré ; textures des skis, de la sangle du masque et des bâtons retirées (elles portaient le logo d'une marque réelle), remplacées par des couleurs unies ; cagoule en tissu uni ; textures réduites (1 024 et 512 px, WebP) ; version basse simplifiée ; modèle réattaché au squelette du jeu ; veste, pantalon, casque et accents recolorés selon la tenue choisie. Attribution visible dans le jeu, en bas de l'écran Réglages.
 
 ## Photos de référence consultées (hors dépôt, hors build)
 
