@@ -120,6 +120,7 @@ export class SkierModel {
 
   // animation channels
   private drop = new Spring(0.12); // pelvis drop below straight legs (m)
+  private rest = 0; // 0 skiing … 1 standing still (more upright)
   private incl = new Spring(); // lower-body inclination into the turn (rad, + = left)
   private counter = new Spring(); // upper-body yaw toward the fall line
   private brakeYaw = new Spring(); // hockey-stop ski yaw
@@ -373,7 +374,9 @@ export class SkierModel {
     const spot = air && s.vel.y < 0 && hAbove < -s.vel.y * 0.35 + 0.15;
     const flipping = air && Math.abs(s.flipVel) > 1.5;
     const idle = ground && speed < 0.3 ? Math.sin(this.t * 1.7) * 0.012 : 0;
-    const dropT = crashed ? 0.3 : air ? (spot ? 0.03 : 0.1) : 0.16 + ae * 0.06 + (tuck ? 0.24 : 0) + (braking ? 0.12 : 0) + (drag ? 0.06 : 0) + idle;
+    // standing still (the lift queue, a stop): taller and more upright; the ski stance comes back from 2 m/s
+    this.rest += ((ground && !crashed && !tuck ? clamp(1 - speed / 2, 0, 1) : 0) - this.rest) * clamp(d * 3, 0, 1);
+    const dropT = crashed ? 0.3 : air ? (spot ? 0.03 : 0.1) : 0.16 + ae * 0.06 + (tuck ? 0.24 : 0) + (braking ? 0.12 : 0) + (drag ? 0.06 : 0) + idle - 0.1 * this.rest;
 
     this.drop.to(dropT, 3.2, 0.55, d);
     this.incl.to(lean, 2.6, 0.85, d);
@@ -537,7 +540,7 @@ export class SkierModel {
         this.skiBase[i].copy(this.ankle[i]).y -= this.P.ankle;
       }
     }
-    this.qP.setFromEuler(eu.set(0.18 + ped * 1.2 + tk * 0.35 + fk * 0.6, by * 0.55 + this.counter.x * 0.4, -incl * 0.8, 'YZX'));
+    this.qP.setFromEuler(eu.set(0.18 - 0.12 * this.rest + ped * 1.2 + tk * 0.35 + fk * 0.6, by * 0.55 + this.counter.x * 0.4, -incl * 0.8, 'YZX'));
     // keep both legs within reach (outside leg long, inside leg folds)
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < 2; i++) {
@@ -557,7 +560,7 @@ export class SkierModel {
 
     // spine: forward with the crouch, the comma (upper body more upright than the legs), counter-rotation
     const pitchT = crashed ? 0.4 * flail + Math.sin(t * 8) * 0.3 * flail
-      : 0.32 + ped * 0.9 + tk * 0.8 + fk * 0.55 + gk * 0.5 + pk * (1 - pf) * 0.3 - (ak - fk - gk) * 0.12 + this.armFwd.x * 0.03;
+      : 0.32 - 0.2 * this.rest + ped * 0.9 + tk * 0.8 + fk * 0.55 + gk * 0.5 + pk * (1 - pf) * 0.3 - (ak - fk - gk) * 0.12 + this.armFwd.x * 0.03;
     const rollT = -incl * (1 - T.skierAngulation) - sway * 0.6 + shake * 0.12 + (crashed ? Math.sin(t * 6) * 0.4 * flail : 0);
     const yawT = this.counter.x + this.spinLead.x + (crashed ? Math.sin(t * 5) * 0.5 * flail : 0);
     this.qT.setFromEuler(eu.set(pitchT, yawT, rollT, 'YZX'));

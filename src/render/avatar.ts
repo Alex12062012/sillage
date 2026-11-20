@@ -205,7 +205,9 @@ export async function loadAvatar(tier: 'low' | 'high', shadowMat: Material): Pro
       for (let k = 0; k < 18; k++) { const d = v.distanceToSquared(new Vector3().setFromMatrixPosition(rest[k])); if (d < best) { best = d; b = k; } }
     }
     follow[j] = b;
-    offsets.push(restInv[b].clone().multiply(grasp.get(j) ?? bind[j]));
+    // her ski pants a little fuller round thighs and shins (slim, under the bulky jacket, they read as thin legs)
+    const legs = b >= B.thighL && b <= B.shinR;
+    offsets.push((legs ? new Matrix4().makeScale(1.12, 1, 1.12) : new Matrix4()).multiply(restInv[b]).multiply(grasp.get(j) ?? bind[j]));
   }
   [B.skiL, B.skiR, B.poleL, B.poleR].forEach((b, k) => { follow[nRig + k] = b; offsets.push(new Matrix4()); });
 
