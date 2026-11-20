@@ -593,16 +593,19 @@ export class SkierModel {
       if (pk > 0) v1.lerp(v2.set(sg * 0.22, -0.27 + 0.24 * pf, 0.1 + 0.38 * pf), pk); // double-pole cycle
       v1.z += 0.1 * plantK[i];
       v1.y -= 0.05 * plantK[i];
-      const tg = v3.copy(v1).applyQuaternion(this.qU).add(shp);
+      // (offsets from the shoulder tuned for our arms: scaled to the model's reach, so shorter arms keep the same angles)
+      const reach = (this.P.upperArm + this.P.forearm + this.P.grip) / (UPPER_ARM + FOREARM + GRIP);
+      const tg = v3.copy(v1).multiplyScalar(reach).applyQuaternion(this.qU).add(shp);
       if (tk > 0) tg.lerp(v2.set(sg * 0.07, -0.13, 0.2).applyQuaternion(this.qU).add(this.neck), tk); // egg: fists under the chin
       if (fk > 0) tg.lerp(v2.copy(this.knee[i]).add(v1.set(sg * 0.04, -0.1, 0.07)), fk); // hold the shins
       if (gk > 0) {
         if (i === (this.grabSide > 0 ? 0 : 1)) tg.lerp(v2.copy(this.ankle[i]).add(v1.set(sg * 0.09, -0.06, 0.1)), gk); // safety grab
-        else tg.lerp(v2.set(sg * 0.5, 0.28, -0.12).applyQuaternion(this.qU).add(shp), gk); // style arm
+        else tg.lerp(v2.set(sg * 0.5, 0.28, -0.12).multiplyScalar(reach).applyQuaternion(this.qU).add(shp), gk); // style arm
       }
       if (inside && this.dragK.x > 0) tg.lerp(v2.set(pel.x + sg * 0.3, 0.035, pel.z + 0.18), this.dragK.x); // glove on the snow
       if (this.seated) tg.set(sg * 0.2, 0.2, 0.3).add(pel); // hands on the lap
-      const hint = v2.set(sg * 0.7, -0.4, -0.6).applyQuaternion(this.qU);
+      // elbows back and down, only a little out: wide-out elbows read as wings on slim arms
+      const hint = v2.set(sg * 0.4, -0.55, -0.75).applyQuaternion(this.qU);
       ik(shp, tg, this.P.upperArm, this.P.forearm + this.P.grip, hint, this.elbow[i]);
       this.grip[i].copy(tg);
       this.wrist[i].subVectors(tg, this.elbow[i]).normalize().multiplyScalar(this.P.forearm).add(this.elbow[i]);
