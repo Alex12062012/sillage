@@ -126,14 +126,14 @@ export function clearSegment(from: Vector3, dir: Vector3, len: number, r: number
 
 const sa = new Vector3(), sb = new Vector3(), st2: [number, number] = [0, 0];
 /** How deep the capsule a→b (radius r) sits in the capsules whose bone is in `mask` (bit per bone), 0 if clear. */
-export function capsuleDepth(a: Vector3, b: Vector3, r: number, caps: { a: Vector3; b: Vector3; r: number; bone: number }[], mask: number, margin = 0): number {
+export function capsuleDepth(a: Vector3, b: Vector3, r: number, caps: { a: Vector3; b: Vector3; r: number; bone: number }[], mask: number, margin = 0, scale = 1): number {
   let worst = 0;
   for (const c of caps) {
     if (!(mask & (1 << c.bone))) continue;
     closestOnSegments(a, b, c.a, c.b, st2);
     sa.copy(a).lerp(b, st2[0]);
     sb.copy(c.a).lerp(c.b, st2[1]);
-    worst = Math.max(worst, c.r + r + margin - sa.distanceTo(sb));
+    worst = Math.max(worst, c.r * scale + r + margin - sa.distanceTo(sb));
   }
   return worst;
 }
@@ -159,10 +159,13 @@ export function pushOut(p: Vector3, r: number, caps: { a: Vector3; b: Vector3; r
   }
 }
 
-/** The deepest overlap between a capsule of a bone in `maskA` and one of a bone in `maskB` (0 if clear). */
-export function hullOverlap(caps: { a: Vector3; b: Vector3; r: number; bone: number }[], maskA: number, maskB: number, margin: number): number {
+/**
+ * The deepest overlap between a capsule of a bone in `maskA` and one of a bone in `maskB` (0 if clear), their radii
+ * times `scale` (the capsules hold 98 % of a slice's vertices: fat for the knees of wide ski pants).
+ */
+export function hullOverlap(caps: { a: Vector3; b: Vector3; r: number; bone: number }[], maskA: number, maskB: number, margin: number, scale = 1): number {
   let worst = 0;
-  for (const c of caps) if (maskA & (1 << c.bone)) worst = Math.max(worst, capsuleDepth(c.a, c.b, c.r, caps, maskB, margin));
+  for (const c of caps) if (maskA & (1 << c.bone)) worst = Math.max(worst, capsuleDepth(c.a, c.b, c.r * scale, caps, maskB, margin, scale));
   return worst;
 }
 

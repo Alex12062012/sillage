@@ -1,5 +1,16 @@
 # État de session : refonte visuelle
 
+## Session 7 (21/11/2026) : posture de pro
+
+Branche `skieuse`. Demande : des animations de pro (vidéos de skieurs comme référence) ; elle skiait comme une débutante, jambes écartées, bâtons en l'air. DECISIONS.md, point 122.
+
+- Référence : ralenti de Ted Ligety en géant, une quinzaine d'images extraites avec le skill `watch`.
+- Corrigé : mains resserrées et devant, bâtons vers l'arrière le long de la pente, position athlétique, tuck de descendeur, jambe extérieure longue et genoux parallèles en virage coupé ; plus de bâtons dressés ni de genoux écartés en tuck.
+- Vérifié dans Chrome : descente des Rousses depuis La Dôle en tuck jusqu'à 109 km/h, grands virages à 90 km/h, glisse sur Combe Douce à 50 km/h ; 17 poses du banc sans croisement en élevé et en bas.
+- Tests : 144 unitaires, lint propre ; e2e 19 réussis et 1 échec (« retrying during the finish run-out », instable connu), réussi 3 fois sur 3 relancé seul.
+- Restes : 4 paires de triangles veste contre cuisses en tuck réel.
+- Pièges : en station, le pilote automatique traverse la pente à 20 km/h ; pour tester la vitesse, orienter le skieur dans la ligne de pente (`spot` avec le cap de la pente) et piloter en tuck.
+
 ## Session 6 (21/11/2026) : skieuse sans défaut
 
 Branche `skieuse`, rien de poussé. Demande : plus aucun bâton qui la traverse, aucun défaut de vêtement en mouvement, aucun ski à l'envers, vérifié dans Chrome sur une descente (virages, sauts, grabs, slaloms). DECISIONS.md, points 117 à 121.

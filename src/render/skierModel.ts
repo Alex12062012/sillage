@@ -64,6 +64,7 @@ const sw3 = new Vector3();
 const sw4 = new Vector3();
 const sw5 = new Vector3();
 const lA = new Vector3();
+const khLeg = new Vector3();
 const pw1 = new Vector3();
 const pw2 = new Vector3();
 const pw3 = new Vector3();
@@ -414,7 +415,8 @@ export class SkierModel {
     const idle = ground && speed < 0.3 ? Math.sin(this.t * 1.7) * 0.012 : 0;
     // standing still (the lift queue, a stop): taller and more upright; the ski stance comes back from 2 m/s
     this.rest += ((ground && !crashed && !tuck ? clamp(1 - speed / 2, 0, 1) : 0) - this.rest) * clamp(d * 3, 0, 1);
-    const dropT = crashed ? 0.3 : air ? (spot ? 0.03 : 0.1) : 0.16 + ae * 0.06 + (tuck ? 0.24 : 0) + (braking ? 0.12 : 0) + (drag ? 0.06 : 0) + idle - 0.1 * this.rest;
+    // (an athletic stance, as a racer's: ankles and knees flexed at 0.21 m; standing still, upright as before)
+    const dropT = crashed ? 0.3 : air ? (spot ? 0.03 : 0.1) : 0.21 + ae * 0.06 + (tuck ? 0.2 : 0) + (braking ? 0.12 : 0) + (drag ? 0.06 : 0) + idle - 0.15 * this.rest;
 
     this.drop.to(dropT, 3.2, 0.55, d);
     this.incl.to(lean, 2.6, 0.85, d);
@@ -428,7 +430,7 @@ export class SkierModel {
     // knees up in the air (in a flip, short of her belly: her down jacket meets her shins at 0.5 m)
     this.lift.to(air && !spot ? (flipping ? (this.hull.length ? 0.4 : 0.5) : s.grab ? 0.42 : 0.14) : 0, 3.2, 0.6, d);
     this.brakeK.to(braking ? Math.min(1, speed / 3) : 0, 3, 0.9, d);
-    this.armOut.to(air || crashed ? 1 : braking ? 0.8 : 0, 2.2, 0.5, d);
+    this.armOut.to(crashed ? 1 : air ? 0.6 : braking ? 0.5 : 0, 2.2, 0.5, d);
     this.spinLead.to(air ? clamp(s.spinVel * 0.11, -0.9, 0.9) : 0, 2.5, 0.6, d);
     this.armFwd.to(0, 2.5, 0.45, d);
     this.dragK.to(drag ? 1 : 0, 3, 0.8, d);
@@ -546,7 +548,9 @@ export class SkierModel {
     const sr = Math.sin(r);
     const sk = this.skiF.set(fsx, 0, fsz);
     const up = this.rollUp.set(fsz * sr, cr, -fsx * sr); // up rolled toward the ski's left
-    const w = 0.115 + 0.03 * bk + 0.02 * Math.abs(this.incl.x);
+    // the legs stay a hip-width apart across their own line, as a racer's: inclined, the skis part on the snow
+    // (1 / cos of the lean; a fixed spacing brought the legs together and the inside knee crossed the outside shin)
+    const w = (0.115 + 0.03 * bk) / Math.max(0.5, Math.cos(Math.min(1.05, Math.abs(this.incl.x))));
     const lead = 0.1 * this.incl.x;
     for (let i = 0; i < 2; i++) {
       const sg = i === 0 ? 1 : -1;
@@ -562,7 +566,7 @@ export class SkierModel {
     const ped = clamp(this.drop.x + comp + (pk ? pk * (0.06 + 0.1 * (1 - pf) * 0.5) : 0), -0.02, 0.5);
     const beta = bk * 0.28;
     const hipH = this.P.thigh + this.P.shin - ped;
-    const pz = -0.05 - 0.13 * tk - 0.03 * bk + 0.04 * fk;
+    const pz = -0.07 - 0.11 * tk - 0.03 * bk + 0.04 * fk;
     const pel = this.pelvis.addVectors(this.ankle[0], this.ankle[1]).multiplyScalar(0.5);
     if (crashed) pel.set(0, this.P.ankle, 0);
     pel.x += Math.sin(incl) * hipH;
@@ -604,9 +608,29 @@ export class SkierModel {
           if (short > 0 && v1.lengthSq() > 1e-8) { v1.normalize().multiplyScalar(short); this.ankle[i].add(v1); this.skiBase[i].add(v1); }
         }
       }
+      // carving, a racer's outside leg is long and the inside one folds: the hips go further in (along the outside
+      // leg) until it is extended to 80 % … 95 % of its length as the lean grows (one crouch for both legs bent the
+      // outside leg 70° and read as a sideways squat)
+      const insideLeg = s.edge >= 0 ? 0 : 1, outL = 1 - insideLeg, lean = Math.min(1, Math.abs(incl) / 1.0);
+      if (!crashed && !this.seated && lean > 0.05) {
+        const hp = this.hip[outL].set(outL === 0 ? this.P.hipW : -this.P.hipW, 0, 0).applyQuaternion(this.qP).add(pel);
+        v1.subVectors(hp, this.ankle[outL]);
+        const want = (this.P.thigh + this.P.shin) * (0.8 + 0.15 * lean) - v1.length();
+        if (want > 0) pel.addScaledVector(v1.normalize(), want * lean);
+        for (let i = 0; i < 2; i++) { // and the inside foot still within reach
+          const hp2 = this.hip[i].set(i === 0 ? this.P.hipW : -this.P.hipW, 0, 0).applyQuaternion(this.qP).add(pel);
+          v1.subVectors(this.ankle[i], hp2);
+          const over = v1.length() - 0.975 * (this.P.thigh + this.P.shin);
+          if (over > 0) pel.addScaledVector(v1.normalize(), over);
+        }
+      }
+      // each knee into the turn by its own amount, as a racer's stay parallel: the inside one well in, the outside one
+      // a little (one hint for both folded the long outside leg in, across the inside shin)
       for (let i = 0; i < 2; i++) {
         this.hip[i].set(i === 0 ? this.P.hipW : -this.P.hipW, 0, 0).applyQuaternion(this.qP).add(pel);
-        ik(this.hip[i], this.ankle[i], this.P.thigh, this.P.shin, kh, this.knee[i]);
+        const lat = Math.sin(incl) * (i === insideLeg ? 0.8 : 0.25) * (1 - bk);
+        khLeg.set(fsx + lat + fsz * kb, kh.y, fsz - fsx * kb);
+        ik(this.hip[i], this.ankle[i], this.P.thigh, this.P.shin, khLeg, this.knee[i]);
       }
     };
     legs();
@@ -616,7 +640,10 @@ export class SkierModel {
     for (let k = 0; solid && k < 8; k++) {
       this.legBones(kh, up, sk);
       this.refreshHull();
-      if (hullOverlap(this.hullNow, LOWER_L, LEG_R, 0.004) <= 0 && hullOverlap(this.hullNow, LOWER_R, LEG_L, 0.004) <= 0) break;
+      // (radii at 80 %: the full ones, fat with her wide pants, pushed her knees apart in every tuck; full in a crash,
+      // where her legs kick about)
+      const k80 = crashed ? 1 : 0.8;
+      if (hullOverlap(this.hullNow, LOWER_L, LEG_R, 0, k80) <= 0 && hullOverlap(this.hullNow, LOWER_R, LEG_L, 0, k80) <= 0) break;
       for (let i = 0; i < 2; i++) {
         v1.set(fsz, 0, -fsx).multiplyScalar(i === 0 ? 0.02 : -0.02); // across the skis
         this.ankle[i].add(v1);
@@ -627,7 +654,7 @@ export class SkierModel {
 
     // spine: forward with the crouch, the comma (upper body more upright than the legs), counter-rotation
     let pitchT = crashed ? 0.4 * flail + Math.sin(t * 8) * 0.3 * flail
-      : 0.32 - 0.2 * this.rest + ped * 0.9 + tk * 0.8 + fk * 0.55 + gk * 0.5 + pk * (1 - pf) * 0.3 - (ak - fk - gk) * 0.12 + this.armFwd.x * 0.03;
+      : 0.44 - 0.32 * this.rest + ped * 0.9 + tk * 0.8 + fk * 0.55 + gk * 0.5 + pk * (1 - pf) * 0.3 - (ak - fk - gk) * 0.12 + this.armFwd.x * 0.03;
     // (a grab: the trunk leans over the grabbing hand, so it reaches the ski outside the boot)
     const rollT = -incl * (1 - T.skierAngulation) - sway * 0.6 + shake * 0.12 + (crashed ? Math.sin(t * 6) * 0.4 * flail : 0)
       - gk * 0.35 * (this.grabSide > 0 ? 1 : -1);
@@ -647,7 +674,7 @@ export class SkierModel {
       this.legBones(kh, up, sk);
       for (let k = 0; k < 16; k++) {
         this.torsoBones();
-        if (hullOverlap(this.hullNow, UPPER_MASK, LEG_MASK, 0.05) <= 0) break;
+        if (hullOverlap(this.hullNow, UPPER_MASK, LEG_MASK, 0.03) <= 0) break;
         pitchT -= 0.05;
         setSpine();
       }
@@ -665,11 +692,12 @@ export class SkierModel {
       const sg = i === 0 ? 1 : -1;
       const shp = this.shoulder[i].set(this.P.shoulder.x * sg, this.P.shoulder.y, this.P.shoulder.z).applyQuaternion(this.qT).add(this.chest);
       const inside = i === ins ? 1 : 0;
-      // stance: forward and wide; carving: outside hand low and forward, inside hand forward and up
-      v1.set(sg * 0.24, -0.36 + ef * (inside ? 0.14 : -0.1), 0.36 + ef * (inside ? 0.05 : 0.12));
+      // stance (as a racer's): hands forward, a little wider than the shoulders, between hip and chest; carving:
+      // outside hand low and forward, inside hand forward and up (wide hands and splayed poles read as a beginner)
+      v1.set(sg * 0.1, -0.35 + ef * (inside ? 0.14 : -0.1), 0.42 + ef * (inside ? 0.06 : 0.12));
       v1.y += 0.06 * this.armFwd.x;
       v1.z += 0.2 * this.armFwd.x;
-      v1.lerp(v2.set(sg * 0.48, -0.1, 0.18), this.armOut.x); // balance: arms out
+      v1.lerp(v2.set(sg * 0.3, -0.18, 0.3), this.armOut.x); // balance: arms out, still in front
       if (wob > 0) { // windmill
         const ph = t * 14 + sg * 1.6;
         v1.y += Math.sin(ph) * 0.28 * wob;
@@ -682,7 +710,7 @@ export class SkierModel {
       // (offsets from the shoulder tuned for our arms: scaled to the model's reach, so shorter arms keep the same angles)
       const reach = (this.P.upperArm + this.P.forearm + this.P.grip) / (UPPER_ARM + FOREARM + GRIP);
       const tg = v3.copy(v1).multiplyScalar(reach).applyQuaternion(this.qU).add(shp);
-      if (tk > 0) tg.lerp(v2.set(sg * 0.07, -0.13, 0.2).applyQuaternion(this.qU).add(this.neck), tk); // egg: fists under the chin
+      if (tk > 0) tg.lerp(v2.set(sg * 0.09, -0.12, 0.22).applyQuaternion(this.qU).add(this.neck), tk); // egg: fists under the chin
       // hold the knees, from the front and outside (lower, on her shins, her forearms crossed her wide ski pants)
       if (fk > 0) tg.lerp(v2.copy(this.knee[i]).add(v1.set(sg * 0.08, 0.05, 0.1)), fk);
       if (gk > 0) {
@@ -705,11 +733,12 @@ export class SkierModel {
       this.grip[i].copy(tg);
       this.wrist[i].subVectors(tg, this.elbow[i]).normalize().multiplyScalar(this.P.forearm).add(this.elbow[i]);
 
-      // poles: back and down, tip clear of the snow; under the arms in the tuck; planted on the snow ahead / in the push
-      const pd = this.poleDir[i].set(sg * 0.3, -0.62, -0.72).applyQuaternion(this.qU).normalize();
+      // poles: back along the slope, tips just off the snow behind the boots, barely out (a racer's); under the arms
+      // along the flat back in the tuck (in the torso's frame); planted on the snow ahead / in the push
+      const pd = this.poleDir[i].set(sg * 0.1, -0.5, -0.86).applyQuaternion(this.qU).normalize();
       if (this.grip[i].y + pd.y * POLE < 0.05) snowPole(pd, this.grip[i], pd.x, pd.z, 0.05);
-      if (ak > 0) pd.lerp(v1.set(sg * 0.4, -0.5, -0.6).applyQuaternion(this.qU), ak);
-      if (tk > 0) pd.lerp(v1.set(sg * 0.07, 0.18, -1).applyQuaternion(this.qU), tk);
+      if (ak > 0) pd.lerp(v1.set(sg * 0.18, -0.4, -0.9).applyQuaternion(this.qU), ak);
+      if (tk > 0) pd.lerp(v1.set(sg * 0.32, -1, -0.1).applyQuaternion(this.qT).normalize(), tk);
       pd.normalize();
       if (plantK[i] > 0) {
         snowPole(v1, this.grip[i], sg * 0.4 - this.grip[i].x, 0.8 - this.grip[i].z, 0);
@@ -782,16 +811,16 @@ export class SkierModel {
 
   /**
    * A pole still in her after clearSegment (squeezed between her chest and her thigh in a tuck through a turn): swung
-   * outward round her up axis (10° steps, to 70°) and tipped up or down (to ±30°), the least turn that clears it,
-   * else the shallowest.
+   * outward round her up axis (10° steps, to 50°) and tipped up or down by 10° at most (more stood the poles up like
+   * antennae), the least turn that clears it, else the shallowest.
    */
   private swingPole(i: number, out: Vector3): void {
     const d0 = pw1.copy(this.poleDir[i]), upA = pw2.set(0, 1, 0).applyQuaternion(this.qU), side = out.dot(pw3.crossVectors(upA, d0)) > 0 ? 1 : -1;
     const across = pw4.crossVectors(d0, upA).normalize();
     let best = Infinity;
     const keep = pw5.copy(d0);
-    for (let yaw = 0; yaw <= 7; yaw++) {
-      for (const tilt of [0, 1, -1, 2, -2, 3, -3]) {
+    for (let yaw = 0; yaw <= 5; yaw++) {
+      for (const tilt of [0, 1, -1]) {
         const d = pw6.copy(d0).applyQuaternion(sq.setFromAxisAngle(upA, side * yaw * 0.1745)).applyQuaternion(sq.setFromAxisAngle(across, tilt * 0.1745)).normalize();
         const depth = segmentDepth(this.grip[i], d, POLE, 0.02, 0.035, 0.1, this.hullNow, B.forearmL + i, 0.006);
         if (depth < best - 1e-4) { best = depth; keep.copy(d); }
