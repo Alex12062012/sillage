@@ -1,5 +1,5 @@
 import './style.css';
-import { NeutralToneMapping, WebGLRenderer } from 'three';
+import { NeutralToneMapping, WebGLRenderer, type SkinnedMesh } from 'three';
 import { autoTier as autoTierOf } from './core/tier';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
@@ -465,6 +465,13 @@ if (import.meta.env.MODE !== 'production') window.__sillage = {
   raw: () => game,
   tier: () => tier,
   photo: (p: { x: number; z: number; up: number; yaw: number; pitch: number; fov?: number } | null) => { game.photo = p; },
+  /** Debug: where the realistic skier passes through herself in the current pose (magenta dots). Test build only. */
+  clip: async (markers = true, focus?: string) => {
+    const a = ((game as unknown as { model: unknown }).model as { avatar: { mesh: SkinnedMesh; follow: Int8Array } | null }).avatar;
+    if (!a) return null;
+    const { clipCheck } = await import('./render/clipCheck');
+    return clipCheck(a.mesh, a.follow, markers, focus);
+  },
   /** Debug: the colliders within `radius` m of (x, z) as red outlines (null: off). Test build only. */
   colliders: async (at: { x: number; z: number; radius?: number } | null) => {
     const old = game.scene.getObjectByName('colliders');

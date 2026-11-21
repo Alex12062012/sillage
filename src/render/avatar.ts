@@ -5,6 +5,7 @@ import {
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { fitHull, type HullPart } from './bodyHull';
 import { addHeightFog } from './heightFog';
 import { B, BONES, POLE, S } from './skierMesh';
 
@@ -76,7 +77,9 @@ export class Avatar {
   private colors: BufferAttribute;
 
   constructor(tier: 'low' | 'high', readonly P: Proportions, geometry: BufferGeometry, material: Material, shadowMat: Material,
-    bones: Bone[], inverses: Matrix4[], follow: Int8Array, offsets: Matrix4[], private slots: Uint8Array, private hands: HandRig[]) {
+    bones: Bone[], inverses: Matrix4[], follow: Int8Array, offsets: Matrix4[], private slots: Uint8Array, private hands: HandRig[],
+    /** Her body as capsules on our bones (bodyHull.ts): the solver keeps the poles off it. */
+    readonly hull: HullPart[]) {
     this.tier = tier;
     this.bones = bones;
     this.follow = follow;
@@ -98,10 +101,13 @@ export class Avatar {
   /**
    * Every frame, after the pose: each of her bones from the one of ours it follows. Her hands then take the pole as in
    * her own animation: oriented by the pole's axis and the forearm (frame G), set back on our wrist; her fingers follow
-   * her hand; her pole moves into her fist by the same few centimetres.
+   * her hand; her pole moves into her fist by the same few centimetres. Not `holding` (a crash), her hands stay on ours.
    */
-  drive(ours: Bone[]): void {
+  drive(ours: Bone[], holding = true): void {
     for (let j = 0; j < this.bones.length; j++) this.bones[j].matrix.multiplyMatrices(ours[this.follow[j]].matrix, this.offsets[j]);
+    // a crash: her poles fly off on their own (the loop above put them where they are); her hands stay on her wrists
+    // (on the flying pole, a glove stretched 3 m after it)
+    if (!holding) return;
     this.hands.forEach((h, side) => {
       // the hand first: on our pole (its fist at our grip) as in her animation
       const pole = ours[B.poleL + side].matrix, fore = ours[B.forearmL + side].matrix, e = pole.elements, f = fore.elements;
@@ -264,6 +270,31 @@ export async function loadAvatar(tier: 'low' | 'high', shadowMat: Material): Pro
   }
   [B.skiL, B.skiR, B.poleL, B.poleR].forEach((b, k) => { follow[nRig + k] = b; offsets.push(new Matrix4()); });
 
+  // her body as capsules on our bones, from where each vertex sits in the frame of the bone of ours it follows
+  const hullBones = new Set<number>([B.pelvis, B.spine, B.chest, B.head, B.upperArmL, B.upperArmR, B.forearmL, B.forearmR, B.thighL, B.thighR, B.shinL, B.shinR, B.footL, B.footR]);
+  const toBone = offsets.slice(0, nRig).map((o, j) => o.clone().multiply(skeleton.boneInverses[j]));
+  const hullPts = new Map<number, Vector3[]>();
+  for (const m of skinned) {
+    const p = m.geometry.getAttribute('position'), si = m.geometry.getAttribute('skinIndex'), sw = m.geometry.getAttribute('skinWeight');
+    for (let i = 0; i < p.count; i++) {
+      let j = -1, w = 0;
+      for (let k = 0; k < 4; k++) if (sw.getComponent(i, k) > w) { w = sw.getComponent(i, k); j = si.getComponent(i, k); }
+      if (j < 0 || !hullBones.has(follow[j])) continue;
+      const list = hullPts.get(follow[j]) ?? [];
+      list.push(new Vector3().fromBufferAttribute(p, i).applyMatrix4(toBone[j]));
+      hullPts.set(follow[j], list);
+    }
+  }
+  const hull = fitHull(hullPts, new Set([B.pelvis, B.spine, B.chest]));
+  // her skis: the plank, from tail to tip, over its base (the binding is in her boot's capsules)
+  // (two side by side: it is 11 cm wide, 2 cm thick; the shovel rises 4 cm)
+  for (const b of [B.skiL, B.skiR]) {
+    for (const x of [-0.025, 0.025]) {
+      hull.push({ bone: b, a: new Vector3(x, 0.012, -0.62), b: new Vector3(x, 0.012, 0.95), r: 0.035 });
+      hull.push({ bone: b, a: new Vector3(x, 0.015, 0.95), b: new Vector3(x, 0.035, 1.06), r: 0.035 });
+    }
+  }
+
   // the forearm's second half (Rigify's twist bone) of each side: the jacket's cuff follows it, not the hand
   const wristOf = ['L', 'R'].map((sd) => { const i = key.indexOf(`DEF-forearm${sd}001`); return i >= 0 ? i : key.indexOf(`DEF-forearm${sd}`); });
   // the atlas: the jacket's and the pants' textures side by side, a white (and flat-normal) band under them
@@ -332,22 +363,17 @@ export async function loadAvatar(tier: 'low' | 'high', shadowMat: Material): Pro
     }
     parts.push(g);
   };
+  layerPants(skinned, follow, pel);
   for (const m of skinned) add(m.geometry, m.material as MeshStandardMaterial);
 
   const poleAnim: ({ fist: Vector3; axis: Vector3 } | null)[] = [null, null];
   // skis and poles: each side's pieces framed as our bones are (ski: origin under the boot, +y up, +z to the tip;
   // pole: origin in the fist, +y to the tip, POLE long)
   for (const kind of ['ski', 'pole'] as const) {
+    const near = [0, 1].map((sd) => new Vector3().setFromMatrixPosition(rig[key.indexOf(`DEF-${kind === 'ski' ? 'foot' : 'hand'}${sd ? 'R' : 'L'}`)].matrixWorld));
+    const sides = gearSides(kind, gear, near);
     for (const side of [0, 1]) {
-      // each piece to the side of the nearer foot (skis) or hand (poles), as she holds them in her animation's first
-      // frame (by the sign of x, both skis went to one side: she carves there)
-      const near = [0, 1].map((sd) => new Vector3().setFromMatrixPosition(rig[key.indexOf(`DEF-${kind === 'ski' ? 'foot' : 'hand'}${sd ? 'R' : 'L'}`)].matrixWorld));
-      const pieces = gear.filter((m) => {
-        if (!m.name.toLowerCase().startsWith(kind)) return false;
-        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
-        const c = new Vector3().copy(m.geometry.boundingSphere!.center).applyMatrix4(m.matrixWorld);
-        return (c.distanceTo(near[1]) < c.distanceTo(near[0]) ? 1 : 0) === side;
-      });
+      const pieces = sides[side];
       if (!pieces.length) continue;
       const pts: Vector3[] = [], held: Vector3[] = [];
       for (const m of pieces) {
@@ -358,7 +384,7 @@ export async function loadAvatar(tier: 'low' | 'high', shadowMat: Material): Pro
           if (/^plast/.test(mat)) held.push(w); // the binding (skis), the handle (poles)
         }
       }
-      const { toLocal: frame, fist, axis } = gearFrame(kind, pts, held);
+      const { toLocal: frame, fist, axis } = gearFrame(kind, pts, held, kind === 'ski' ? faceNormal(pieces) : undefined, kind === 'ski' ? near[side] : undefined);
       if (kind === 'pole') poleAnim[side] = { fist, axis };
       for (const m of pieces) add(m.geometry, m.material as MeshStandardMaterial, nRig + (kind === 'ski' ? side : 2 + side), frame.clone().multiply(m.matrixWorld));
     }
@@ -387,11 +413,172 @@ export async function loadAvatar(tier: 'low' | 'high', shadowMat: Material): Pro
   const bones = Array.from({ length: nRig + 4 }, () => { const b = new Bone(); b.matrixAutoUpdate = false; return b; });
   const inverses = [...skeleton.boneInverses.map((m) => m.clone()), ...[0, 1, 2, 3].map(() => new Matrix4())];
   for (const m of skinned) { m.geometry.dispose(); (m.material as Material).dispose(); }
-  return new Avatar(tier, P, geometry, material, shadowMat, bones, inverses, follow, offsets, Uint8Array.from(slotList), hands.length === 2 ? hands : []);
+  return new Avatar(tier, P, geometry, material, shadowMat, bones, inverses, follow, offsets, Uint8Array.from(slotList), hands.length === 2 ? hands : [], hull);
+}
+
+/**
+ * Her skis' (or poles') pieces, left and right. A ski is several pieces (base, edges, binding...): they stay together,
+ * by the side letter in their names ("skiL_…", "poleR_…"), and each whole ski goes to the foot (each pole to the hand)
+ * that makes the nearer pairing in her animation's first frame. One by one, a piece of her left ski sat nearer her
+ * right foot (she carves there, skis apart in height): it went to the right ski, whose base it set 14 cm too low, and
+ * that ski floated through her right boot.
+ */
+function gearSides(kind: 'ski' | 'pole', gear: Mesh[], near: Vector3[]): Mesh[][] {
+  const mine = gear.filter((m) => m.name.toLowerCase().startsWith(kind));
+  const centre = (list: Mesh[]) => {
+    const c = new Vector3();
+    for (const m of list) {
+      if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+      c.add(new Vector3().copy(m.geometry.boundingSphere!.center).applyMatrix4(m.matrixWorld));
+    }
+    return c.divideScalar(Math.max(1, list.length));
+  };
+  const named = ['L', 'R'].map((sd) => mine.filter((m) => new RegExp(`^${kind}${sd}`, 'i').test(m.name)));
+  if (named[0].length && named[1].length && named[0].length + named[1].length === mine.length) {
+    const [a, b] = named.map(centre);
+    return a.distanceTo(near[0]) + b.distanceTo(near[1]) <= a.distanceTo(near[1]) + b.distanceTo(near[0]) ? named : [named[1], named[0]];
+  }
+  // unnamed pieces: each to the nearer foot or hand
+  const out: Mesh[][] = [[], []];
+  for (const m of mine) { const c = centre([m]); out[c.distanceTo(near[1]) < c.distanceTo(near[0]) ? 1 : 0].push(m); }
+  return out;
+}
+
+/**
+ * Her pants under her jacket. The top of the pants (round the hips, up to 18 cm under the hem) followed her thighs, the
+ * jacket her spine: in a crouch the seat of her pants came out through the back of her jacket, and her thighs pushed
+ * through its front. Where both fabrics overlap (from the hem up to the top of the pants, sector by sector round her),
+ * both now take one skinning, blended by height: at the hem the pants' (the jacket rides on her thighs and seat), at
+ * the top of the pants the jacket's (the pants move with the jacket). One skinning for both keeps the pants inside;
+ * they also go 12 mm further in, and the hem 15 mm out.
+ */
+function layerPants(skinned: SkinnedMesh[], follow: Int8Array, centre: Vector3): void {
+  const jacket = skinned.find((m) => (m.material as Material).name === 'jacket')?.geometry;
+  const pants = skinned.find((m) => (m.material as Material).name === 'pants')?.geometry;
+  if (!jacket || !pants) return;
+  const jp = jacket.getAttribute('position'), ji = jacket.getAttribute('skinIndex'), jw = jacket.getAttribute('skinWeight');
+  const pp = pants.getAttribute('position'), pi = pants.getAttribute('skinIndex'), pw = pants.getAttribute('skinWeight');
+  const arm = (b: number) => b === B.head || (b >= B.upperArmL && b <= B.poleR);
+  const heaviest = (si: typeof ji, sw: typeof jw, i: number) => { let j = 0, w = -1; for (let k = 0; k < 4; k++) if (sw.getComponent(i, k) > w) { w = sw.getComponent(i, k); j = si.getComponent(i, k); } return j; };
+  // the hem (the jacket's lowest point, sleeves and hood left out) and the top of the pants, in 24 sectors round her
+  const N = 24, hem = new Array<number>(N).fill(Infinity), top = new Array<number>(N).fill(-Infinity);
+  const sector = (x: number, z: number) => Math.floor((((Math.atan2(x - centre.x, z - centre.z) / (2 * Math.PI)) % 1) + 1) % 1 * N) % N;
+  const body: number[] = [];
+  for (let i = 0; i < jp.count; i++) {
+    if (arm(follow[heaviest(ji, jw, i)])) continue;
+    body.push(i);
+    const k = sector(jp.getX(i), jp.getZ(i));
+    hem[k] = Math.min(hem[k], jp.getY(i));
+  }
+  for (let i = 0; i < pp.count; i++) { const k = sector(pp.getX(i), pp.getZ(i)); top[k] = Math.max(top[k], pp.getY(i)); }
+  for (let k = 0; k < N; k++) {
+    if (!isFinite(hem[k])) hem[k] = Math.min(hem[(k + N - 1) % N], hem[(k + 1) % N]);
+    if (!isFinite(top[k])) top[k] = Math.max(top[(k + N - 1) % N], top[(k + 1) % N]);
+  }
+  // s: 0 at the hem … 1 at the top of the pants, over 10 cm at least (a thinner band stretched the jacket's hip),
+  // smoothstep; -1 outside
+  const band = (x: number, y: number, z: number) => {
+    const k = sector(x, z), h = hem[k], t = Math.max(top[k], h + 0.1);
+    if (y < h || y > t) return -1;
+    const f = Math.min(1, (y - h) / (t - h));
+    return f * f * (3 - 2 * f);
+  };
+  // the 6 nearest vertices of the other fabric, by inverse distance (one nearest flipped left / right along the seams)
+  const nearest = (pos: typeof jp, list: Iterable<number>, v: Vector3) => {
+    const best: [number, number][] = [];
+    for (const j of list) {
+      const dd = w.fromBufferAttribute(pos, j).distanceToSquared(v);
+      if (best.length < 6 || dd < best[best.length - 1][1]) {
+        best.push([j, dd]);
+        best.sort((a, b) => a[1] - b[1]);
+        if (best.length > 6) best.pop();
+      }
+    }
+    if (!best.length || best[0][1] > 0.08 * 0.08) return []; // nothing of the other fabric within 8 cm: not a layer
+    const inv = best.map(([j, dd]) => [j, 1 / (Math.sqrt(dd) + 0.005)] as [number, number]), sum = inv.reduce((a, e) => a + e[1], 0);
+    return inv.map(([j, x]) => [j, x / sum] as [number, number]);
+  };
+  const blend = (si: typeof ji, sw: typeof jw, i: number, oi: typeof ji, ow: typeof jw, others: [number, number][], t: number) => {
+    const mix = new Map<number, number>();
+    for (let k = 0; k < 4; k++) mix.set(si.getComponent(i, k), (mix.get(si.getComponent(i, k)) ?? 0) + sw.getComponent(i, k) * (1 - t));
+    for (const [o, f] of others) for (let k = 0; k < 4; k++) mix.set(oi.getComponent(o, k), (mix.get(oi.getComponent(o, k)) ?? 0) + ow.getComponent(o, k) * t * f);
+    const best = [...mix].sort((a, b) => b[1] - a[1]).slice(0, 4), sum = best.reduce((a, e) => a + e[1], 0) || 1;
+    return best.map(([j, x]) => [j, x / sum]);
+  };
+  const v = new Vector3(), w = new Vector3();
+  // both from the original skinnings, written after
+  const allPants = Array.from({ length: pp.count }, (_, i) => i);
+  const jNew: [number, number[][]][] = [], pNew: [number, number[][]][] = [];
+  for (const i of body) {
+    v.fromBufferAttribute(jp, i);
+    const s = band(v.x, v.y, v.z);
+    if (s < 0) continue;
+    const under = nearest(pp, allPants, v);
+    if (under.length) jNew.push([i, blend(ji, jw, i, pi, pw, under, 1 - s)]);
+  }
+  // smoothed over 4 cm, twice (the seams between the hem's sectors)
+  for (let it = 0; it < 2; it++) {
+    const at = jNew.map(([i]) => new Vector3().fromBufferAttribute(jp, i));
+    const next = jNew.map(([, ws], a) => {
+      const mix = new Map<number, number>();
+      let n = 0;
+      jNew.forEach(([, wb], b) => {
+        if (at[a].distanceToSquared(at[b]) > 0.04 * 0.04) return;
+        n++;
+        for (const [j, x] of wb) mix.set(j, (mix.get(j) ?? 0) + x);
+      });
+      if (n <= 1) return ws;
+      const best = [...mix].sort((x, y) => y[1] - x[1]).slice(0, 4), sum = best.reduce((acc, e) => acc + e[1], 0) || 1;
+      return best.map(([j, x]) => [j, x / sum]);
+    });
+    next.forEach((ws, a) => { jNew[a][1] = ws; });
+  }
+  // the jacket's hem 15 mm out (none at the top of the pants): it rests on them
+  for (const [i] of jNew) {
+    v.fromBufferAttribute(jp, i);
+    const s = band(v.x, v.y, v.z);
+    const r = Math.hypot(v.x - centre.x, v.z - centre.z), k = r > 0.02 ? 1 + (0.015 * (1 - s)) / r : 1;
+    jp.setXYZ(i, centre.x + (v.x - centre.x) * k, v.y, centre.z + (v.z - centre.z) * k);
+  }
+  for (let i = 0; i < pp.count; i++) {
+    v.fromBufferAttribute(pp, i);
+    const s = band(v.x, v.y, v.z);
+    if (s < 0) continue;
+    const over = nearest(jp, body, v);
+    if (!over.length) continue;
+    pNew.push([i, blend(pi, pw, i, ji, jw, over, s)]);
+    // in, toward her axis (fully 2 cm above the hem: the step hides under it)
+    const d = v.y - hem[sector(v.x, v.z)], f = Math.min(1, d / 0.02);
+    const r = Math.hypot(v.x - centre.x, v.z - centre.z), k = r > 0.02 ? 1 - (0.012 * f) / r : 1;
+    pp.setXYZ(i, centre.x + (v.x - centre.x) * k, v.y, centre.z + (v.z - centre.z) * k);
+  }
+  for (const [list, si, sw] of [[jNew, ji, jw], [pNew, pi, pw]] as const) {
+    for (const [i, ws] of list) for (let k = 0; k < 4; k++) { si.setComponent(i, k, ws[k]?.[0] ?? 0); sw.setComponent(i, k, ws[k]?.[1] ?? 0); }
+  }
+}
+
+/** The dominant direction of the pieces' face normals (world space, area-weighted, either sign). */
+function faceNormal(pieces: Mesh[]): Vector3 {
+  const m = [0, 0, 0, 0, 0, 0, 0, 0, 0], a = new Vector3(), b = new Vector3(), c = new Vector3(), nn = new Vector3();
+  for (const piece of pieces) {
+    const p = piece.geometry.getAttribute('position'), idx = piece.geometry.index, n = idx ? idx.count : p.count;
+    for (let t = 0; t + 2 < n; t += 3) {
+      const at = (k: number, v: Vector3) => v.fromBufferAttribute(p, idx ? idx.getX(t + k) : t + k).applyMatrix4(piece.matrixWorld);
+      at(0, a); at(1, b); at(2, c);
+      nn.crossVectors(b.sub(a), c.sub(a)); // length = twice the area: a unit normal weighted by area is nn / |nn| · |nn|/2
+      const len = nn.length();
+      if (len < 1e-12) continue;
+      const w = len / 2, x = nn.x / len, y = nn.y / len, z = nn.z / len, d = [x, y, z];
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) m[i * 3 + j] += w * d[i] * d[j];
+    }
+  }
+  const v = new Vector3(0.1, 1, 0.1);
+  for (let k = 0; k < 50; k++) v.set(m[0] * v.x + m[1] * v.y + m[2] * v.z, m[3] * v.x + m[4] * v.y + m[5] * v.z, m[6] * v.x + m[7] * v.y + m[8] * v.z).normalize();
+  return v;
 }
 
 /** The frame of a ski or a pole from its own points (principal axis), as our gear bones define them. */
-function gearFrame(kind: 'ski' | 'pole', pts: Vector3[], held: Vector3[]): { toLocal: Matrix4; fist: Vector3; axis: Vector3 } {
+function gearFrame(kind: 'ski' | 'pole', pts: Vector3[], held: Vector3[], faceNormal?: Vector3, ankle?: Vector3): { toLocal: Matrix4; fist: Vector3; axis: Vector3 } {
   const c = pts.reduce((a, p) => a.add(p), new Vector3()).divideScalar(pts.length);
   // principal axis by power iteration on the covariance
   const cov = [0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -427,22 +614,30 @@ function gearFrame(kind: 'ski' | 'pole', pts: Vector3[], held: Vector3[]): { toL
     const s = POLE / Math.max(0.5, tip - top - 0.07);
     return { toLocal: new Matrix4().makeScale(1, s, 1).multiply(m.invert()), fist, axis: u.clone() };
   }
-  // ski: n the thinnest axis, pointing from the base to the binding; +z to the end that rises (the tip)
-  const second = power(new Vector3(0, 1, 0.1), u);
-  const n = new Vector3().crossVectors(u, second).normalize();
-  if (n.dot(hc.clone().sub(c)) < 0) n.negate();
+  // ski: n the thinnest axis, pointing from the base to the binding; +z to the end that rises (the tip). n is the
+  // faces' dominant normal (area-weighted; the top and the base are most of the ski's surface): by the spread of its
+  // points, the binding and the ski's camber (posed on edge in her animation) looked like its width, and the ski
+  // stood on its edge, binding sideways
+  // and its length square to n (the binding and the shovel had tipped the points' axis 2.4° nose up)
+  const n = (faceNormal ?? new Vector3(0, 1, 0)).clone().normalize();
+  u.addScaledVector(n, -u.dot(n)).normalize();
   let lo = Infinity, hi = -Infinity, rise = 0;
   for (const p of pts) { const t = p.clone().sub(c).dot(u); lo = Math.min(lo, t); hi = Math.max(hi, t); }
+  if (n.dot(hc.clone().sub(c)) < 0) n.negate();
+  // the tip: the end whose last 10 % sits higher on average (a sum counted the vertices: the tail has more)
+  let nf = 0, nb = 0, back = 0;
   for (const p of pts) {
     const t = p.clone().sub(c).dot(u), h = p.clone().sub(c).dot(n);
-    if (t > hi - (hi - lo) * 0.1) rise += h; else if (t < lo + (hi - lo) * 0.1) rise -= h;
+    if (t > hi - (hi - lo) * 0.1) { rise += h; nf++; } else if (t < lo + (hi - lo) * 0.1) { back += h; nb++; }
   }
-  if (rise < 0) u.negate();
+  if (rise / Math.max(1, nf) < back / Math.max(1, nb)) u.negate();
   let base = Infinity;
   for (const p of pts) base = Math.min(base, p.clone().sub(c).dot(n));
-  // across: the ski's own middle (its binding parts are not symmetric: brake, lever); along: the binding's centre, 8 cm
-  // ahead of the bone (our ski bone sits under the ankle, her boot's middle is ahead of it); up: the base
-  const origin = c.clone().addScaledVector(u, hc.clone().sub(c).dot(u) - 0.08).addScaledVector(n, base);
+  // across: the ski's own middle (its binding parts are not symmetric: brake, lever); along: under her ankle as she
+  // stands in it in her animation (our ski bone sits under the ankle; a guessed 8 cm put her heel into the heel piece
+  // and left a gap at the toe); up: the base
+  const along = ankle ? ankle.clone().sub(c).dot(u) : hc.clone().sub(c).dot(u) - 0.08;
+  const origin = c.clone().addScaledVector(u, along).addScaledVector(n, base);
   const x = new Vector3().crossVectors(n, u).normalize(), zz = new Vector3().crossVectors(x, n).normalize();
   m.makeBasis(x, n, zz).setPosition(origin);
   return { toLocal: m.invert(), fist: origin, axis: u.clone() };
@@ -464,7 +659,10 @@ function avatarMaterial(map: Texture, normalMap: Texture): MeshStandardMaterial 
         // the fabric's shading in the outfit's colour (vertex colour); saturated details (piping) keep their own
         float lum = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
         float sat = max(texel.r, max(texel.g, texel.b)) - min(texel.r, min(texel.g, texel.b));
-        diffuseColor.rgb *= mix(vColor.rgb * lum * vTint, texel.rgb, smoothstep(0.08, 0.2, sat));
+        // the jacket's dark contrast panels (forearms, cuffs: a fifth of the fabric's mean brightness) stay charcoal:
+        // tinted, they read as brown leather sleeves
+        vec3 tinted = mix(texel.rgb, vColor.rgb * lum * vTint, smoothstep(0.2, 0.45, lum * vTint));
+        diffuseColor.rgb *= mix(tinted, texel.rgb, smoothstep(0.08, 0.2, sat));
       } else diffuseColor.rgb *= texel.rgb;`)
       .replace('#include <color_fragment>', 'if (vTint <= 0.0) diffuseColor.rgb *= vColor.rgb;')
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vPbr.x;')

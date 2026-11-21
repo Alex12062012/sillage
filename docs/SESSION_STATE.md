@@ -1,5 +1,17 @@
 # État de session : refonte visuelle
 
+## Session 6 (21/11/2026) : skieuse sans défaut
+
+Branche `skieuse`, rien de poussé. Demande : plus aucun bâton qui la traverse, aucun défaut de vêtement en mouvement, aucun ski à l'envers, vérifié dans Chrome sur une descente (virages, sauts, grabs, slaloms). DECISIONS.md, points 117 à 121.
+
+- Outils : `window.__sillage.clip(markers, focus)` (build de test) compte les triangles qui se croisent entre parties du corps, bâtons et skis, et les étirements ; points magenta (contacts) ou jaunes (`'stretch'`). Le banc de 19 poses et les descentes pilotées ont tourné dans la page via Claude in Chrome (scripts non versionnés).
+- Corrigé : skis couchés sur la carre puis à l'envers, ski droit flottant dans la chaussure, talon dans la talonnière ; bâtons à travers le buste, les cuisses, les tibias, les avant-bras et les skis ; avant-bras dans les cuisses et les tibias ; jambes croisées en grand virage ; pantalon sortant de la veste aux hanches ; gant étiré derrière le bâton en chute ; bâton envolé à travers la tête ; avant-bras marron.
+- Tests : 144 unitaires, 20 e2e réussis (8 ignorés, comme avant), lint et build propres. `clipCheck.ts` reste hors du build de production.
+- Restes : contacts brefs en chute et dans un tuck juste après une réception ; plis internes du tissu ; un triangle de l'ourlet étiré ×2,7 dans les poses extrêmes (point 121).
+- Pièges : `teleport` et `load` recréent l'objet du ralenti (`game.slowmo`) ; pour figer le jeu, accrocher son prototype. Les tests e2e réécrivent `docs/captures/e2e-*.jpg` : les restaurer avant un commit.
+- Perf : le solveur du joueur passe de 0,03 à 0,26-0,33 ms par image sur ce Mac (point 117).
+- Pas vérifié : un vrai téléphone ; `perf.mjs` n'a pas été relancé.
+
 ## Session 5 (20/11/2026) : skieur réaliste
 
 Branche `skieuse` (partie de `neige-son-tete`, déjà en production). « Skiing Lady » (CC BY 4.0) intégrée comme skieur du joueur, pilotée par notre squelette, 8 tenues. Fichiers : `public/models/skier-{high,low}.glb` (refaits par `node scripts/build-avatar.mjs`, source dans `scripts/raw/skiing_lady.glb`, hors git). DECISIONS.md, point 113.
