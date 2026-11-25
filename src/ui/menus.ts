@@ -142,7 +142,6 @@ export class Menus {
           <label>Show FPS ${tog('showFps')}</label>
         </div>
         <div class="buttons"><button class="primary" data-go="back">Done</button><button data-go="reset" class="danger">Reset progress</button></div>
-        <p class="credits">Skier: <a href="https://sketchfab.com/3d-models/skiing-lady-52aabb1e0773487b93a6e56d0f0b875b" target="_blank" rel="noopener">“Skiing Lady”</a> by lancehuang526, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (recoloured, re-rigged) · Map data © OpenStreetMap contributors</p>
       </div>`, focus ?? '[data-go="back"]');
     const commit = () => this.a.setSettings({ ...st });
     this.on('[data-set]', (b) => {

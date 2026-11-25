@@ -270,9 +270,6 @@ kbd { font: inherit; font-size: 11px; opacity: 0.75; border: 1px solid rgba(255,
 .settings label { display: flex; align-items: center; gap: 10px; justify-content: space-between; background: rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 8px 10px; font-weight: 700; flex-wrap: wrap; }
 .settings label small { font-weight: 500; opacity: 0.7; margin-right: auto; }
 .settings input[type='range'] { width: min(220px, 50vw); accent-color: var(--accent); }
-/* attributions (CC BY): small, at the bottom of the settings */
-.settings .credits { margin: 10px 0 0; font-size: 11px; line-height: 1.4; opacity: 0.6; text-align: center; }
-.settings .credits a { color: inherit; }
 .seg { display: inline-flex; gap: 4px; }
 .seg button, .tog { padding: 8px 12px !important; min-height: 38px !important; font-size: 14px !important; }
 .seg button.on, .tog.on { background: var(--accent) !important; }

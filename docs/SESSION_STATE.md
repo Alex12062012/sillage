@@ -1,36 +1,5 @@
 # État de session : refonte visuelle
 
-## Session 7 (21/11/2026) : posture de pro
-
-Branche `skieuse`. Demande : des animations de pro (vidéos de skieurs comme référence) ; elle skiait comme une débutante, jambes écartées, bâtons en l'air. DECISIONS.md, point 122.
-
-- Référence : ralenti de Ted Ligety en géant, une quinzaine d'images extraites avec le skill `watch`.
-- Corrigé : mains resserrées et devant, bâtons vers l'arrière le long de la pente, position athlétique, tuck de descendeur, jambe extérieure longue et genoux parallèles en virage coupé ; plus de bâtons dressés ni de genoux écartés en tuck.
-- Vérifié dans Chrome : descente des Rousses depuis La Dôle en tuck jusqu'à 109 km/h, grands virages à 90 km/h, glisse sur Combe Douce à 50 km/h ; 17 poses du banc sans croisement en élevé et en bas.
-- Tests : 144 unitaires, lint propre ; e2e 19 réussis et 1 échec (« retrying during the finish run-out », instable connu), réussi 3 fois sur 3 relancé seul.
-- Restes : 4 paires de triangles veste contre cuisses en tuck réel.
-- Pièges : en station, le pilote automatique traverse la pente à 20 km/h ; pour tester la vitesse, orienter le skieur dans la ligne de pente (`spot` avec le cap de la pente) et piloter en tuck.
-
-## Session 6 (21/11/2026) : skieuse sans défaut
-
-Branche `skieuse`, rien de poussé. Demande : plus aucun bâton qui la traverse, aucun défaut de vêtement en mouvement, aucun ski à l'envers, vérifié dans Chrome sur une descente (virages, sauts, grabs, slaloms). DECISIONS.md, points 117 à 121.
-
-- Outils : `window.__sillage.clip(markers, focus)` (build de test) compte les triangles qui se croisent entre parties du corps, bâtons et skis, et les étirements ; points magenta (contacts) ou jaunes (`'stretch'`). Le banc de 19 poses et les descentes pilotées ont tourné dans la page via Claude in Chrome (scripts non versionnés).
-- Corrigé : skis couchés sur la carre puis à l'envers, ski droit flottant dans la chaussure, talon dans la talonnière ; bâtons à travers le buste, les cuisses, les tibias, les avant-bras et les skis ; avant-bras dans les cuisses et les tibias ; jambes croisées en grand virage ; pantalon sortant de la veste aux hanches ; gant étiré derrière le bâton en chute ; bâton envolé à travers la tête ; avant-bras marron.
-- Tests : 144 unitaires, 20 e2e réussis (8 ignorés, comme avant), lint et build propres. `clipCheck.ts` reste hors du build de production.
-- Restes : contacts brefs en chute et dans un tuck juste après une réception ; plis internes du tissu ; un triangle de l'ourlet étiré ×2,7 dans les poses extrêmes (point 121).
-- Pièges : `teleport` et `load` recréent l'objet du ralenti (`game.slowmo`) ; pour figer le jeu, accrocher son prototype. Les tests e2e réécrivent `docs/captures/e2e-*.jpg` : les restaurer avant un commit.
-- Perf : le solveur du joueur passe de 0,03 à 0,26-0,33 ms par image sur ce Mac (point 117).
-- Pas vérifié : un vrai téléphone ; `perf.mjs` n'a pas été relancé.
-
-## Session 5 (20/11/2026) : skieur réaliste
-
-Branche `skieuse` (partie de `neige-son-tete`, déjà en production). « Skiing Lady » (CC BY 4.0) intégrée comme skieur du joueur, pilotée par notre squelette, 8 tenues. Fichiers : `public/models/skier-{high,low}.glb` (refaits par `node scripts/build-avatar.mjs`, source dans `scripts/raw/skiing_lady.glb`, hors git). DECISIONS.md, point 113.
-
-- Palier bas, Pixel 7 émulé : Rousses 274 k / 51, Avoriaz 328 k / 31, village 248 k / 48. 144 tests unitaires, 20 e2e.
-- Rectification : le message du commit d7516f2 (« poigne, bras et skis ») annonce « e2e 20 réussis ». C'est inexact : le passage lancé juste avant a donné 1 échec (test instable, nom non relevé), puis trois passages suivants ont donné 20 réussis sur 20. Le message n'a pas été réécrit (réécriture d'historique refusée).
-- Pièges : `scripts/hero-shot.mjs <sortie> <palier> [body|head] [tenue]` pour juger le personnage ; la capture « vue-piste » peut tomber sur une chute du bot. La résolution adaptative ne remonte jamais à 60 Hz (seuil de 14,5 ms) : toute saccade la fait baisser pour la session.
-
 ## Session 4 (15/11/2026, autonomie) : refonte visuelle 3
 
 Branche `refonte-visuelle-3`, partie de `refonte-visuelle-2` (non fusionnée dans `main`). On peut pousser la branche de travail (prévisualisation Vercel), jamais `main`. Points : 1 touches PC, 2 personnage réaliste, 3 collisions, 4 barrières, 5 modèles variés.

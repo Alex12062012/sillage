@@ -1,5 +1,5 @@
 import './style.css';
-import { NeutralToneMapping, WebGLRenderer, type SkinnedMesh } from 'three';
+import { NeutralToneMapping, WebGLRenderer } from 'three';
 import { autoTier as autoTierOf } from './core/tier';
 import { Game } from './game';
 import type { SkierInput } from './sim/skier';
@@ -393,7 +393,6 @@ function loop(now: number): void {
   miniMap.update(dt);
   if (mode === 'run' || mode === 'attract') {
     if (dt > 0.022) { slow += dt > 0.033 ? 2 : 1; fast = 0; } else if (dt < 0.0145) { fast++; slow = Math.max(0, slow - 1); }
-    if (game.assetsLoading()) slow = 0; // the realistic skier being prepared: not the device being slow
     // Auto: still slow at half resolution, one tier down (a chosen tier is kept)
     if (slow > 60 && qualityScale <= 0.5 && save.settings.quality === 'auto' && tier !== 'low') { autoTier = tier === 'high' ? 'medium' : 'low'; qualityScale = 0.8; slow = 0; applySettings(); }
     if (slow > 60 && qualityScale > 0.5) { qualityScale = Math.max(0.5, qualityScale - (dt > 0.033 ? 0.15 : 0.1)); slow = 0; applySettings(); }
@@ -465,13 +464,6 @@ if (import.meta.env.MODE !== 'production') window.__sillage = {
   raw: () => game,
   tier: () => tier,
   photo: (p: { x: number; z: number; up: number; yaw: number; pitch: number; fov?: number } | null) => { game.photo = p; },
-  /** Debug: where the realistic skier passes through herself in the current pose (magenta dots). Test build only. */
-  clip: async (markers = true, focus?: string) => {
-    const a = ((game as unknown as { model: unknown }).model as { avatar: { mesh: SkinnedMesh; follow: Int8Array } | null }).avatar;
-    if (!a) return null;
-    const { clipCheck } = await import('./render/clipCheck');
-    return clipCheck(a.mesh, a.follow, markers, focus);
-  },
   /** Debug: the colliders within `radius` m of (x, z) as red outlines (null: off). Test build only. */
   colliders: async (at: { x: number; z: number; radius?: number } | null) => {
     const old = game.scene.getObjectByName('colliders');
