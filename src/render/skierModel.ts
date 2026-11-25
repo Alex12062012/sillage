@@ -534,8 +534,8 @@ export class SkierModel {
       const sg = i === 0 ? 1 : -1;
       const shp = this.shoulder[i].set(SHOULDER.x * sg, SHOULDER.y, SHOULDER.z).applyQuaternion(this.qT).add(this.chest);
       const inside = i === ins ? 1 : 0;
-      // stance: forward and wide; carving: outside hand low and forward, inside hand forward and up
-      v1.set(sg * 0.24, -0.36 + ef * (inside ? 0.14 : -0.1), 0.36 + ef * (inside ? 0.05 : 0.12));
+      // stance: relaxed park stance, hands low by the hips; carving: outside hand low and forward, inside hand forward and up
+      v1.set(sg * 0.2, -0.44 + ef * (inside ? 0.14 : -0.1), 0.24 + ef * (inside ? 0.05 : 0.12));
       v1.y += 0.06 * this.armFwd.x;
       v1.z += 0.2 * this.armFwd.x;
       v1.lerp(v2.set(sg * 0.48, -0.1, 0.18), this.armOut.x); // balance: arms out
@@ -563,7 +563,7 @@ export class SkierModel {
       this.wrist[i].subVectors(tg, this.elbow[i]).normalize().multiplyScalar(FOREARM).add(this.elbow[i]);
 
       // poles: back and down, tip clear of the snow; under the arms in the tuck; planted on the snow ahead / in the push
-      const pd = this.poleDir[i].set(sg * 0.3, -0.62, -0.72).applyQuaternion(this.qU).normalize();
+      const pd = this.poleDir[i].set(sg * 0.18, -0.62, -0.72).applyQuaternion(this.qU).normalize();
       if (this.grip[i].y + pd.y * POLE < 0.05) snowPole(pd, this.grip[i], pd.x, pd.z, 0.05);
       if (ak > 0) pd.lerp(v1.set(sg * 0.4, -0.5, -0.6).applyQuaternion(this.qU), ak);
       if (tk > 0) pd.lerp(v1.set(sg * 0.07, 0.18, -1).applyQuaternion(this.qU), tk);

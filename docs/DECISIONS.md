@@ -333,3 +333,10 @@ Les 19 défauts signalés ont été vérifiés un par un puis corrigés. Les pri
     - Tête refaite : un visage modelé sous le masque (mâchoire qui s'affine vers le menton, menton un peu avancé, pommettes, nez tiré sous le cadre du masque, ligne de la bouche) à la place de la cagoule ; le tour de cou baissé autour du cou ; le col de la veste ouvert sous le menton (il cachait tout le bas du visage) ; un casque avec protège-oreilles, deux aérations grises et un clip de masque à l'arrière ; un masque plus haut et plus large ; la sangle posée sur la coque (elle la traversait, d'où des dents de scie sombres).
     - `scripts/hero-shot.mjs <sortie> <palier> head` fait un portrait visé sur l'os de la tête.
     - Triangles du personnage : 6 876 en bas, 10 712 en moyen, 17 552 en élevé. Le budget de 10 k au palier bas est tenu. Palier bas, Pixel 7 émulé, hors ligne : Rousses 272 k / 52, Avoriaz 326 k / 32, village 252 k / 51.
+113. **Skieur au look « park » (25/11/2026).** Demande : un personnage dans l'esprit de celui de cork7.com. Copier leur modèle n'est pas permis : on a observé le jeu (vues de dos, virages, saut) et repris des traits génériques sur notre skieur fait en code (`skierHero.ts`), sans aucun fichier venant de chez eux.
+    - Veste ample et longue, sans matelassage, son ourlet droit sur l'assise ; une partie de l'ourlet suit le bassin pour que les cuisses fléchies restent dessous.
+    - Bande de contraste à mi-poitrine, prolongée sur les manches, dans la couleur du pantalon : chaque tenue a son deux-tons sans emplacement de couleur en plus.
+    - Capuche baissée et ramassée derrière la nuque ; casque mat.
+    - Pantalon large et droit qui tombe sur les chaussures ; skis twin-tip (spatule arrière relevée).
+    - Posture plus relâchée : mains plus basses et plus près des hanches, bâtons plus serrés (`skierModel.ts`, ce réglage vaut aussi pour la foule).
+    - Pas fait : la foule garde le modèle léger (`skierMesh.ts`) ; triangles et `perf.mjs` non remesurés ; `clip()` n'existe plus depuis le retrait de la skieuse, le croisement des pièces en tuck et en chute n'a été vérifié qu'à l'œil.

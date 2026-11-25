@@ -9,9 +9,9 @@ import { B, FOREARM, POLE, S, SHIN, THIGH, UPPER_ARM } from './skierMesh';
 /**
  * The player's skier, built in code on the same 20-bone skeleton as the crowd's (skierMesh.ts), so the pose solver,
  * the anchors and the feel are untouched (DECISIONS.md, point 106). Smooth turned silhouettes instead of capsules:
- * hips and a fitted jacket with hem, pockets, zip, high collar and rolled hood; sleeves with elbows and cuffs; gloves
- * with gauntlet, palm, curled fingers and thumb; pants with knees and boot gaiters; four-buckle boots with power strap;
- * helmet with its brim, goggles with frame and strap, a balaclava; quilted jacket and sleeves; waisted rockered skis with
+ * hips and a loose park jacket (long hem over the seat, contrast band, pockets, zip, collar, hood down); roomy sleeves
+ * with cuffs; gloves with gauntlet, palm, curled fingers and thumb; baggy pants falling over four-buckle boots; helmet
+ * with its brim, goggles with frame and strap, a balaclava; waisted twin-tip skis with
  * bindings; tapered poles with grips, straps and baskets. PBR: roughness and metalness per vertex (see heroMaterial).
  * `detail`: segments around each part (low 10, medium 14, high 20): ≤ 10 k triangles on low, ≤ 30 k on high.
  */
@@ -21,7 +21,7 @@ interface Part { g: BufferGeometry; bone: number; slot: number }
 
 /** Roughness and metalness of each colour slot (fabric matte, shells glossy, buckles and shafts metal). */
 const PBR: Record<number, [number, number]> = {
-  [S.jacket]: [0.72, 0], [S.pants]: [0.86, 0], [S.helmet]: [0.28, 0], [S.skis]: [0.32, 0], [S.jacketDark]: [0.8, 0],
+  [S.jacket]: [0.72, 0], [S.pants]: [0.86, 0], [S.helmet]: [0.6, 0], [S.skis]: [0.32, 0], [S.jacketDark]: [0.8, 0],
   [S.pantsDark]: [0.9, 0], [S.glove]: [0.62, 0], [S.boot]: [0.3, 0], [S.buckle]: [0.32, 0.85], [S.skin]: [0.55, 0],
   [S.metal]: [0.35, 0.9], [S.base]: [0.55, 0], [S.binding]: [0.4, 0.3], [S.strap]: [0.82, 0], [S.lensTop]: [0.1, 0.6], [S.lensBottom]: [0.1, 0.6],
 };
@@ -45,39 +45,27 @@ export function buildHeroGeometry(tier: Tier): { geometry: BufferGeometry; slots
     put(body, g, bone, slot, x, y, z, sx, sy, sz, rx, ry, rz);
   /** A turned shape around +y from a profile of [radius, height] points (closed when it starts and ends at r 0). */
   const lathe = (pts: [number, number][], seg = n) => new LatheGeometry(pts.map(([r, y]) => new Vector2(r, y)), seg);
-  /**
-   * A down jacket's quilting: the profile cut into rows every ~1.7 cm, its radius swelling between seams `pitch` apart
-   * (horizontal baffles; ±1.6 % of the radius). The ends (radius 0) stay closed.
-   */
-  const quilt = (pts: [number, number][], pitch: number): [number, number][] => {
-    const out: [number, number][] = [];
-    for (let k = 0; k < pts.length - 1; k++) {
-      const [r0, y0] = pts[k], [r1, y1] = pts[k + 1], rows = Math.max(1, Math.round(Math.abs(y1 - y0) / 0.017));
-      for (let i = 0; i < rows; i++) {
-        const t = i / rows, r = r0 + (r1 - r0) * t, y = y0 + (y1 - y0) * t;
-        out.push([r > 0.02 ? r * (0.984 + 0.032 * Math.sin((Math.PI * y) / pitch) ** 2) : r, y]);
-      }
-    }
-    out.push(pts[pts.length - 1]);
-    return out;
-  };
   const sphere = (r: number, w = n, h = Math.max(6, Math.round(n * 0.7))) => new SphereGeometry(r, w, h);
   const cyl = (rTop: number, rBot: number, h: number, seg = n, open = false, t0 = 0, tl = Math.PI * 2) => new CylinderGeometry(rTop, rBot, h, seg, 1, open, t0, tl);
   const box = (x: number, y: number, z: number) => new BoxGeometry(x, y, z);
 
   // ── pelvis: seat and hips in the pants, a little flatter front to back
   add(lathe([[0, -0.11], [0.09, -0.1], [0.15, -0.06], [0.172, 0.0], [0.168, 0.06], [0.152, 0.11], [0, 0.12]]), B.pelvis, S.pants, 0, 0.01, -0.012, 1, 1, 0.82);
-  // ── abdomen: the jacket's lower body, its hem a little flared, two hand pockets with zips
-  add(lathe(quilt([[0, -0.06], [0.178, -0.06], [0.184, -0.03], [0.168, 0.04], [0.162, 0.12], [0.17, 0.22], [0, 0.23]], 0.075)), B.spine, S.jacket, 0, 0, 0, 1.06, 1, 0.8);
-  add(cyl(0.186, 0.19, 0.035, n, true), B.spine, S.jacketDark, 0, -0.045, 0, 1.06, 1, 0.81);
-  for (const x of [-1, 1]) add(box(0.012, 0.11, 0.008), B.spine, S.jacketDark, x * 0.12, 0.06, 0.128, 1, 1, 1, 0.1, 0, x * 0.35);
+  // ── abdomen: a loose park jacket, long enough to cover the seat, straight hem, two hand pockets with zips
+  add(lathe([[0, -0.13], [0.225, -0.13], [0.22, -0.09], [0.198, -0.02], [0.186, 0.1], [0.19, 0.22], [0, 0.23]]), B.spine, S.jacket, 0, 0, -0.01, 1.06, 1, 0.88);
+  add(cyl(0.226, 0.229, 0.03, n, true), B.spine, S.jacketDark, 0, -0.115, -0.01, 1.06, 1, 0.89);
+  // the hem's lower part rides on the pelvis, so the flexed thighs stay under the jacket instead of poking through it
+  add(lathe([[0.19, 0.12], [0.21, 0.04], [0.222, -0.04], [0.226, -0.07]]), B.pelvis, S.jacket, 0, 0, -0.012, 1.06, 1, 0.9);
+  add(cyl(0.228, 0.23, 0.026, n, true), B.pelvis, S.jacketDark, 0, -0.065, -0.012, 1.06, 1, 0.91);
+  for (const x of [-1, 1]) add(box(0.012, 0.12, 0.008), B.spine, S.jacketDark, x * 0.13, -0.02, 0.158, 1, 1, 1, 0.1, 0, x * 0.35);
   // ── chest: a fitted puffy jacket, shoulders, the zip, a chest pocket, the high collar and the rolled hood
-  add(lathe(quilt([[0, -0.03], [0.17, -0.03], [0.2, 0.04], [0.214, 0.12], [0.206, 0.2], [0.17, 0.26], [0.1, 0.29], [0, 0.29]], 0.075)), B.chest, S.jacket, 0, 0, 0.004, 1.06, 1, 0.74);
-  for (const x of [-1, 1]) add(sphere(0.085), B.chest, S.jacket, x * 0.168, 0.196, -0.008, 1, 0.92, 1);
+  add(lathe([[0, -0.03], [0.19, -0.03], [0.218, 0.04], [0.23, 0.12], [0.222, 0.2], [0.18, 0.26], [0.1, 0.29], [0, 0.29]]), B.chest, S.jacket, 0, 0, 0.004, 1.06, 1, 0.76);
+  for (const x of [-1, 1]) add(sphere(0.092), B.chest, S.jacket, x * 0.172, 0.196, -0.008, 1, 0.92, 1);
+  add(cyl(0.232, 0.226, 0.09, n, true), B.chest, S.pants, 0, 0.07, 0.004, 1.06, 1, 0.77); // contrast band, in the pants colour
   add(box(0.014, 0.27, 0.01), B.chest, S.jacketDark, 0, 0.12, 0.158, 1, 1, 1, -0.16);
   add(box(0.09, 0.008, 0.008), B.chest, S.buckle, 0.085, 0.17, 0.15, 1, 1, 1, -0.2, 0, -0.08);
   add(lathe([[0.09, 0], [0.094, 0.03], [0.09, 0.05], [0.084, 0.055]], n), B.chest, S.jacketDark, 0, 0.255, -0.008); // the collar, open under the chin
-  add(new TorusGeometry(0.085, 0.03, 6, n, Math.PI * 1.1), B.chest, S.jacketDark, 0, 0.31, -0.04, 1, 1, 0.9, Math.PI / 2 + 0.25, 0, Math.PI * -0.05);
+  add(sphere(0.12), B.chest, S.jacket, 0, 0.29, -0.11, 1.2, 0.95, 0.75, -0.35); // the hood, down and bunched behind the neck
   // ── head: a modelled face under the goggles (jaw, chin, cheekbones, nose, the mouth's line), the neck gaiter rolled
   // down round the neck, the helmet with ear pads, vents and the goggle clip, wide goggles with frame and strap
   add(cyl(0.046, 0.05, 0.08, Math.max(8, n - 4), true), B.head, S.skin, 0, 0.03, 0.006); // the neck
@@ -94,10 +82,11 @@ export function buildHeroGeometry(tier: Tier): { geometry: BufferGeometry; slots
   put(lens, cyl(0.128, 0.128, 0.06, n, true, -0.32 * Math.PI, 0.64 * Math.PI), B.head, S.lensTop, 0, 0.154, 0.008, 1, 1, 1.07);
   // ── arms: sleeves narrowing to the elbow and the cuff; gloves: gauntlet, palm, fingers curled round the grip, thumb
   for (const [up, fore, hand] of [[B.upperArmL, B.forearmL, B.handL], [B.upperArmR, B.forearmR, B.handR]]) {
-    add(lathe(quilt([[0, -0.03], [0.06, -0.025], [0.068, 0.04], [0.064, 0.15], [0.058, UPPER_ARM - 0.02], [0, UPPER_ARM + 0.02]], 0.065)), up, S.jacket);
-    add(sphere(0.056), fore, S.jacket, 0, 0.0, -0.004);
-    add(lathe([[0.056, 0], [0.057, 0.08], [0.052, FOREARM - 0.06], [0.05, FOREARM - 0.03], [0, FOREARM - 0.02]]), fore, S.jacket);
-    add(cyl(0.061, 0.058, 0.045, n, true), fore, S.jacketDark, 0, FOREARM - 0.035, 0);
+    add(lathe([[0, -0.03], [0.068, -0.025], [0.076, 0.04], [0.072, 0.15], [0.066, UPPER_ARM - 0.02], [0, UPPER_ARM + 0.02]]), up, S.jacket);
+    add(cyl(0.078, 0.077, 0.09, n, true), up, S.pants, 0, 0.13, 0); // the band carries on round the sleeve
+    add(sphere(0.064), fore, S.jacket, 0, 0.0, -0.004);
+    add(lathe([[0.064, 0], [0.064, 0.08], [0.058, FOREARM - 0.06], [0.055, FOREARM - 0.03], [0, FOREARM - 0.02]]), fore, S.jacket);
+    add(cyl(0.062, 0.06, 0.045, n, true), fore, S.jacketDark, 0, FOREARM - 0.035, 0);
     add(lathe([[0.058, -0.03], [0.054, 0.02], [0.046, 0.04], [0, 0.045]]), hand, S.glove, 0, 0, 0);
     add(sphere(0.042), hand, S.glove, 0, 0.06, 0.006, 1.1, 0.95, 0.9);
     add(new TorusGeometry(0.03, 0.021, 6, Math.max(6, n - 4), Math.PI * 1.2), hand, S.glove, 0, 0.075, 0.012, 1.15, 1, 1, 0, Math.PI / 2, -0.3);
@@ -113,10 +102,10 @@ export function buildHeroGeometry(tier: Tier): { geometry: BufferGeometry; slots
   }
   // ── legs: thighs, knees, shins in the pants, gaiters over the boots; boots: upper cuff, four buckles, power strap
   for (const [thigh, shin, foot] of [[B.thighL, B.shinL, B.footL], [B.thighR, B.shinR, B.footR]]) {
-    add(lathe([[0, -0.04], [0.088, -0.03], [0.098, 0.06], [0.092, 0.2], [0.08, THIGH - 0.06], [0.074, THIGH - 0.01], [0, THIGH + 0.02]]), thigh, S.pants, 0, 0, 0.004, 1, 1, 1.06);
-    add(sphere(0.074), shin, S.pants, 0, 0.0, 0.016, 1, 1, 1.08);
-    add(lathe([[0.076, 0], [0.078, 0.08], [0.072, 0.16], [0.07, 0.22], [0.088, 0.25], [0.094, 0.29], [0.086, 0.3]]), shin, S.pants, 0, 0, 0.004);
-    add(cyl(0.095, 0.09, 0.03, n, true), shin, S.pantsDark, 0, 0.285, 0.004);
+    add(lathe([[0, -0.04], [0.1, -0.03], [0.11, 0.06], [0.104, 0.2], [0.094, THIGH - 0.06], [0.088, THIGH - 0.01], [0, THIGH + 0.02]]), thigh, S.pants, 0, 0, 0.004, 1, 1, 1.06);
+    add(sphere(0.088), shin, S.pants, 0, 0.0, 0.016, 1, 1, 1.08);
+    add(lathe([[0.09, 0], [0.092, 0.1], [0.094, 0.22], [0.098, 0.32], [0.106, SHIN - 0.01], [0.1, SHIN + 0.005]]), shin, S.pants, 0, 0, 0.006); // baggy leg down over the boot
+    add(cyl(0.107, 0.104, 0.02, n, true), shin, S.pantsDark, 0, SHIN - 0.01, 0.006);
     add(lathe([[0.072, 0.27], [0.08, 0.3], [0.078, SHIN - 0.02], [0.084, SHIN + 0.01], [0.07, SHIN + 0.02]]), shin, S.boot, 0, 0, 0.006);
     add(box(0.13, 0.03, 0.03), shin, S.strap, 0, 0.3, 0.07);
     for (const y of [0.32, 0.375]) add(box(0.05, 0.014, 0.012), shin, S.buckle, 0.03, y, 0.085, 1, 1, 1, 0, -0.5);
@@ -188,7 +177,7 @@ function face(w: number, h: number): BufferGeometry {
   return g;
 }
 
-/** 1.70 m ski (origin = base under the boot): sidecut, rocker over the last 30 cm of the tip, small tail rise. */
+/** 1.70 m twin-tip (origin = base under the boot): sidecut, rocker over the last 30 cm of the tip, the tail turned up too. */
 function heroSki(tier: Tier): BufferGeometry {
   const g = new BoxGeometry(0.086, 0.016, 1.7, 2, 1, { low: 24, medium: 32, high: 44 }[tier]);
   g.translate(0, 0.008, 0.1);
@@ -196,11 +185,11 @@ function heroSki(tier: Tier): BufferGeometry {
   for (let i = 0; i < pos.count; i++) {
     const z = pos.getZ(i);
     const tip = Math.max(0, (z - 0.65) / 0.3);
-    const tail = Math.max(0, (-0.55 - z) / 0.2);
+    const tail = Math.max(0, (-0.5 - z) / 0.25);
     const waist = 1 - 0.15 * Math.max(0, 1 - Math.abs(z - 0.05) / 0.8);
     const round = tip > 0.85 ? Math.sqrt(Math.max(0, 1 - ((tip - 0.85) / 0.15) ** 2)) : 1; // a rounded shovel
     pos.setX(i, pos.getX(i) * waist * (1 - 0.25 * tip * tip) * (0.35 + 0.65 * round));
-    pos.setY(i, pos.getY(i) * (1 - 0.4 * tip) + 0.1 * tip * tip + 0.035 * tail * tail);
+    pos.setY(i, pos.getY(i) * (1 - 0.4 * tip) + 0.1 * tip * tip + 0.075 * tail * tail);
   }
   g.computeVertexNormals();
   return g.toNonIndexed();
