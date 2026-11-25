@@ -342,7 +342,7 @@ export class SkierModel {
     this.flipK.to(flipping && !spot ? 1 : 0, 3, 0.8, d);
     this.lift.to(air && !spot ? (flipping ? 0.5 : s.grab ? 0.42 : 0.14) : 0, 3.2, 0.6, d);
     this.brakeK.to(braking ? Math.min(1, speed / 3) : 0, 3, 0.9, d);
-    this.armOut.to(air || crashed ? 1 : braking ? 0.8 : 0, 2.2, 0.5, d);
+    this.armOut.to(air || crashed ? 1 : braking ? 0.25 : 0, 2.2, 0.5, d);
     this.spinLead.to(air ? clamp(s.spinVel * 0.11, -0.9, 0.9) : 0, 2.5, 0.6, d);
     this.armFwd.to(0, 2.5, 0.45, d);
     this.dragK.to(drag ? 1 : 0, 3, 0.8, d);
